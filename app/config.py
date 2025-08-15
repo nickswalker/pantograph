@@ -62,8 +62,10 @@ class Config:
     # Site configuration
     CANONICAL_URL = get_secret('CANONICAL_URL')  # e.g. 'https://pantograph.example.com'
 
-    # Email configuration
-    RESEND_API_KEY = get_secret('RESEND_API_KEY')
+    # Email configuration - AWS SES
+    AWS_ACCESS_KEY_ID = get_secret('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = get_secret('AWS_SECRET_ACCESS_KEY')
+    AWS_REGION = get_secret('AWS_REGION')
 
     # Upload configuration
     UPLOAD_FOLDER = './uploads'

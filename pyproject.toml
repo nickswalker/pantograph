@@ -15,5 +15,5 @@ dependencies = [
     "pillow",
     "pillow-heif",
     "passlib[argon2]",
-    "resend",
+    "boto3",
 ]

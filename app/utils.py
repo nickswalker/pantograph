@@ -4,7 +4,7 @@ import json
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 from app.config import Config
-import resend
+import boto3
 
 
 def format_hh_mm_from_seconds(total_seconds):
@@ -271,7 +271,13 @@ def send_email_with_logging(notification_type, recipient_user, subject, template
     )
 
     try:
-        resend.api_key = Config.RESEND_API_KEY
+        # Initialize SES client
+        ses_client = boto3.client(
+            'ses',
+            aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY,
+            region_name=Config.AWS_REGION
+        )
 
         context = {
             'contact_email': Config.CONTACT_EMAIL,
@@ -282,17 +288,28 @@ def send_email_with_logging(notification_type, recipient_user, subject, template
 
         email_html = render_template(f'emails/{template_name}.html', **context)
 
-        params = {
-            "from": f"{Config.APPLICATION_NAME} <{Config.NOTIFICATION_EMAIL}>",
-            "to": [recipient_user.email],
-            "reply_to": [Config.CONTACT_EMAIL],
-            "subject": subject,
-            "html": email_html,
-        }
         # Don't send email unless we're in production
         if os.getenv("FLASK_ENV") == 'production':
-            email = resend.Emails.send(params)
-            log_entry.email_id = email["id"]
+            response = ses_client.send_email(
+                Source=f"{Config.APPLICATION_NAME} <{Config.NOTIFICATION_EMAIL}>",
+                Destination={
+                    'ToAddresses': [recipient_user.email]
+                },
+                ReplyToAddresses=[Config.CONTACT_EMAIL],
+                Message={
+                    'Subject': {
+                        'Data': subject,
+                        'Charset': 'UTF-8'
+                    },
+                    'Body': {
+                        'Html': {
+                            'Data': email_html,
+                            'Charset': 'UTF-8'
+                        }
+                    }
+                }
+            )
+            log_entry.email_id = response['MessageId']
         else:
             logging.info(f"Not sending email in development mode: {subject} to {recipient_user.email}")
         logging.info(f"Email to {recipient_user.email} sent with subject: {subject}")
