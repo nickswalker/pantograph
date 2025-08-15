@@ -149,7 +149,7 @@ const imagesWithCoordinates = [
     {% if image.gps_coordinates %}
       {
         imageUrl: '{{ url_for("teams_public.serve_image", team_id=team.id, filename=image.filename) }}',
-        filename: '{{ image.original_filename }}',
+        filename: {{ image.original_filename|tojson }},
         lat: {{ image.gps_coordinates[0] | float }},
         lng: {{ image.gps_coordinates[1] | float }}
       },
@@ -249,7 +249,7 @@ fileInput.addEventListener('change', async function(event) {
       <div class="card">
         <img src="" class="card-img-top" style="max-width: 100%; max-height: 200px; object-fit: contain; object-position: center;">
         <div class="card-body">
-          <h5 class="card-title">${file.name}</h5>
+          <h5 class="card-title"></h5>
           <p class="card-text">
             <strong>Capture Time:</strong> <span class="captureTime">None</span><br>
             <strong>GPS Coordinates:</strong> <span class="gpsCoordinates">None</span>
@@ -258,6 +258,7 @@ fileInput.addEventListener('change', async function(event) {
         </div>
       </div>
     `;
+    previewElement.querySelector('.card-title').textContent = file.name;
     imagePreviewContainer.appendChild(previewElement);
 
     reader.onload = function(e) {
