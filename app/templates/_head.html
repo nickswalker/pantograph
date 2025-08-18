@@ -254,7 +254,10 @@ window.deleteUser = async function(userId) {
     window.goatcounter = {
         path: function (p) {
             p =  p.replace(
-          /\/(?:user|team|admin\/team|gallery)\/[a-zA-Z0-9_-]{8,}|(?<=invite_token=)[a-zA-Z0-9_-]+/g,
+          /\/(user|team|admin\/team|gallery)\/[a-zA-Z0-9_-]{8,}/g,
+          '/$1/<private_identifier>'
+      ).replace(
+          /(?<=invite_token=)[a-zA-Z0-9_-]+/g,
           '<private_identifier>'
       );
 
