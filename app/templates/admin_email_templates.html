@@ -32,6 +32,10 @@
                             <ion-icon name="eye-outline" class="me-1"></ion-icon>
                             Preview Template
                         </a>
+                        <button class="btn btn-outline-success" onclick="sendTestEmail('{{ template.name }}', '{{ template.display }}')">
+                            <ion-icon name="mail-outline" class="me-1"></ion-icon>
+                            Send Test Email
+                        </button>
                     </div>
                 </div>
             </div>
@@ -44,5 +48,44 @@
         <strong>Note:</strong> These previews use sample data to show how emails will appear to users.
         The actual emails sent will use real user and team data.
     </div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module">
+import { api } from '{{ url_for("static", filename="js/api-client.js") }}';
+
+window.sendTestEmail = async function(templateName, templateDisplay) {
+    const button = event.target.closest('button');
+    const originalContent = button.innerHTML;
+    
+    // Show loading state
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Sending...';
+    
+    try {
+        const response = await fetch(`{{ url_for('admin.send_test_email', template_name='TEMPLATE_PLACEHOLDER') }}`.replace('TEMPLATE_PLACEHOLDER', templateName), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            api.showToast(`Test email "${templateDisplay}" sent successfully!`, 'success');
+        } else {
+            api.showToast(result.error || 'Failed to send test email', 'danger');
+        }
+    } catch (error) {
+        api.showToast('Failed to send test email: ' + error.message, 'danger');
+    } finally {
+        // Reset button
+        button.disabled = false;
+        button.innerHTML = originalContent;
+    }
+}
+</script>
 {% endblock %}
 

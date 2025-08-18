@@ -202,3 +202,38 @@ def raw_email_template(template_name):
         import logging
         logging.error(f"Error rendering template '{template_name}': {str(e)}")
         return f"Error rendering template '{template_name}'", 500
+
+
+@admin.route('/email-templates/<template_name>/send-test', methods=['POST'])
+@admin_required
+def send_test_email(template_name):
+    """Send a test email with sample data to the current admin user"""
+    try:
+        from app.email_preview import get_sample_data_for_template, get_sample_subject_for_template
+        from app.utils import send_email_with_logging
+        from app.models import NotificationType
+
+        # Get sample data for this template
+        sample_data = get_sample_data_for_template(template_name)
+        subject = f"[TEST] {get_sample_subject_for_template(template_name)}"
+
+        # Send test email to current admin user
+        send_email_with_logging(
+            notification_type=NotificationType.EVENT_UPDATE,  # Use a generic type for test emails
+            recipient_user=current_user,
+            subject=subject,
+            template_name=template_name,
+            template_context=sample_data,
+            related_team=None,
+            metadata={'test_email': True, 'template_name': template_name}
+        )
+
+        return jsonify({
+            'success': True,
+            'message': f'Test email sent to {current_user.email}'
+        }), 200
+
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to send test email for template '{template_name}': {str(e)}")
+        return jsonify({'error': f'Failed to send test email: {str(e)}'}), 500
