@@ -107,21 +107,6 @@
         ]
       }
     },
-  {
-    "type": "Feature",
-    "properties": {
-      "name": "South Graham Street",
-      "id": "159",
-      "stationInfo": "https://www.soundtransit.org/system-expansion/graham-street-station",
-      "open": 2031},
-    "geometry": {
-      "coordinates": [
-        -122.28541,
-        47.54571
-      ],
-      "type": "Point"
-    }
-  },
     {
       "type": "Feature",
       "properties": {

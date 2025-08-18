@@ -2,6 +2,14 @@
 
 {% block title %}Join Team - {{ super() }}{% endblock %}
 
+{% set page_description %}
+  {%- if invited_team -%}
+    Join team '{{ invited_team.name }}' for {{ config.EVENT_NAME }} - complete your registration and set your preferences
+  {%- else -%}
+    Join a team for {{ config.EVENT_NAME }} - browse teams and complete your registration
+  {%- endif -%}
+{% endset %}
+
 {% block content %}
     <div class="row justify-content-center">
         <div class="col-lg-8">
@@ -37,7 +45,7 @@
                     {% if mode == 'preview' %}
                     <div class="alert alert-info mb-4" role="alert">
                         <ion-icon name="information-circle-outline" class="me-1"></ion-icon>
-                        <a href="{{ url_for('auth.login') }}?next={{ url_for('user.create_team') }}" class="alert-link">Sign in</a> to join a team.
+                        <a href="{{ url_for('auth.login') }}?next={{ url_for('user.join_team', **request.args) }}" class="alert-link">Sign in</a> to join a team.
                     </div>
                     {% elif mode == 'edit' %}
                         {% set is_form_disabled = (existing_team and existing_team.status in [TeamStatus.CANCELLED, TeamStatus.WITHDRAWN]) or (existing_membership and existing_membership.status in [TeamMembershipStatus.REMOVED, TeamMembershipStatus.WITHDRAWN]) %}

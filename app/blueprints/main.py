@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, current_app, send_from_directory, jsonify
+from flask import Blueprint, render_template, current_app, send_from_directory, jsonify, make_response
 import os
 
 main = Blueprint('main', __name__)
@@ -40,10 +40,17 @@ def global_stats():
         status=TeamMembershipStatus.ACTIVE
     ).count()
     
-    return jsonify({
+    response = make_response(jsonify({
         'teams': team_count,
         'memberships': membership_count
-    })
+    }))
+    
+    # Add CORS headers
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    
+    return response
 
 
 @main.route('/.well-known/microsoft-identity-association.json')

@@ -291,18 +291,15 @@ def handle_team_registration_post(stations, mode='join'):
         existing_membership = TeamMembership.query.filter_by(user_id=current_user.id, status=TeamMembershipStatus.ACTIVE).first()
 
         # Validation
-        if not team_id:
-            if not invite_token:
-                return jsonify({'error': 'Please select a team'}), 400
-
         team = None
         # Authorize joining the team
         if invite_token:
             team = Team.query.filter_by(invite_token=invite_token).first()
             if not team:
                 return jsonify({'error': 'The invitation link is invalid or has expired.'}), 400
-            if team_id and int(team_id) != team.id:
+            if team_id and team_id != team.id:
                 return jsonify({'error': 'Invitation and selected team do not match.'}), 400
+            # Otherwise, they've got a valid token, so we'll let them join the team.
         else:
             if not team_id:
                  return jsonify({'error': 'Please select a team'}), 400
