@@ -87,10 +87,12 @@ def get_sample_data_for_template(template_name):
     elif template_name == 'captain_transfer':
         team = sample_team
         previous_captain = MockUser("Mike Rodriguez", "mike@example.com")
+        new_captain = MockUser("Alex Chen", "alex@example.com")
         return {
             **base_context,
             'team': team,
             'previous_captain': previous_captain,
+            'new_captain': new_captain,
             'member_count': 8,
         }
 

@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, current_app, send_from_directory, jsonify, make_response
+from markupsafe import Markup
 import os
 
 main = Blueprint('main', __name__)
@@ -59,3 +60,20 @@ def microsoft_identity_association():
     data_dir = os.path.join(current_app.root_path, '..', 'data')
     return send_from_directory(data_dir, 'microsoft-identity-assocation.json', 
                              mimetype='application/json')
+
+
+@main.app_context_processor
+def inject_svg():
+    """Inject SVG helper function for email templates"""
+    def get_svg(filename):
+        try:
+            svg_path = os.path.join(current_app.static_folder, filename)
+            with open(svg_path, 'r') as f:
+                content = f.read()
+                # Strip the XML declaration and add email-friendly styling
+                content = content.replace('<?xml version="1.0" encoding="UTF-8"?>', '')
+                content = content.replace('<svg', '<svg width="16" height="16" style="vertical-align: middle; margin-right: 4px;" aria-hidden="true"')
+                return Markup(content)
+        except FileNotFoundError:
+            return ''
+    return dict(get_svg=get_svg)

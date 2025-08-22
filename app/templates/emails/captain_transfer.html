@@ -8,17 +8,19 @@
     <p>You have been made the new captain of your team for {{ event_name }}.</p>
 
     <div class="team-info">
-        <p><strong>Team:</strong> {{ team.name }}</p>
-        <p><strong>Format:</strong> {{ team.format.value }}</p>
-        <p><strong>Status:</strong> {{ team.status.value.title() }}</p>
-        <p><strong>Current Members:</strong> {{ member_count }}</p>
+        <dl>
+            <dt>Team</dt>
+            <dd>{{ team.name }}</dd>
+            <dt>Format</dt>
+            <dd>{{ team.format.value }}</dd>
+            <dt>Status</dt>
+            <dd>{{ team.status.value.title() }}</dd>
+            <dt>Current Members</dt>
+            <dd>{{ member_count }}</dd>
+            <dt>Captain</dt>
+            <dd>{% if previous_captain %}<del>{{ previous_captain.name }}</del> → {% endif %}{{ new_captain.name }}</dd>
+        </dl>
     </div>
-
-    {% if previous_captain %}
-    <div class="previous-captain">
-        <p><strong>Previous Captain:</strong> {{ previous_captain.name }} has transferred team leadership to you.</p>
-    </div>
-    {% endif %}
 
     {% include 'emails/_captain_responsibilities.html' %}
 
@@ -26,7 +28,7 @@
         <a href="{{ team_url }}" class="btn">Manage Your Team</a>
     </div>
 
-    <p><strong>Next Steps:</strong></p>
+    <h3>Next Steps</h3>
     <ul>
         <li>Review your team roster and member preferences</li>
         <li>Plan your race strategy and runner assignments</li>

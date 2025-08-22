@@ -5,13 +5,19 @@
 {% block header %}Team Created Successfully{% endblock %}
 
 {% block content %}
-    <p>Your team has been created and is now in the system.</p>
+    <p>You created this team:</p>
 
     <div class="team-info">
-        <p><strong>Team Name:</strong> {{ team.name }}</p>
-        <p><strong>Format:</strong> {{ team.format.value }}</p>
-        <p><strong>Estimated Duration:</strong> {{ estimated_duration_display }}</p>
-        <p><strong>Status:</strong> <span class="status-badge status-pending">{{ team.status.value.title() }}</span></p>
+        <dl>
+            <dt>Team Name</dt>
+            <dd>{{ team.name }}</dd>
+            <dt>Format</dt>
+            <dd>{{ team.format.value }}</dd>
+            <dt>Estimated Duration</dt>
+            <dd>{{ estimated_duration_display }}</dd>
+            <dt>Status</dt>
+            <dd><span class="status-badge status-pending">{{ team.status.value.title() }}</span></dd>
+        </dl>
     </div>
 
   {% if not team.previous_baton_serial %}
@@ -27,35 +33,19 @@
         <h3>Next Steps:</h3>
 
         {% if team.format.value == 'Solo' %}
-        <div class="step">
-            <span class="step-number">1</span>
-            <strong>Wait for approval:</strong> Your solo entry is pending admin approval. You'll receive an email once approved.
-        </div>
-        <div class="step">
-            <span class="step-number">2</span>
-            <strong>Review your preferences:</strong> You can update your running preferences anytime from your team page.
-        </div>
-        <div class="step">
-            <span class="step-number">3</span>
-            <strong>Prepare for the event:</strong> Start training and get ready for race day!
-        </div>
+        <ol>
+            <li><strong>Wait for approval:</strong> Your solo entry is pending admin approval. You'll receive an email once approved.</li>
+            <li><strong>Review your preferences:</strong> You can update your preferences anytime from your team page.</li>
+            <li><strong>Prepare for the event:</strong> Start training and get ready for race day!</li>
+        </ol>
         {% else %}
-        <div class="step">
-            <span class="step-number">1</span>
-            <strong>Complete your registration:</strong> As team captain, you need to fill out your running preferences.
-        </div>
-        <div class="step">
-            <span class="step-number">2</span>
-            <strong>Wait for approval:</strong> Your team is pending admin approval. You'll receive an email once approved.
-        </div>
-        <div class="step">
-            <span class="step-number">3</span>
-            <strong>Build your team:</strong> Once approved, invite other runners to join your team.
-        </div>
+        <ol>
+            <li><strong>Complete your registration:</strong> You need to fill out your preferences.</li>
+            <li><strong>Wait for approval:</strong> Your team is pending admin approval. You'll receive an email once approved.</li>
+            <li><strong>Build your team:</strong> Once approved, invite people to join your team.</li>
+        </ol>
         {% endif %}
     </div>
-
-
     {% endif %}
 
     <div class="btn-container">

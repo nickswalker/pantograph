@@ -8,11 +8,15 @@
     <p>Your team registration for {{ event_name }} has been approved.</p>
 
     <div class="team-info">
-        <p><strong>Team:</strong> {{ team.name }}</p>
-        <p><strong>Format:</strong> {{ team.format.value }}</p>
+        <dl>
+            <dt>Team</dt>
+            <dd>{{ team.name }}</dd>
+            <dt>Format</dt>
+            <dd>{{ team.format.value }}</dd>
+        </dl>
     </div>
 
-    <p><strong>Next steps:</strong></p>
+    <p><strong>Next steps</strong></p>
     <ul>
         {% if team.status.value == 'open' %}
         <li>Complete your team roster by inviting additional members</li>

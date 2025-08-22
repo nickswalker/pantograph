@@ -7,15 +7,10 @@
 {% block content %}
     <p>Hello {{ captain_name }},</p>
 
-    <p>{% if new_members|length == 1 %}A new member has joined{% else %}{{ new_members|length }} new members have joined{% endif %} your team!</p>
-
-    <div class="team-info">
-        <p><strong>Team:</strong> {{ team.name }}</p>
-        <p><strong>Total Members:</strong> {{ total_members }}</p>
-    </div>
+    <p>{% if new_members|length == 1 %}A new member has joined{% else %}{{ new_members|length }} new members have joined{% endif %} "{{ team.name }}"!</p>
 
     <div class="member-list">
-        <h3>{% if new_members|length == 1 %}New Member:{% else %}New Members:{% endif %}</h3>
+        <h3>{% if new_members|length == 1 %}New Member{% else %}New Members{% endif %}</h3>
         {% for member in new_members %}
         <div class="member">
             <div class="member-info">

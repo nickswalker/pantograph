@@ -669,6 +669,7 @@ def transfer_captain(team_id, user_id, team):
         context = {
             'team': team,
             'previous_captain': previous_captain,
+            'new_captain': new_captain,
             'member_count': member_count,
             'team_url': url_for('teams.team_members', team_id=team.id, _external=True)
         }

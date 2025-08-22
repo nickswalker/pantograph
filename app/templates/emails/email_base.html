@@ -7,68 +7,255 @@
     <meta name="supported-color-schemes" content="light dark">
     <title>{% block title %}{% endblock %}</title>
     <style>
-        :root {
-            color-scheme: light dark;
+        /* Use native email styling - clean and minimal */
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
         }
-        body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { color: #fff; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-        .content { background-color: #f8f9fa; padding: 20px; border-radius: 0 0 5px 5px; }
-        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-        .btn { display: inline-block; padding: 12px 24px; color: white !important; text-decoration: none; border-radius: 5px; margin: 10px 0; font-weight: bold; background-color: #495057; }
-        .btn-container { text-align: center; margin: 20px 0; }
-        .team-info { background-color: white; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #ccc; }
-        .responsibilities { background-color: white; padding: 15px; border-radius: 5px; margin: 15px 0; }
-        .responsibility { margin-bottom: 10px; padding: 8px 0; border-bottom: 1px solid #eee; }
-        .responsibility:last-child { border-bottom: none; }
-        .responsibility-icon { display: inline-block; width: 25px; height: 25px; color: white; border-radius: 50%; text-align: center; line-height: 25px; margin-right: 10px; font-weight: bold; background-color: #495057; }
-        .previous-captain { background-color: #fff3cd; padding: 10px; border-radius: 4px; border-left: 3px solid #ffc107; margin: 10px 0; }
-        .member-preferences { background-color: white; padding: 15px; border-radius: 5px; margin: 15px 0; }
-        .preference-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
-        .preference-row:last-child { border-bottom: none; }
-        .preference-label { font-weight: bold; color: #666; }
-        .next-steps { background-color: white; padding: 15px; border-radius: 5px; margin: 15px 0; }
-        .member-list { background-color: white; padding: 15px; border-radius: 5px; margin: 15px 0; }
-        .member { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
-        .member:last-child { border-bottom: none; }
-        .member-avatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
-        .member-info { flex-grow: 1; }
-        .member-name { font-weight: bold; margin-bottom: 2px; }
-        .member-details { font-size: 14px; color: #666; }
-        .step { margin-bottom: 10px; padding: 8px 0; }
-        .step-number { display: inline-block; width: 25px; height: 25px; color: white; border-radius: 50%; text-align: center; line-height: 25px; margin-right: 10px; font-weight: bold; background-color: #495057; }
-        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
-        .status-pending { background-color: #ffc107; color: #000; }
-        .alert-warning { background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #ffc107; color: #664d03; }
-        .alert-warning h4 { margin-top: 0; color: #664d03; }
-        .alert-warning p { margin-bottom: 0; }
-        .alert-warning a { color: #523e02; font-weight: bold; }
-        a { color: #007bff; }
+        .header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 14px;
+            color: #666;
+        }
+        .footer p {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin: 0;
+        }
+        .footer .brand {
+            display: inline-flex;
+            align-items: center;
+            text-decoration: none;
+            font-weight: 600;
+            color: inherit;
+        }
+        .link-secondary {
+            color: #6c757d;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #007bff;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-weight: 600;
+        }
+        .btn-container {
+            text-align: center;
+            margin: 25px 0;
+        }
+        .team-info {
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .responsibilities {
+            margin: 20px 0;
+        }
+        .responsibility-icon {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background-color: #007bff;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 24px;
+            margin-right: 10px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .previous-captain {
+            background-color: #fff8e1;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #ffa000;
+            margin: 15px 0;
+        }
+        .member-preferences {
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .preference-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .preference-row:last-child {
+            border-bottom: none;
+        }
+        .preference-label {
+            font-weight: 600;
+            color: #555;
+        }
+        .next-steps {
+            margin: 20px 0;
+        }
+        .member-list {
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .member {
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .member:last-child {
+            border-bottom: none;
+        }
+        .member-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .member-details {
+            font-size: 14px;
+            color: #666;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-pending {
+            background-color: #fff8e1;
+            color: #e65100;
+            border: 1px solid #ffcc02;
+        }
+        .alert-warning {
+            background-color: #fff8e1;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border-left: 4px solid #ffa000;
+        }
+        .alert-warning h4 {
+            margin-top: 0;
+            color: #e65100;
+        }
+        .alert-warning p {
+            margin-bottom: 0;
+        }
+        .alert-warning a {
+            color: #bf360c;
+            font-weight: 600;
+        }
+        a {
+            color: #007bff;
+        }
+        h3 {
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        .team-info h3, .member-preferences h3, .member-list h3 {
+            margin-top: 0;
+        }
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 4px;
+        }
+        dl {
+            margin: 0;
+        }
+        dt {
+            font-weight: 600;
+            color: #555;
+            margin-top: 8px;
+        }
+        dt:first-child {
+            margin-top: 0;
+        }
+        dd {
+            margin: 2px 0 0 0;
+        }
 
         @media (prefers-color-scheme: dark) {
-            body {
-                background-color: #212529;
-                color: #dee2e6;
-            }
-            .content {
-                background-color: #2b3035;
-            }
-            .team-info, .responsibilities, .member-preferences, .next-steps, .member-list {
-                background-color: #343a40;
-                border-left-color: #495057 !important;
-            }
-            .responsibility, .preference-row, .member {
+            .header {
                 border-bottom-color: #495057;
             }
-            .preference-label, .member-details, .footer, .footer a {
+            .footer {
+                border-top-color: #495057;
+                color: #adb5bd;
+            }
+            .footer a {
+                color: #80bfff;
+            }
+            .team-info {
+                border-color: #495057;
+                border-left-color: #80bfff !important;
+            }
+            .member-preferences, .member-list {
+                border-color: #495057;
+            }
+            .preference-row, .member {
+                border-bottom-color: #495057;
+            }
+            .preference-label {
+                color: #adb5bd;
+            }
+            .member-details {
                 color: #adb5bd;
             }
             .previous-captain, .alert-warning {
-                background-color: #332701;
-                border-left-color: #664d03 !important;
-                color: #cca305;
+                background-color: #2d1b00;
+                border-left-color: #ff8f00 !important;
+                color: #ffb74d;
             }
-            .alert-warning h4 { color: #cca305; }
-            .alert-warning a { color: #e0b824; }
+            .alert-warning h4 {
+                color: #ffb74d;
+            }
+            .alert-warning a {
+                color: #ffc947;
+            }
+            .status-pending {
+                background-color: #2d1b00;
+                color: #ffb74d;
+                border-color: #ff8f00;
+            }
+            h3 {
+                color: #dee2e6;
+            }
+            dt {
+                color: #adb5bd;
+            }
+            .link-secondary {
+                color: #868e96 !important;
+            }
             a {
                 color: #80bfff;
             }
@@ -76,7 +263,7 @@
     </style>
 </head>
 <body>
-    <div class="header" style="background-color: {{ header_bg_color|default('#495057') }}; color: {{ header_font_color|default('#ffffff') }}">
+    <div class="header">
         <h1>{% block header %}{% endblock %}</h1>
     </div>
 
@@ -87,8 +274,11 @@
     <div class="footer">
         {% block footer %}
             <p>
-                <a href="{{ url_for('main.index', _external=True) }}">Pantograph</a> | 
-                <a href="{{ event_url }}">{{ event_name }}</a>
+                <a href="{{ url_for('main.index', _external=True) }}" class="brand">
+                    {{ get_svg('favicon.svg') }}
+                    Pantograph
+                </a> |
+                <a href="{{ event_url }}" class="link-secondary">{{ event_name }}</a>
             </p>
         {% endblock %}
     </div>
