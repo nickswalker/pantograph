@@ -31,7 +31,7 @@ def terms_of_service():
 @main.route('/stats')
 def global_stats():
     """Returns global event statistics (unauthenticated endpoint)"""
-    from app.models import Team, TeamMembership, TeamMembershipStatus
+    from app.models import Team, TeamMembership, TeamMembershipStatus, User
     
     # Count total teams
     team_count = Team.query.count()
@@ -41,9 +41,13 @@ def global_stats():
         status=TeamMembershipStatus.ACTIVE
     ).count()
     
+    # Count total users
+    user_count = User.query.count()
+    
     response = make_response(jsonify({
         'teams': team_count,
-        'memberships': membership_count
+        'memberships': membership_count,
+        'users': user_count
     }))
     
     # Add CORS headers
