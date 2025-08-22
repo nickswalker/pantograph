@@ -11,6 +11,19 @@ services:
       - "5001"
     networks:
       - web_network
+
+  pantograph-cron:
+    image: pantograph:latest
+    env_file:
+      - .env
+    build: .
+    volumes:
+      - "./uploads:/app/uploads"
+      - "./data:/app/data"
+    user: root
+    command: ["sh", "-c", "echo '0 7 * * * cd /app && uv run python cron_digest.py >> /var/log/cron.log 2>&1' | crontab - && cron -f"]
+    networks:
+      - web_network
 networks:
   web_network:
     external: true

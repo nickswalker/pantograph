@@ -1,6 +1,9 @@
 FROM python:3.13-slim
 WORKDIR /app
 
+# Install cron for scheduled tasks
+RUN apt-get update && apt-get install -y cron && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user for security
 RUN groupadd -r pantograph && useradd --create-home -r -g pantograph -u 1001 pantograph
 ENV HOME=/home/pantograph
@@ -18,7 +21,7 @@ RUN uv sync --frozen --no-dev --no-cache
 # Copy application code
 COPY app/ app/
 COPY scripts/ scripts/
-COPY wsgi.py ./
+COPY wsgi.py cron_digest.py ./
 
 # Create directories for uploads and data with proper permissions
 RUN mkdir -p uploads data && \
