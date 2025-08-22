@@ -186,7 +186,7 @@
                                         {% if user.active_memberships %}
                                             {% for membership in user.active_memberships %}
                                                 <div class="mb-1">
-                                                    <a href="{{ url_for('teams.team_members', team_id=membership.team.id) }}"
+                                                    <a href="{{ url_for('teams.view_member', team_id=membership.team.id, user_id=user.id) }}"
                                                        target="_blank" class="text-decoration-none">
                                                         {{ membership.team.name }} {% if membership.team.format == TeamFormat.SOLO %}(Solo){% endif %}
                                                     </a>
@@ -213,14 +213,6 @@
                                                 <ion-icon name="ellipsis-horizontal-outline"></ion-icon>
                                             </button>
                                             <ul class="dropdown-menu">
-                                                {% if user.active_memberships %}
-                                                    {% for membership in user.active_memberships %}
-                                                    <li><a class="dropdown-item" href="{{ url_for('teams.view_member', team_id=membership.team.id, user_id=user.id) }}" target="_blank">
-                                                        <ion-icon name="settings-outline" class="me-2"></ion-icon>View {{ membership.team.name }} Preferences
-                                                    </a></li>
-                                                    {% endfor %}
-                                                    <li><hr class="dropdown-divider"></li>
-                                                {% endif %}
                                                 <li><a class="dropdown-item text-danger" href="#" onclick="confirmDeleteUser('{{ user.name }}', '{{ user.id }}')">
                                                     <ion-icon name="trash-outline" class="me-2"></ion-icon>Delete User
                                                 </a></li>
