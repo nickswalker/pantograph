@@ -156,7 +156,7 @@
 
                         {# The password section should only show when the user can actually select a team #}
                         {% if not is_team_selection_disabled %}
-                        <div class="mb-3" id="password-section" style="display: none;">
+                        <div class="mb-4" id="password-section" style="display: none;">
                             <label for="team_password" class="form-label">
                                 <ion-icon name="key" class="me-1"></ion-icon>
                                 Team Password <span class="text-danger">*</span>
@@ -167,8 +167,13 @@
                         {% endif %}
 
 
-
+                        <div class="mb-4">
                         <div class="mb-3">
+                            <h5 class="">
+                                <ion-icon name="options" class="me-2"></ion-icon>
+                                Preferences
+                            </h5>
+                            <p>These will be visible to your teammates to make planning easier.</p>
                             <label for="preferred_miles" class="form-label">
                                 <ion-icon name="footsteps" class="me-1"></ion-icon>
                                 How many miles would you like to run? <span class="text-danger">*</span>
@@ -215,7 +220,7 @@
                             <div class="form-text">Say "yes" if you're happy/confident to navigate. This only matters if your captain is scheduling more than one person per leg.</div>
                         </div>
 
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label for="comments" class="form-label">
                                 <ion-icon name="chatbubble-ellipses" class="me-1"></ion-icon>
                                 Any notes or comments for scheduling?
@@ -223,6 +228,7 @@
                             <textarea class="form-control" id="comments" name="comments" rows="3"
                                       placeholder="Let your captain and team mates know if you have hard constraints that would prevent your participation..." {% if is_form_disabled or mode == 'preview' or mode == 'view' %}disabled{% endif %}>{% if (mode == 'edit' or mode == 'view') and existing_membership %}{{ existing_membership.comments or '' }}{% endif %}</textarea>
                             <div class="form-text">Share any scheduling constraints, preferences, or other relevant information.</div>
+                        </div>
                         </div>
 
 
