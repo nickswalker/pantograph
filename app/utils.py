@@ -6,6 +6,8 @@ from PIL.ExifTags import TAGS, GPSTAGS
 from app.config import Config
 import boto3
 
+from app.models import TeamMembershipStatus
+
 
 def format_hh_mm_from_seconds(total_seconds):
     """Converts total seconds to a HH:MM formatted string."""

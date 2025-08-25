@@ -48,7 +48,7 @@ def get_sample_data_for_template(template_name):
 
     base_context = {
         'contact_email': 'support@example.com',
-        'event_name': 'Light Rail Relay 2025 (Preview)',
+        'event_name': 'Light Rail Relay 2025',
         'event_url': '#event-preview-link',
         'payment_url': '#payment-preview-link',
         'my_preferences_url': '#prefs-preview-link',
