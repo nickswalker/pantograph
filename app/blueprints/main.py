@@ -26,7 +26,7 @@ def privacy_policy():
 @main.route('/terms')
 def terms_of_service():
     """Renders the terms of service page."""
-    return render_template('terms.html', 
+    return render_template('terms.html',
                          contact_email=current_app.config.get('CONTACT_EMAIL'))
 
 
@@ -34,29 +34,31 @@ def terms_of_service():
 def global_stats():
     """Returns global event statistics (unauthenticated endpoint)"""
     from app.models import Team, TeamMembership, TeamMembershipStatus, User
-    
-    # Count total teams
-    team_count = Team.query.count()
-    
+
+    # Count total teams that are open full or closed
+    team_count = Team.query.filter(Team.status.in_([
+        'OPEN', 'FULL', 'CLOSED'
+    ])).count()
+
     # Count total active team memberships
     membership_count = TeamMembership.query.filter_by(
         status=TeamMembershipStatus.ACTIVE
     ).count()
-    
+
     # Count total users
     user_count = User.query.count()
-    
+
     response = make_response(jsonify({
         'teams': team_count,
         'memberships': membership_count,
         'users': user_count
     }))
-    
+
     # Add CORS headers
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-    
+
     return response
 
 
@@ -64,7 +66,7 @@ def global_stats():
 def microsoft_identity_association():
     """Serves Microsoft identity association file for OAuth verification"""
     data_dir = os.path.join(current_app.root_path, '..', 'data')
-    return send_from_directory(data_dir, 'microsoft-identity-assocation.json', 
+    return send_from_directory(data_dir, 'microsoft-identity-assocation.json',
                              mimetype='application/json')
 
 
