@@ -1,6 +1,11 @@
+import datetime
+
 from flask import Blueprint, render_template, current_app, send_from_directory, jsonify, make_response
 from markupsafe import Markup
 import os
+
+from app import Config
+from app.models import TeamMembershipStatus
 
 main = Blueprint('main', __name__)
 
@@ -61,6 +66,43 @@ def global_stats():
 
     return response
 
+@main.route('/results')
+def results():
+    """
+    API endpoint to get times for each exchange based on uploaded images.
+    :return:
+    """
+    # For each team, get the images, grouped by associated exchange
+    from app.models import Team, Image
+    from collections import defaultdict
+    teams = Team.query.all()
+    results = []
+    for team in teams:
+        format = team.format.value
+        team_size = len([m for m in team.memberships if m.status == TeamMembershipStatus.ACTIVE])
+        if team_size == 6:
+            format = 'Competitive'
+        team_data = {
+            'teamName': team.name,
+            "category": format,
+            "teamSize": team_size,
+            'exchangeTimes': {}
+        }
+        images = Image.query.filter_by(team_id=team.id).order_by(Image.capture_time).all()
+        for img in images:
+            if img.associated_exchange_id is not None:
+                img_exchange_id = img.associated_exchange_id if img.associated_exchange_id else img.manual_exchange_id
+                if img_exchange_id in team_data['exchangeTimes']:
+                    # Check if this image is later than the last one for this exchange. We take the latest image
+                    last_img = team_data['exchanges'][img_exchange_id]
+                    if img.capture_time <= last_img['capture_time']:
+                        continue
+                team_data['exchangeTimes'][img_exchange_id] = img.capture_time
+        for exchange_id in team_data['exchangeTimes']:
+            team_data['exchangeTimes'][exchange_id] -= Config.EVENT_START_TIME.astimezone(datetime.UTC).replace(tzinfo=None)
+            team_data['exchangeTimes'][exchange_id] = int(team_data['exchangeTimes'][exchange_id].total_seconds())
+        results.append(team_data)
+    return jsonify(results)
 
 @main.route('/.well-known/microsoft-identity-association.json')
 def microsoft_identity_association():
