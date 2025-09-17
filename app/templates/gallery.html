@@ -4,12 +4,72 @@
 
 {% block head_extra %}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.2/dist/maplibre-gl.css" crossorigin="anonymous">
+<style>
+    :root {
+         --line-1-primary-color: #3DAE2B;
+    }
+          .link-station-label {
+          display: flex;
+          border-radius: 1rem;
+          height: 2rem;
+          font-weight: 500;
+          line-height: 1.4;
+          align-items: center;
+          justify-content: center;
+          padding: 0 3px;
+
+      }
+      .link-station-label.link-station-label-dark {
+          color: white;
+          background-color: rgba(0, 0, 0, 0.85);
+          border: 1px solid #CCC;
+
+      }
+      .link-station-label .line-name {
+          display: inline-block;
+          width: 1.40rem;
+          height: 1.40rem;
+          font-weight: 700;
+          border-radius: .7rem;
+          margin-right: 3px;
+        text-align: center;
+          line-height: 1.0;
+      }
+
+      .link-station-label .line-name.line-name-1 {
+          background-color: var(--line-1-primary-color);
+          color: white;
+      }
+      .link-station-label .link-station-code {
+          padding-right: 4px;
+          font-stretch: condensed;
+      }
+
+      .maplibregl-popup-content {
+          padding: 0;
+
+      }
+      /* Select tip that is sibling of .maplibregl-popup-content > .preview-thumbnail */
+    .maplibregl-popup-anchor-bottom .maplibregl-popup-tip:has(+.maplibregl-popup-content > .preview-thumbnail) {
+          border-top-color: #343a40 !important;
+      }
+    .maplibregl-popup-anchor-top .maplibregl-popup-tip:has(+.maplibregl-popup-content > .preview-thumbnail) {
+        border-bottom-color: #343a40 !important;
+    }
+    .maplibregl-popup-anchor-left .maplibregl-popup-tip:has(+.maplibregl-popup-content > .preview-thumbnail) {
+        border-right-color: #343a40 !important;
+    }
+    .maplibregl-popup-anchor-right .maplibregl-popup-tip:has(+.maplibregl-popup-content > .preview-thumbnail) {
+        border-left-color: #343a40 !important;
+    }
+
+</style>
 {% endblock %}
 
 {% block content %}
 {% include '_team_status_alerts.html' %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1>{{ team.name }} Photos</h1>
+  <h1>{{ team.name }}{% if team.format == TeamFormat.SOLO %}'s{% endif %} Photos</h1>
   {% if permissions.can_access_team(current_user, team) %}
   <div class="dropdown">
     <button class="btn btn-outline-primary dropdown-toggle" type="button" id="shareDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -35,36 +95,70 @@
 
 {% if permissions.can_upload_to_team(current_user, team) %}
 <form id="uploadForm" action="{{ url_for('teams.upload_images', team_id=team.id) }}" method="POST" enctype="multipart/form-data" class="mb-4">
-  <div class="row mt-3 mb-3 align-items-center">
-    <label for="fileInput" class="col-sm-2 col-form-label">Upload Photos:</label>
-    <div class="col-sm-10">
+  <div id="initialDropZone" class="row mt-3 mb-3 align-items-center p-3 border-2 border-dashed rounded transition-colors" style="transition: all 0.2s ease;">
+    <label for="fileInput" class="col-sm-2 col-form-label d-none">Upload Photos:</label>
+    <div class="p-0">
       <div class="input-group">
         <input type="file" class="form-control" id="fileInput" name="files" multiple required>
-        <button type="submit" class="btn btn-primary" id="uploadButton">Upload</button>
+      </div>
+      <div class="mt-2 text-muted small text-center">
+        <ion-icon name="cloud-upload-outline" class="me-1"></ion-icon>
+        Drag and drop images here or click to select files
       </div>
     </div>
   </div>
-  <div id="imagePreviewContainer" class="row mb-3 p-4 border border-primary text-bg-light" style="display: none"></div>
+  <div id="imagePreviewContainer" class="mb-3 p-4 border-2 border-dashed rounded transition-colors bg-light-subtle border border-1 border-secondary" style="display: none; transition: all 0.2s ease;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0">
+        Selected Photos
+      </h5>
+      <button type="submit" class="btn btn-primary" id="uploadButton">
+        <ion-icon name="cloud-upload-outline" class="me-1"></ion-icon>
+        Upload Photos
+      </button>
+    </div>
+    <div id="previewGrid" class="row"></div>
+    <div class="text-center text-muted mt-3">
+      <ion-icon name="add-outline" class="me-1"></ion-icon>
+      Drop more images here or <label for="fileInput" class="text-primary" style="cursor: pointer; text-decoration: underline;">click to add more</label>
+    </div>
+  </div>
 </form>
 {% endif %}
 
 <div class="row">
   {% for image in images %}
     <div class="col-md-3 mb-3">
-      <div class="card">
-      <div class="d-flex justify-content-center text-bg-light spinner-container p-5 d-none" >
-        <div class="spinner-border text-secondary opacity-50" role="status"><span class="visually-hidden">Loading...</span>
-          </div>
-      </div>
-        <img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename) }}" class="card-img-top bg-secondary-subtle" style="height: 200px; object-fit: contain; object-position: center;">
-        <div class="card-body">
-          <h5 class="card-title">{{ image.original_filename }}</h5>
-          <p class="card-text">
-            <strong>Capture Time:</strong> {{ image.capture_time if image.capture_time else 'None' }}<br>
-            <strong>GPS Coordinates:</strong> {% if image.gps_coordinates %}<a href="https://www.google.com/maps?q={{ image.gps_coordinates[0] | float | round(6) }},{{ image.gps_coordinates[1] | float | round(6) }}" target="_blank">({{ image.gps_coordinates[0] | float | round(6) }}, {{ image.gps_coordinates[1] | float | round(6) }})</a>{% else %}None{% endif %}
-          </p>
-          <button class="btn btn-danger delete-button" data-image-id="{{ image.id }}" data-filename="{{ image.original_filename }}">Delete</button>
+      <div class="card position-relative">
+        {% if permissions.can_upload_to_team(current_user, team) %}
+        <button type="button" class="btn-close position-absolute top-0 end-0 m-2 bg-white rounded-circle p-1 delete-button"
+                style="z-index: 10; width: 24px; height: 24px; opacity: 0.7; transition: all 0.2s ease;"
+                data-image-id="{{ image.id }}"
+                data-filename="{{ image.original_filename }}"
+                aria-label="Delete image"
+                onmouseover="this.style.backgroundColor='#dc3545'; this.style.opacity='1'"
+                onmouseout="this.style.backgroundColor='white'; this.style.opacity='0.7'">
+        </button>
+        {% endif %}
+        <div class="d-flex justify-content-center text-bg-light spinner-container p-5 d-none" >
+          <div class="spinner-border text-secondary opacity-50" role="status"><span class="visually-hidden">Loading...</span>
+            </div>
         </div>
+
+          <img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename) }}" class="card-img-top bg-secondary-subtle" style="height: 200px; object-fit: contain; object-position: center;">
+          <div class="card-body">
+
+            <h5 class="card-title">{% if image.exchange_id %}
+            <span class="link-station-label link-station-label-dark d-inline-block" title="{{ exchange_names[image.exchange_id] }}"><span class="line-name line-name-{{ image.exchange_id[0] }}">{{ image.exchange_id[0] }}</span><span class="link-station-code">{{ image.exchange_id[1:] }}</span> </span>
+                  <time datetime="{{ image.capture_time.isoformat() }}Z" title="{{ image.capture_time.strftime('%B %-d, %Y at %I:%M %p') }}" class="format-datetime-tooltip format-as-time-with-seconds">{{ image.capture_time.strftime('%I:%M %p') }} ({{image.capture_time.strftime('%B %-d, %Y')  }})</time>
+            {% endif %} </h5>
+            <p class="card-text">
+                {% if not image.gps_coordinates %}<span class="badge text-bg-warning">No GPS coordinates</span><br/>{% endif %}
+                <span class="small text-muted">{{ image.original_filename }} uploaded by {{ image.uploader.name }} on <time datetime="{{ image.upload_time.isoformat() }}Z" title="{{ image.upload_time.strftime('%B %-d, %Y at %I:%M %p') }}" class="format-datetime-tooltip format-as-date">
+                                            {{ image.upload_time.strftime('%b %-d, %Y') }}
+                                        </time></span>
+            </p>
+          </div>
       </div>
     </div>
   {% endfor %}
@@ -82,12 +176,44 @@
 </div>
 
   <div id="map" style="width: 100%; height: 500px;"></div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteConfirmModalLabel">
+          <ion-icon name="warning-outline" class="me-2 text-danger"></ion-icon>
+          Confirm Deletion
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete <strong id="deleteFileName"></strong>?</p>
+        <div class="alert alert-warning">
+          <ion-icon name="information-circle-outline" class="me-2"></ion-icon>
+          This action cannot be undone. The image will be permanently removed from the gallery.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+          <ion-icon name="trash-outline" class="me-1"></ion-icon>
+          Delete Image
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script type="module">
 import 'maplibre-gl';
 import ExifReader from 'exifreader';
+import * as bootstrap from 'bootstrap';
+import { formatTimes } from '{{ url_for("static", filename="js/utils.js") }}';
+
 import {heicTo} from 'heic-to';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -143,6 +269,52 @@ const map = new maplibregl.Map({
     center: [-122.3321, 47.6062] // Default center [lng, lat]
 });
 
+let geolocate = new maplibregl.GeolocateControl({
+                    positionOptions: {
+                        enableHighAccuracy: true
+                    },
+                    trackUserLocation: true
+                });
+
+map.addControl(geolocate);
+map.addControl(new maplibregl.FullscreenControl());
+
+// Function to calculate thumbnail size based on zoom level
+function calculateThumbnailSize(zoom) {
+    // Linear interpolation between zoom 8 (10px) and zoom 18 (400px)
+    const minZoom = 12;
+    const maxZoom = 20;
+    const minSize = 36;
+    const maxSize = 400;
+
+    // Clamp zoom to our range
+    const clampedZoom = Math.max(minZoom, Math.min(maxZoom, zoom));
+
+    // Calculate size using linear interpolation
+    const size = minSize + (maxSize - minSize) * ((clampedZoom - minZoom) / (maxZoom - minZoom));
+    return Math.round(size);
+}
+
+// Function to update all thumbnail sizes
+function updateThumbnailSizes(zoom) {
+    const size = calculateThumbnailSize(zoom);
+
+    // Update all existing thumbnail popups (uploaded images)
+    document.querySelectorAll('.thumbnail-popup').forEach(thumbnail => {
+        thumbnail.style.width = `${size}px`;
+    });
+
+    // Update all preview thumbnail popups
+    document.querySelectorAll('.preview-thumbnail').forEach(thumbnail => {
+        thumbnail.style.width = `${size}px`;
+    });
+}
+
+// Add zoom event listener to update thumbnail sizes
+map.on('zoom', () => {
+    updateThumbnailSizes(map.getZoom());
+});
+
 // Array to store images with GPS coordinates from the backend
 const imagesWithCoordinates = [
   {% for image in images %}
@@ -157,22 +329,40 @@ const imagesWithCoordinates = [
   {% endfor %}
 ];
 
-// Add markers to the map for each image with GPS coordinates
+// Add thumbnail popups to the map for each image with GPS coordinates
 imagesWithCoordinates.forEach(({ imageUrl, filename, lat, lng }) => {
-    // Create a DOM element for each marker
-    const el = document.createElement('div');
-    el.className = 'marker';
-    el.style.width = '20px';
-    el.style.height = '20px';
-    el.style.backgroundColor = '#007bff';
-    el.style.borderRadius = '50%';
+    // Create always-open popup with thumbnail
+    const popup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: [0, -10]
+    })
+    .setLngLat([lng, lat])
+    .setHTML(`
+        <div class="thumbnail-popup" style="
+            width: ${calculateThumbnailSize(map.getZoom())}px;
+            border: 2px solid white;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            cursor: pointer;
+            overflow: hidden;
+            background: white;
+            margin: 0;
+            padding: 0;
+        ">
+            <img src="${imageUrl}"
+                 title="${filename}"
+                 style="
+                     width: 100%;
+                     height: 100%;
+                     object-fit: cover;
+                     object-position: center;
+                     display: block;
+                 ">
+        </div>
+    `)
+    .addTo(map);
 
-    // Add a marker to the map
-    new maplibregl.Marker(el)
-        .setLngLat([lng, lat])
-        .setPopup(new maplibregl.Popup({ offset: 25 }) // Add popups
-            .setHTML(`<strong>Image:</strong> ${filename}<br><img src="${imageUrl}" style="width: 100px; height: auto;">`))
-        .addTo(map);
 });
 
 // Import shared API client
@@ -198,6 +388,11 @@ if (uploadForm) {
         const uploadCount = result.data.images ? result.data.images.length : 0;
         api.showToast(`${uploadCount} images uploaded successfully!`, 'success');
 
+        // Clear the file input and previews before refresh to ensure clean state
+        fileInput.value = '';
+        currentFiles = [];
+        document.getElementById('imagePreviewContainer').style.display = 'none';
+
         // Refresh the page after a short delay
         setTimeout(() => {
           window.location.reload();
@@ -213,90 +408,303 @@ if (uploadForm) {
   });
 }
 
+// Store reference to the button that triggered the delete modal
+let currentDeleteButton = null;
+
 document.querySelectorAll('.delete-button').forEach(button => {
-  button.addEventListener('click', async function() {
+  button.addEventListener('click', function() {
     const filename = this.getAttribute('data-filename');
-    const imageId = this.getAttribute('data-image-id');
-    const teamId = '{{ team.id }}';
 
-    if (confirm(`Are you sure you want to delete ${filename}?`)) {
-      const result = await imageAPI.deleteImage(teamId, imageId);
+    // Store reference to this button
+    currentDeleteButton = this;
 
-      if (result.success) {
-        this.closest('.col-md-3').remove();  // Remove the card from the UI
-      } else {
-        alert(result.error || 'Failed to delete the file.');
-      }
-    }
+    // Update modal with filename
+    document.getElementById('deleteFileName').textContent = filename;
+
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    modal.show();
   });
 });
 
-// Handle file input change
-const fileInput = document.getElementById('fileInput');
-if (fileInput) {
-fileInput.addEventListener('change', async function(event) {
-  const files = Array.from(event.target.files);
-  const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-  imagePreviewContainer.innerHTML = '';
-  if (files.length > 0) {
-    imagePreviewContainer.style.display = '';
+// Handle the actual delete when modal confirm button is clicked
+document.getElementById('confirmDeleteBtn').addEventListener('click', async function() {
+  if (!currentDeleteButton) return;
+
+  const filename = currentDeleteButton.getAttribute('data-filename');
+  const imageId = currentDeleteButton.getAttribute('data-image-id');
+  const teamId = '{{ team.id }}';
+
+  // Show loading state on modal button
+  const originalText = this.innerHTML;
+  this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Deleting...';
+  this.disabled = true;
+
+  try {
+    const result = await imageAPI.deleteImage(teamId, imageId);
+
+    if (result.success) {
+      // Remove the card from the UI
+      currentDeleteButton.closest('.col-md-3').remove();
+
+      // Hide the modal
+      bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal')).hide();
+
+      // Show success toast
+      api.showToast(`${filename} deleted successfully`, 'success');
+    } else {
+      api.showToast(result.error || 'Failed to delete the file.', 'danger');
+    }
+  } catch (error) {
+    api.showToast('Failed to delete the file: ' + error.message, 'danger');
+  } finally {
+    // Reset button state
+    this.innerHTML = originalText;
+    this.disabled = false;
+    currentDeleteButton = null;
   }
-  for (const file of files) {
+});
+
+// Store current selected files (we need this to enable removal)
+let currentFiles = [];
+
+// Store preview popups so we can remove them when files are removed
+let previewMarkers = new Map(); // filename -> popup
+
+// Function to add a preview thumbnail to the map
+function addPreviewMarkerToMap(lat, lng, filename, imageUrl) {
+  // Create always-open popup with preview thumbnail (orange border to distinguish from uploaded images)
+  const popup = new maplibregl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: [0, -10]
+  })
+  .setLngLat([lng, lat])
+  .setHTML(`
+      <div class="thumbnail-popup preview-thumbnail" style="
+      width: ${calculateThumbnailSize(map.getZoom())}px;
+          border: 3px solid #343a40;
+          border-radius: 4px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+          cursor: pointer;
+          overflow: hidden;
+          background: white;
+          margin: 0;
+          padding: 0;
+      ">
+          <img src="${imageUrl}"
+               title="${filename}"
+               style="
+                   width: 100%;
+                   height: 100%;
+                   object-fit: cover;
+                   object-position: center;
+                   display: block;
+               ">
+      </div>
+  `)
+  .addTo(map);
+
+
+  // Store the popup so we can remove it later
+  previewMarkers.set(filename, popup);
+}
+
+// Function to remove a file from selection
+function removeFileFromSelection(fileName) {
+  // Remove the file from our tracking array
+  currentFiles = currentFiles.filter(file => file.name !== fileName);
+
+  // Remove the preview marker from the map
+  if (previewMarkers.has(fileName)) {
+    previewMarkers.get(fileName).remove();
+    previewMarkers.delete(fileName);
+  }
+
+  // Remove the preview element from DOM
+  const previewContainer = document.getElementById('imagePreviewContainer');
+  const previewElements = previewContainer.querySelectorAll('.col-md-3');
+  previewElements.forEach(element => {
+    const titleElement = element.querySelector('.card-title');
+    if (titleElement && titleElement.textContent === fileName) {
+      element.remove();
+    }
+  });
+
+  // Update the file input with remaining files
+  updateFileInput(currentFiles);
+
+  // Hide preview container and show initial drop zone if no files left
+  if (currentFiles.length === 0) {
+    previewContainer.style.display = 'none';
+    document.getElementById('initialDropZone').style.display = '';
+  }
+}
+
+// Function to update file input with new file list
+function updateFileInput(files) {
+  const fileInput = document.getElementById('fileInput');
+  const dataTransfer = new DataTransfer();
+
+  // Add remaining files to DataTransfer
+  files.forEach(file => dataTransfer.items.add(file));
+
+  // Update the file input
+  fileInput.files = dataTransfer.files;
+}
+
+// Track which files have already been processed to avoid reprocessing
+let processedFiles = new Set();
+
+// Function to ensure preview container is set up and visible
+function ensurePreviewContainerVisible() {
+  const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+  const initialDropZone = document.getElementById('initialDropZone');
+
+  // Hide initial dropzone and show preview container
+  initialDropZone.style.display = 'none';
+  imagePreviewContainer.style.display = '';
+
+  // Only recreate container structure if it doesn't exist
+  if (!document.getElementById('previewGrid')) {
+    imagePreviewContainer.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">
+          Selected Photos
+        </h5>
+        <button type="submit" class="btn btn-primary" id="uploadButton">
+          <ion-icon name="cloud-upload-outline" class="me-1"></ion-icon>
+          Upload Photos
+        </button>
+      </div>
+      <div id="previewGrid" class="row"></div>
+      <div class="text-center text-muted mt-3">
+        <ion-icon name="add-outline" class="me-1"></ion-icon>
+        Drop more images here or <label for="fileInput" class="text-primary" style="cursor: pointer; text-decoration: underline;">click to add more</label>
+      </div>
+    `;
+  }
+}
+
+// Function to hide preview container and show initial drop zone
+function hidePreviewContainer() {
+  const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+  const initialDropZone = document.getElementById('initialDropZone');
+
+  initialDropZone.style.display = '';
+  imagePreviewContainer.style.display = 'none';
+  processedFiles.clear();
+  previewMarkers.forEach(marker => marker.remove());
+  previewMarkers.clear();
+}
+
+// Function to add previews for specific new files
+async function addFilePreviews(newFiles) {
+  if (newFiles.length === 0) return;
+
+  ensurePreviewContainerVisible();
+  const previewGrid = document.getElementById('previewGrid');
+
+  for (const file of newFiles) {
+    // Skip if already processed
+    const fileKey = file.name + file.size + file.lastModified;
+    if (processedFiles.has(fileKey)) continue;
+
+    // Mark as processed
+    processedFiles.add(fileKey);
     const reader = new FileReader();
     const previewElement = document.createElement('div');
     previewElement.classList.add('col-md-3', 'mb-3');
     previewElement.innerHTML = `
-      <div class="card">
-        <img src="" class="card-img-top" style="max-width: 100%; max-height: 200px; object-fit: contain; object-position: center;">
+      <div class="card position-relative">
+        <button type="button" class="btn-close position-absolute top-0 end-0 m-2 bg-white rounded-circle p-1"
+                style="z-index: 10; width: 24px; height: 24px;"
+                aria-label="Remove image"
+                data-file-name="${file.name}">
+        </button>
+        <img src="" class="card-img-top bg-secondary-subtle" style="max-width: 100%; max-height: 200px; object-fit: contain; object-position: center;">
         <div class="card-body">
           <h5 class="card-title"></h5>
           <p class="card-text">
-            <strong>Capture Time:</strong> <span class="captureTime">None</span><br>
-            <strong>GPS Coordinates:</strong> <span class="gpsCoordinates">None</span>
+            <span class="captureTime"><time class="format-datetime-tooltip format-as-time-with-seconds"></time></span><br>
+            <span class="gpsCoordinates"></span>
           </p>
-          <span class="badge bg-warning text-dark">Image not uploaded yet</span>
         </div>
       </div>
     `;
     previewElement.querySelector('.card-title').textContent = file.name;
-    imagePreviewContainer.appendChild(previewElement);
+    previewGrid.appendChild(previewElement);
 
-    reader.onload = function(e) {
+    // Add click handler for the remove button
+    const removeButton = previewElement.querySelector('.btn-close');
+    removeButton.addEventListener('click', function() {
+      removeFileFromSelection(file.name);
+    });
+
+    reader.onload = async function(e) {
       let previewImgElement = previewElement.querySelector('img');
-      previewImgElement.onerror = async function() {
-          let convertedFile = file;
-          if (file.type === 'image/heic') {
-            try {
-              convertedFile = await heicTo({ blob: file, toType: 'image/jpeg', quality: 0.5});
-            } catch (error) {
-              console.error('Error converting HEIC image:', error);
-              return;
-            }
-            previewImgElement.src = URL.createObjectURL(convertedFile);
-          }
+      let finalImageUrl = e.target.result;
+
+      // If it's a HEIC file, convert it immediately for better compatibility
+      if (file.type === 'image/heic') {
+        try {
+          const convertedFile = await heicTo({ blob: file, toType: 'image/jpeg', quality: 0.5});
+          finalImageUrl = URL.createObjectURL(convertedFile);
+        } catch (error) {
+          console.error('Error converting HEIC image:', error);
+          // Fall back to original if conversion fails
+        }
       }
-      previewImgElement.src = e.target.result;
+      previewImgElement.src = finalImageUrl;
+      if (previewMarkers.has(file.name)) {
+          previewMarkers.get(file.name)._container.querySelector("img").src = finalImageUrl;
+      }
+
     }
     reader.readAsDataURL(file);
 
     // Read EXIF metadata using ExifReader
     try {
       const tags = await ExifReader.load(file);
-      let captureTime = 'None';
-      let gpsCoordinates = 'None';
+      let captureTime = "";
+      let captureTimeZone = "Z";
+      let gpsCoordinates = "";
 
       // Check for GPS and DateTimeOriginal tags and extract their values
       if ('DateTimeOriginal' in tags) {
-        captureTime = tags['DateTimeOriginal'].description || 'Present';
+        const dateTimeStr = tags['DateTimeOriginal'].description;
+        captureTimeZone = tags['OffsetTimeOriginal'] ? tags['OffsetTimeOriginal'].description : 'Z';
+
+        // Convert EXIF format "2024:09:28 12:37:31" to ISO "2024-09-28T12:37:31"
+        if (dateTimeStr) {
+          const isoDateStr = dateTimeStr.replace(/^(\d{4}):(\d{2}):(\d{2}) /, '$1-$2-$3T');
+          captureTime = isoDateStr + captureTimeZone;
+        }
       }
       if ('GPSLatitude' in tags && 'GPSLongitude' in tags) {
-        const lat = parseFloat(tags['GPSLatitude'].description).toFixed(6);
-        const lon = parseFloat(tags['GPSLongitude'].description).toFixed(6);
-        gpsCoordinates = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank">(${lat}, ${lon})</a>`;
+        let lat = parseFloat(tags['GPSLatitude'].description).toFixed(6);
+        if (tags['GPSLatitudeRef'] && tags['GPSLatitudeRef'].value[0] === 'S') {
+          lat = -Math.abs(lat);
+        }
+        let lon = parseFloat(tags['GPSLongitude'].description).toFixed(6);
+        if (tags['GPSLongitudeRef'] && tags['GPSLongitudeRef'].value[0] === 'W') {
+          lon = -Math.abs(lon);
+        }
+        //gpsCoordinates = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank">(${lat}, ${lon})</a>`;
+        addPreviewMarkerToMap(lat, lon, file.name, previewElement.querySelector('img').src);
+      } else {
+        gpsCoordinates = `<span class="badge text-bg-warning">No GPS Coordinates</span>`;
       }
 
       // Update EXIF status in the UI
-      previewElement.querySelector('.captureTime').innerText = captureTime;
+        if (captureTime) {
+            const timeElement = previewElement.querySelector('time')
+            timeElement.dateTime = captureTime;
+            formatTimes([timeElement])
+        }
+        else {
+            previewElement.querySelector('.captureTime').innerHTML = '<span class="badge text-bg-danger">No Capture Time</span>';
+        }
       previewElement.querySelector('.gpsCoordinates').innerHTML = gpsCoordinates;
     } catch (error) {
       console.error('Error reading EXIF data:', error);
@@ -304,8 +712,152 @@ fileInput.addEventListener('change', async function(event) {
       previewElement.querySelector('.gpsCoordinates').innerText = 'Failed to read';
     }
   }
-});
 }
+
+// Handle file input change
+const fileInput = document.getElementById('fileInput');
+if (fileInput) {
+  // Check for existing files on page load and regenerate previews
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (fileInput.files.length > 0) {
+      currentFiles = Array.from(fileInput.files);
+      await addFilePreviews(currentFiles);
+    }
+  });
+
+  // Handle file input changes (when user selects new files)
+  fileInput.addEventListener('change', async function(event) {
+    const newFiles = Array.from(event.target.files);
+
+    // If we already have files, merge them instead of replacing
+    if (currentFiles.length > 0) {
+      // Merge new files with existing files
+      const mergedFiles = [...currentFiles, ...newFiles];
+
+      // Update file input with merged files
+      const dataTransfer = new DataTransfer();
+      mergedFiles.forEach(file => dataTransfer.items.add(file));
+      fileInput.files = dataTransfer.files;
+
+      // Update our tracking array
+      currentFiles = mergedFiles;
+      // Only process new files when adding to existing selection
+      await addFilePreviews(newFiles);
+    } else {
+      // First time selecting files, just use the new files
+      currentFiles = newFiles;
+      await addFilePreviews(currentFiles);
+    }
+  });
+}
+
+// Drag and drop functionality
+function setupDragAndDrop() {
+  const initialDropZone = document.getElementById('initialDropZone');
+  const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+
+  function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function highlightInitial(e) {
+      initialDropZone
+    initialDropZone.classList.add('border-primary');
+    initialDropZone.classList.add('bg-primary-subtle')
+      initialDropZone.classList.remove('bg-light-subtle');
+    initialDropZone.classList.remove('border-secondary');
+    initialDropZone.querySelector('.text-muted').style.color = '#007bff';
+  }
+
+  function unhighlightInitial(e) {
+    initialDropZone.classList.remove('border-primary');
+    initialDropZone.classList.remove('bg-primary-subtle');
+    initialDropZone.classList.add('bg-light-subtle');
+    initialDropZone.classList.add('border-secondary');
+    initialDropZone.querySelector('.text-muted').style.color = '';
+  }
+
+  function highlightPreview(e) {
+    imagePreviewContainer.classList.add('border-primary');
+    imagePreviewContainer.classList.add('bg-primary-subtle')
+    imagePreviewContainer.classList.remove('bg-light-subtle');
+    imagePreviewContainer.classList.remove('border-secondary');
+    const textElement = imagePreviewContainer.querySelector('.text-muted');
+    if (textElement) textElement.style.color = '#007bff';
+  }
+
+  function unhighlightPreview(e) {
+    imagePreviewContainer.classList.remove('border-primary');
+    imagePreviewContainer.classList.remove('bg-primary-subtle');
+    imagePreviewContainer.classList.add('bg-light-subtle');
+    imagePreviewContainer.classList.add('border-secondary');
+    const textElement = imagePreviewContainer.querySelector('.text-muted');
+    if (textElement) textElement.style.color = '';
+  }
+
+  function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+
+    if (files.length > 0) {
+      // Merge new files with existing files
+      const newFiles = Array.from(files);
+      const mergedFiles = [...currentFiles, ...newFiles];
+
+      // Update file input with merged files
+      const dataTransfer = new DataTransfer();
+      mergedFiles.forEach(file => dataTransfer.items.add(file));
+      fileInput.files = dataTransfer.files;
+
+      // Update our tracking array and generate previews
+      currentFiles = mergedFiles;
+      addFilePreviews(newFiles);
+    }
+  }
+
+  // Setup initial drop zone
+  if (initialDropZone) {
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      initialDropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      initialDropZone.addEventListener(eventName, highlightInitial, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      initialDropZone.addEventListener(eventName, unhighlightInitial, false);
+    });
+
+    initialDropZone.addEventListener('drop', handleDrop, false);
+  }
+
+  // Setup preview container drop zone
+  if (imagePreviewContainer) {
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      imagePreviewContainer.addEventListener(eventName, preventDefaults, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      imagePreviewContainer.addEventListener(eventName, highlightPreview, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      imagePreviewContainer.addEventListener(eventName, unhighlightPreview, false);
+    });
+
+    imagePreviewContainer.addEventListener('drop', handleDrop, false);
+  }
+
+  // Prevent default drag behaviors on document body
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    document.body.addEventListener(eventName, preventDefaults, false);
+  });
+}
+
+// Initialize drag and drop
+setupDragAndDrop();
 
 // Function to copy public link using shared utility
 window.copyPublicLink = async function() {

@@ -63,36 +63,15 @@
 // Global Bootstrap initialization for all pages
 import 'bootstrap';
  import { Modal } from 'bootstrap';
+import { formatTimes } from '{{ url_for("static", filename="js/utils.js") }}';
+// Import and initialize shared API client
+import { api, userAPI, configureUrls } from '{{ url_for("static", filename="js/api-client.js") }}';
 
 // Global timezone conversion for all time elements
 document.addEventListener('DOMContentLoaded', function() {
-    // Convert all time elements to Pacific timezone
-    document.querySelectorAll('time[datetime]').forEach(timeEl => {
-        const utcTime = new Date(timeEl.getAttribute('datetime'));
-
-        // Update the display text to Pacific time
-        timeEl.textContent = utcTime.toLocaleDateString('en-US', {
-            timeZone: 'America/Los_Angeles',
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
-
-        // Update the tooltip to show full Pacific time
-        timeEl.title = utcTime.toLocaleString('en-US', {
-            timeZone: 'America/Los_Angeles',
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            timeZoneName: 'short'
-        });
-    });
+    formatTimes(document.querySelectorAll('time[datetime]'));
 });
 
-// Import and initialize shared API client
-import { api, userAPI, configureUrls } from '{{ url_for("static", filename="js/api-client.js") }}';
 
 // Configure all URLs using Flask's url_for - done once for entire application
 configureUrls({

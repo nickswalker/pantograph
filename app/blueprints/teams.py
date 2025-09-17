@@ -1,3 +1,4 @@
+import datetime
 import logging
 import os
 import time
@@ -14,7 +15,9 @@ from app.permissions import (
     team_access_required, team_captain_required,
     team_captain_or_member_required, team_upload_allowed, admin_required
 )
-from app.utils import is_allowed_image, validate_image_content, secure_filename_enhanced, find_team_by_id, find_team_by_gallery_hash, load_station_names, parse_hh_mm_to_seconds, convert_heic_to_jpeg, is_heic_file, format_mm_ss_from_seconds
+from app.utils import is_allowed_image, validate_image_content, secure_filename_enhanced, find_team_by_id, \
+    find_team_by_gallery_hash, load_station_names, parse_hh_mm_to_seconds, convert_to_jpeg, is_heic_file, \
+    format_mm_ss_from_seconds, load_exchange_points
 from app.config import Config
 from app.security import limiter
 
@@ -38,27 +41,25 @@ def gallery(team_id, team):
 
     # Get images from database
     images = Image.query.filter_by(team_id=team.id).order_by(Image.capture_time.asc(), Image.upload_time.asc()).all()
-
+    exchange_names = {exchange_id: exchange_data['name'] for exchange_id, exchange_data in load_exchange_points().items()}
     # Format image data for template
     image_data = []
     for image in images:
-        # Format capture time as string for consistency with old format
-        capture_time_str = image.capture_time.strftime("%Y:%m:%d %H:%M:%S") if image.capture_time else None
         gps_coordinates = (image.gps_lat, image.gps_lng) if image.gps_lat and image.gps_lng else None
-
         image_data.append({
             'id': image.id,
             'filename': os.path.basename(image.file_path),  # For URL generation
             'original_filename': image.filename,
-            'capture_time': capture_time_str,
+            'capture_time': image.capture_time,
             'gps_coordinates': gps_coordinates,
             'uploader': image.uploader,
             'upload_time': image.upload_time,
             'file_size': image.file_size,
-            'mime_type': image.mime_type
+            'mime_type': image.mime_type,
+            'exchange_id': image.manual_exchange_id if image.manual_exchange_id else image.associated_exchange_id
         })
 
-    return render_template('gallery.html', team=team, images=image_data, team_id=team_id)
+    return render_template('gallery.html', team=team, images=image_data, team_id=team_id, exchange_names=exchange_names)
 
 
 @teams_public.route('/gallery/<gallery_hash>')
@@ -68,6 +69,7 @@ def public_gallery(gallery_hash):
     # Find team in database by gallery_hash
     team = find_team_by_gallery_hash(gallery_hash)
 
+    exchange_names = {exchange_id: exchange_data['name'] for exchange_id, exchange_data in load_exchange_points().items()}
     if not team:
         return "Invalid gallery URL.", 404
 
@@ -90,10 +92,11 @@ def public_gallery(gallery_hash):
             'uploader': image.uploader,
             'upload_time': image.upload_time,
             'file_size': image.file_size,
-            'mime_type': image.mime_type
+            'mime_type': image.mime_type,
+            'exchange_id': image.manual_exchange_id if image.manual_exchange_id else image.associated_exchange_id
         })
 
-    return render_template('gallery.html', team=team, images=image_data, gallery_hash=gallery_hash)
+    return render_template('gallery.html', team=team, images=image_data, gallery_hash=gallery_hash, exchange_names=exchange_names)
 
 
 @teams.route('/<team_id>/members')
@@ -133,26 +136,26 @@ def _export_members_data(team, format_type='csv'):
     """Helper function to export team member data in CSV or TSV format"""
     # Get active team memberships
     memberships = TeamMembership.query.filter_by(
-        team_id=team.id, 
+        team_id=team.id,
         status=TeamMembershipStatus.ACTIVE
     ).all()
-    
+
     # Create output
     output = io.StringIO()
     fieldnames = [
-        'name', 'email', 'preferred_miles', 'planned_pace', 
+        'name', 'email', 'preferred_miles', 'planned_pace',
         'preferred_station', 'willing_to_lead', 'comments', 'joined_date'
     ]
-    
+
     delimiter = '\t' if format_type == 'tsv' else ','
     writer = csv.DictWriter(output, fieldnames=fieldnames, delimiter=delimiter)
     writer.writeheader()
-    
+
     # Write member data
     for membership in memberships:
         user = membership.user
         pace_formatted = format_mm_ss_from_seconds(membership.planned_pace_seconds) if membership.planned_pace_seconds else ''
-        
+
         writer.writerow({
             'name': user.name,
             'email': user.email,
@@ -163,7 +166,7 @@ def _export_members_data(team, format_type='csv'):
             'comments': membership.comments or '',
             'joined_date': membership.joined_at.strftime('%Y-%m-%d %H:%M:%S') if membership.joined_at else ''
         })
-    
+
     output.seek(0)
     return output.getvalue()
 
@@ -174,7 +177,7 @@ def export_members_csv(team_id, team):
     """Export team member preferences as CSV (captain or admin only)"""
     content = _export_members_data(team, 'csv')
     filename = f"{team.name.replace(' ', '_')}_members.csv"
-    
+
     return Response(
         content,
         mimetype='text/csv',
@@ -188,7 +191,7 @@ def export_members_tsv(team_id, team):
     """Export team member preferences as TSV (captain or admin only)"""
     content = _export_members_data(team, 'tsv')
     filename = f"{team.name.replace(' ', '_')}_members.tsv"
-    
+
     return Response(
         content,
         mimetype='text/tab-separated-values',
@@ -243,7 +246,7 @@ def delete_image(team_id, image_id, team):
 @limiter.limit("15 per minute")
 @team_upload_allowed()
 def upload_images(team_id, team):
-    """Upload images with database tracking"""
+    """Upload images"""
     from app.models import Image
     from app.utils import get_exif_data, get_capture_time, get_gps_data, get_mime_type
 
@@ -262,41 +265,60 @@ def upload_images(team_id, team):
 
     uploaded_images = []
 
+    # Load existing image hashes once at the beginning
+    existing_images = Image.query.filter_by(team_id=team.id).all()
+    existing_hashes = {img.file_hash for img in existing_images}
+
+    exchange_points = load_exchange_points()
+
+
     for file in files:
         if not file.filename:
+            continue
+
+        if not is_allowed_image(file.filename):
             continue
 
         file_content = file.read()
         if len(file_content) > Config.MAX_FILE_SIZE:
             return jsonify({"error": "File size exceeds 10MB limit"}), 400
 
-        if not is_allowed_image(file.filename):
-            continue
-
         # Validate file content using magic numbers
         if not validate_image_content(file_content):
             return jsonify({"error": f"Invalid image file: {file.filename}"}), 400
 
-        # Compute hash of the file to check for duplicates using SHA-256 (more secure than MD5)
+        # Compute hash of the file to check for duplicates
         file_hash = hashlib.sha256(file_content).hexdigest()
 
-        # Check for duplicate files in database
-        existing_image = Image.query.join(Image.team).filter(
-            Image.team_id == team.id
-        ).all()
-
-        is_duplicate = False
-        for img in existing_image:
-            img_path = os.path.join(Config.UPLOAD_FOLDER, img.file_path)
-            if os.path.exists(img_path):
-                with open(img_path, 'rb') as f:
-                    existing_file_hash = hashlib.sha256(f.read()).hexdigest()
-                    if file_hash == existing_file_hash:
-                        is_duplicate = True
-                        break
-
-        if is_duplicate:
+        # Check if this file hash already exists
+        if file_hash in existing_hashes:
             continue  # Skip saving this file as it is a duplicate
+
+        # Extract EXIF data
+        from PIL import Image as PILImage
+        as_image = PILImage.open(io.BytesIO(file_content))
+        exif_data = get_exif_data(as_image)
+        capture_time = get_capture_time(exif_data)
+        if not capture_time:
+            # Without a capture time, we can't use this image
+            continue
+        gps_coordinates = get_gps_data(exif_data)
+        gps_lat, gps_lng = gps_coordinates if gps_coordinates else (None, None)
+
+        associated_exchange_id = None
+        if gps_lat and gps_lng and exchange_points:
+            # Look for the nearest exchange point
+            nearest_exchange_id, nearest_exchange = min(
+                exchange_points.items(),
+                key=lambda item: (item[1]['latitude'] - gps_lat)**2 + (item[1]['longitude'] - gps_lng)**2
+            )
+            # Check that we're within 200m. Approximate conversion for PNW latitude: 0.0018 degrees ~ 200m
+            distance_sq = (nearest_exchange['latitude'] - gps_lat)**2 + (nearest_exchange['longitude'] - gps_lng)**2
+            if distance_sq <= (0.0018 ** 2):
+                associated_exchange_id = nearest_exchange_id
+
+        # Add to existing hashes to prevent duplicates within this upload batch
+        existing_hashes.add(file_hash)
 
         timestamp = int(time.time())
         safe_filename = secure_filename_enhanced(file.filename)
@@ -317,17 +339,11 @@ def upload_images(team_id, team):
             jpeg_file_path = os.path.join(save_path, jpeg_filename)
 
             # Convert HEIC to JPEG
-            if convert_heic_to_jpeg(file_path, jpeg_file_path):
+            if convert_to_jpeg(as_image, jpeg_file_path):
                 # Use JPEG version for serving
                 final_file_path = os.path.join(save_path, stored_filename)
                 final_stored_filename = jpeg_filename
                 # Keep both files - original HEIC for preservation, JPEG for serving
-
-        # Extract EXIF data (from the final file for display)
-        exif_data = get_exif_data(final_file_path)
-        capture_time = get_capture_time(exif_data)
-        gps_coordinates = get_gps_data(exif_data)
-        gps_lat, gps_lng = gps_coordinates if gps_coordinates else (None, None)
 
         # The file path that gets stored must be relative to the upload folder.
         db_file_path = os.path.join(team.id, final_stored_filename)
@@ -336,24 +352,24 @@ def upload_images(team_id, team):
         image = Image(
             filename=file.filename,
             file_path=db_file_path,
+            file_hash=file_hash,
             team_id=team.id,
             uploaded_by=current_user.id,
-            capture_time=capture_time,
+            capture_time=capture_time.astimezone(datetime.UTC),
             gps_lat=gps_lat,
             gps_lng=gps_lng,
+            associated_exchange_id=associated_exchange_id,
             file_size=len(file_content),
             mime_type=get_mime_type(final_stored_filename if is_heic_file(file.filename) else file.filename)
         )
 
         db.session.add(image)
 
-        # Format capture time for response
-        capture_time_str = capture_time.strftime("%Y:%m:%d %H:%M:%S") if capture_time else None
-
+        # Convert capture time (which has timezon) to UTC
         uploaded_images.append({
             'id': image.id,
             'filename': image.filename,
-            'capture_time': capture_time_str,
+            'capture_time': capture_time.astimezone(datetime.UTC),
             'gps_coordinates': gps_coordinates
         })
 

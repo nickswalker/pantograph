@@ -95,8 +95,6 @@ class Team(db.Model):
         return f'<Team {self.name}>'
 
 class TeamMembership(db.Model):
-    __tablename__ = 'team_membership'
-
     id = db.Column(db.String(8), primary_key=True, default=lambda: secrets.token_urlsafe(6))
     user_id = db.Column(db.String(8), db.ForeignKey('user.id'), nullable=False)
     team_id = db.Column(db.String(8), db.ForeignKey('team.id'), nullable=False)
@@ -156,15 +154,20 @@ class User(db.Model, UserMixin):
 
 
 class Image(db.Model):
+    __table_args__ = (db.UniqueConstraint('team_id', 'file_hash', name='unique_team_filehash'),)
     id = db.Column(db.String(8), primary_key=True, default=lambda: secrets.token_urlsafe(6))
     filename = db.Column(db.String(255), nullable=False)  # Original filename
+    file_hash = db.Column(db.String(64), nullable=False)  # SHA-256 hash of ORIGINAL file contents (not any converted, resized version)
     file_path = db.Column(db.String(500), nullable=False)  # Storage path relative to uploads
     team_id = db.Column(db.String(8), db.ForeignKey('team.id'), nullable=False)
     uploaded_by = db.Column(db.String(8), db.ForeignKey('user.id'), nullable=False)
     upload_time = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
+    associated_exchange_id = db.Column(db.String(4), nullable=True)
+    manual_exchange_id = db.Column(db.String(4), nullable=True)
+
     # EXIF data
-    capture_time = db.Column(db.DateTime, nullable=True)
+    capture_time = db.Column(db.DateTime, nullable=False)
     gps_lat = db.Column(db.Numeric(10, 7), nullable=True)
     gps_lng = db.Column(db.Numeric(10, 7), nullable=True)
 
@@ -181,7 +184,6 @@ class Image(db.Model):
 
 
 class NotificationLog(db.Model):
-    __tablename__ = 'notification_log'
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     notification_type = db.Column(db.Enum(NotificationType), nullable=False)

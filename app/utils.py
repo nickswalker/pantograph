@@ -105,16 +105,62 @@ def load_station_names():
         print(f"Error loading station names: {e}")
         return []
 
+def load_exchange_points() -> dict:
+    try:
+        with open('data/lrr_1_line.geojson', 'r') as f:
+            data = json.load(f)
+        sorted_features = sorted(data["features"], key=lambda item: item['properties']['id'], reverse=True)
+        exchange_points = {}
+        for feature in sorted_features:
+            props = feature['properties']
+            exchange_points[props['id']] = {
+                'name': props['name'],
+                'latitude': feature["geometry"]["coordinates"][1],
+                'longitude': feature["geometry"]["coordinates"][0],
+            }
+        return exchange_points
+    except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
+        print(f"Error loading exchange points: {e}")
+        return {}
 
-def get_exif_data(image_path):
-    """Extract EXIF data from image"""
-    image = Image.open(image_path)
+
+def get_exif_data(image: Image):
+    """Extract EXIF data from image, including all IFD blocks"""
+    from PIL.ExifTags import IFD
+
     raw_exif = image.getexif() or {}
-    exif_data = {TAGS.get(key, key): value for key, value in raw_exif.items()}
-    if 'GPSInfo' not in exif_data:
-        return exif_data
-    gps_data = {GPSTAGS.get(key, key): value for key, value in raw_exif.get_ifd(0x8825).items()}
-    return {**gps_data, **exif_data}
+    exif_data = {}
+
+    # Create IFD lookup table
+    IFD_CODE_LOOKUP = {i.value: i.name for i in IFD}
+
+    # Process each tag in the EXIF data
+    for tag_code, value in raw_exif.items():
+        # Check if this tag is an IFD block
+        if tag_code in IFD_CODE_LOOKUP:
+            # This is an IFD block, extract nested data
+            ifd_tag_name = IFD_CODE_LOOKUP[tag_code]
+            try:
+                ifd_data = raw_exif.get_ifd(tag_code)
+                for nested_key, nested_value in ifd_data.items():
+                    # Try GPS tags first, then regular EXIF tags
+                    nested_tag_name = GPSTAGS.get(nested_key) or TAGS.get(nested_key, nested_key)
+                    # Consider prefixing with IFD name to avoid collisions
+                    prefixed_name = f"{nested_tag_name}" if isinstance(nested_tag_name, str) else f"{ifd_tag_name}_{nested_key}"
+                    exif_data[prefixed_name] = nested_value
+
+                    # Also add without prefix for backward compatibility with common tags
+                    if nested_tag_name in ['GPSLatitude', 'GPSLongitude', 'GPSLatitudeRef', 'GPSLongitudeRef', 'DateTimeOriginal', 'OffsetTimeOriginal']:
+                        exif_data[nested_tag_name] = nested_value
+            except (AttributeError, OSError):
+                # Some IFDs might not be accessible, skip them
+                pass
+        else:
+            # Root-level tag
+            tag_name = TAGS.get(tag_code, tag_code)
+            exif_data[tag_name] = value
+
+    return exif_data
 
 
 def get_gps_data(exif_data):
@@ -141,13 +187,15 @@ def get_gps_data(exif_data):
 def get_capture_time(exif_data):
     """Extract capture time from EXIF data dict, like the working script version"""
     date_time = exif_data.get('DateTimeOriginal') or exif_data.get('DateTime')
+    timezone = exif_data.get('OffsetTimeOriginal') or exif_data.get('OffsetTime')
     if not date_time:
         return None
     try:
         from datetime import datetime
-        return datetime.strptime(date_time, '%Y:%m:%d %H:%M:%S')
+        return datetime.strptime(f"{date_time} {timezone or ''}".strip(), '%Y:%m:%d %H:%M:%S %z' if timezone else '%Y:%m:%d %H:%M:%S')
     except ValueError:
         return None
+
 
 
 def is_allowed_image(filename):
@@ -238,17 +286,6 @@ def find_team_by_gallery_hash(gallery_hash):
     return Team.query.filter_by(gallery_hash=gallery_hash).first()
 
 
-def parse_exif_datetime(exif_datetime_str):
-    """Parse EXIF datetime string to Python datetime"""
-    if not exif_datetime_str:
-        return None
-    try:
-        from datetime import datetime
-        return datetime.strptime(exif_datetime_str, "%Y:%m:%d %H:%M:%S")
-    except ValueError:
-        return None
-
-
 def get_mime_type(file_path):
     """Get MIME type from file extension"""
     import mimetypes
@@ -256,11 +293,10 @@ def get_mime_type(file_path):
     return mime_type or 'application/octet-stream'
 
 
-def convert_heic_to_jpeg(heic_path, jpeg_path, quality=85):
-    """Convert HEIC file to JPEG format using pillow-heif"""
+def convert_to_jpeg(image: Image, jpeg_path, quality=85):
+    """Convert image to JPEG format using pillow-heif"""
     try:
         # pillow-heif is already registered in __init__.py
-        image = Image.open(heic_path)
 
         # Convert to RGB if necessary (HEIC can be in other color spaces)
         if image.mode != 'RGB':
