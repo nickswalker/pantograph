@@ -2,13 +2,13 @@
 
 {% block title %}Join Team - {{ super() }}{% endblock %}
 
-{% set page_description %}
+{% block description %}
   {%- if invited_team -%}
     Join team '{{ invited_team.name }}' for {{ config.EVENT_NAME }} - complete your registration and set your preferences
   {%- else -%}
     Join a team for {{ config.EVENT_NAME }} - browse teams and complete your registration
   {%- endif -%}
-{% endset %}
+{% endblock %}
 
 {% block content %}
     <div class="row justify-content-center">

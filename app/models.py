@@ -40,8 +40,8 @@ class NotificationType(enum.Enum):
     CAPTAIN_TRANSFER = 'captain_transferred'
     EVENT_UPDATE = 'event_updated'
     MISSING_PHOTOS = 'missing_photos'
-    PAYMENT_REQUIRED = 'payment_required'
-    REGISTRATION_DEADLINE = 'registration_deadline'
+    PAYMENT_REMINDER = 'payment_reminder'
+    REGISTRATION_REMINDER = 'registration_reminder'
 
 class NotificationStatus(enum.Enum):
     PENDING = 'pending'

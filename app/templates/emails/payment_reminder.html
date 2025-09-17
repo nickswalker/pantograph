@@ -1,0 +1,30 @@
+{% extends "emails/email_base.html" %}
+
+{% block title %}Team Payment Reminder{% endblock %}
+
+{% block header %}Team Payment Reminder{% endblock %}
+
+{% block content %}
+
+<p>Your team registration is pending until we receive $16 for a new baton. See the <a href="{{ url_for('main.payment') }}">payment details</a> for instructions.</p>
+
+<p>If you've paid already, or you'd like to use your baton from a previous LRR, contact us. If you are no longer planning to participate, you can withdraw your team from <a href="{{ team_url }}">your team page</a> to stop these reminders.</p>
+
+    <div class="team-info">
+        <dl>
+            <dt>Team Name</dt>
+            <dd>{{ team.name }}</dd>
+            <dt>Format</dt>
+            <dd>{{ team.format.value }}</dd>
+            <dt>Estimated Duration</dt>
+            <dd>{{ estimated_duration_display }}</dd>
+            <dt>Status</dt>
+            <dd><span class="status-badge status-pending">{{ team.status.value.title() }}</span></dd>
+        </dl>
+    </div>
+
+    <div class="btn-container">
+        <a href="{{ url_for('main.payment') }}" class="btn">Payment Instructions</a>
+    </div>
+
+{% endblock %}

@@ -501,11 +501,8 @@ def process_new_members_digests():
 
             except Exception as e:
                 print(f"Failed to process digest for captain {captain_id}, team {team_id}: {e}")
-                # Mark notifications as failed
-                for notification in notifications:
-                    notification.status = NotificationStatus.FAILED
-                    notification.failed_at = datetime.now(timezone.utc)
-                    notification.error_message = str(e)
+                # Leave as pending for retry on next run
+                continue
 
     db.session.commit()
     print(f"Processed {len(pending_notifications)} member join notifications")

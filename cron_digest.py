@@ -14,6 +14,16 @@ def main():
     """Main function to run the digest processing"""
     app = create_app()
     
+    # Configure Flask for URL generation outside request context
+    from app.config import Config
+    from urllib.parse import urlparse
+    
+    canonical_url = Config.CANONICAL_URL
+    parsed_url = urlparse(canonical_url)
+    app.config['SERVER_NAME'] = parsed_url.netloc
+    app.config['PREFERRED_URL_SCHEME'] = parsed_url.scheme
+    app.config['APPLICATION_ROOT'] = parsed_url.path or '/'
+    
     with app.app_context():
         try:
             logging.info("Starting daily digest processing...")

@@ -2,23 +2,10 @@
 
 {% block title %}Welcome to the Team{% endblock %}
 
-{% block header %}Welcome to the Team!{% endblock %}
+{% block header %}Welcome to the Team{% endblock %}
 
 {% block content %}
-    <p>You've joined a team for {{ event_name }}.</p>
-
-    <div class="team-info">
-        <dl>
-            <dt>Team</dt>
-            <dd>{{ team.name }}</dd>
-            <dt>Captain</dt>
-            <dd>{{ team.captain.name }}</dd>
-            <dt>Format</dt>
-            <dd>{{ team.format.value }}</dd>
-            <dt>Team Status</dt>
-            <dd>{{ team.status.value.title() }}</dd>
-        </dl>
-    </div>
+    <p>You've joined {{ team.name }} for {{ event_name }}.</p>
 
     <div class="member-preferences">
         <h3>Your Preferences</h3>
@@ -58,7 +45,7 @@
     <div class="next-steps">
         <h3>What's Next</h3>
         <ul>
-            <li><strong>Connect with your team:</strong> Your email has been shared with your captain</li>
+            <li><strong>Connect with your team:</strong> Your email has been shared with your captain ({{ team.captain.name }})</li>
             <li><strong>Review team details:</strong> Check out your team page to see other members</li>
             <li><strong>Update preferences:</strong> You can modify your running preferences anytime before the race</li>
         </ul>

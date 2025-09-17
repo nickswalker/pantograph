@@ -1,0 +1,15 @@
+{% extends "emails/email_base.html" %}
+
+{% block title %}Registration is Closing Soon{% endblock %}
+
+{% block header %}Registration is Closing Soon{% endblock %}
+
+{% block content %}
+    <p>You made an account on Pantograph but didn't join a team. <b>The last day to create a team for {{ event_name }} is {{ registration_close_date }}</b>. Captains can close their teams at any time, but you'll still be able to join open teams.</p>
+
+    <div class="btn-container">
+        <a href="{{ url_for('user.create_team') }}" class="btn">Create Team</a>
+        <a href="{{ url_for('user.join_team') }}" class="btn">Join Team</a>
+    </div>
+
+{% endblock %}

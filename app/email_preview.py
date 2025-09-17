@@ -4,7 +4,7 @@ Provides sample data for previewing email templates in the admin interface.
 """
 
 from datetime import datetime, timezone
-from app.models import TeamFormat, TeamStatus
+from app.models import TeamFormat, TeamStatus, NotificationType
 from app.utils import format_hh_mm_from_seconds
 
 
@@ -55,89 +55,109 @@ def get_sample_data_for_template(template_name):
         'team_url': '#team-preview-link'
     }
 
-    if template_name == 'team_approval':
-        team = MockTeam("Lightning Runners", TeamFormat.TEAM, TeamStatus.OPEN, 18000)
-        return {
-            **base_context,
-            'team': team,
-            'approval_message': 'Your team has been approved for the 2024 Light Rail Relay! We\'re excited to see you race.',
-            'next_steps': [
-                'Check your team roster and invite additional members if needed',
-                'Review race day logistics and station assignments',
-                'Start training and coordinate with your team members'
+    match template_name:
+        case NotificationType.TEAM_APPROVAL.value:
+            team = MockTeam("Lightning Runners", TeamFormat.TEAM, TeamStatus.OPEN, 18000)
+            return {
+                **base_context,
+                'team': team,
+                'approval_message': 'Your team has been approved for the 2024 Light Rail Relay! We\'re excited to see you race.',
+                'next_steps': [
+                    'Check your team roster and invite additional members if needed',
+                    'Review race day logistics and station assignments',
+                    'Start training and coordinate with your team members'
+                ]
+            }
+
+        case NotificationType.TEAM_CREATION.value:
+            team = MockTeam("Lightning Runners", TeamFormat.TEAM, TeamStatus.PENDING, 18000)
+            return {
+                **base_context,
+                'team': team,
+                'estimated_duration_display': format_hh_mm_from_seconds(team.estimated_duration_seconds),
+            }
+
+        case NotificationType.MEMBER_JOINED.value:
+            membership = MockMembership(sample_user, sample_team)
+            return {
+                **base_context,
+                'team': sample_team,
+                'membership': membership,
+            }
+
+        case NotificationType.CAPTAIN_TRANSFER.value:
+            team = sample_team
+            previous_captain = MockUser("Mike Rodriguez", "mike@example.com")
+            new_captain = MockUser("Alex Chen", "alex@example.com")
+            return {
+                **base_context,
+                'team': team,
+                'previous_captain': previous_captain,
+                'new_captain': new_captain,
+                'member_count': 8,
+            }
+
+        case NotificationType.NEW_MEMBERS_DIGEST.value:
+            team = sample_team
+            new_members = [
+                MockMembership(MockUser("Emma Thompson", "emma@example.com"), team, 2.8, 420, True),
+                MockMembership(MockUser("David Park", "david@example.com"), team, 4.2, 510, False),
+                MockMembership(MockUser("Lisa Wang", "lisa@example.com"), team, 3.0, 450, True)
             ]
-        }
+            return {
+                **base_context,
+                'team': team,
+                'captain_name': team.captain.name,
+                'new_members': new_members,
+                'total_members': 11,
+            }
 
-    elif template_name == 'team_creation':
-        team = MockTeam("Lightning Runners", TeamFormat.TEAM, TeamStatus.PENDING, 18000)
-        return {
-            **base_context,
-            'team': team,
-            'estimated_duration_display': format_hh_mm_from_seconds(team.estimated_duration_seconds),
-        }
+        case NotificationType.REGISTRATION_REMINDER.value:
+            return {
+                **base_context,
+                'user': sample_user,
+                'registration_deadline': 'March 15, 2025',
+                'registration_url': '#registration-link'
+            }
 
-    elif template_name == 'member_joined':
-        membership = MockMembership(sample_user, sample_team)
-        return {
-            **base_context,
-            'team': sample_team,
-            'membership': membership,
-        }
+        case NotificationType.PAYMENT_REMINDER.value:
+            return {
+                **base_context,
+                'user': sample_user,
+                'team': sample_team,
+            }
 
-    elif template_name == 'captain_transfer':
-        team = sample_team
-        previous_captain = MockUser("Mike Rodriguez", "mike@example.com")
-        new_captain = MockUser("Alex Chen", "alex@example.com")
-        return {
-            **base_context,
-            'team': team,
-            'previous_captain': previous_captain,
-            'new_captain': new_captain,
-            'member_count': 8,
-        }
-
-    elif template_name == 'new_members_digest':
-        team = sample_team
-        new_members = [
-            MockMembership(MockUser("Emma Thompson", "emma@example.com"), team, 2.8, 420, True),
-            MockMembership(MockUser("David Park", "david@example.com"), team, 4.2, 510, False),
-            MockMembership(MockUser("Lisa Wang", "lisa@example.com"), team, 3.0, 450, True)
-        ]
-        return {
-            **base_context,
-            'team': team,
-            'captain_name': team.captain.name,
-            'new_members': new_members,
-            'total_members': 11,
-        }
-
-    else:
-        # Default fallback
-        return {
-            **base_context,
-            'team': sample_team,
-            'user': sample_user
-        }
+        case _:
+            # Default fallback
+            return {
+                **base_context,
+                'team': sample_team,
+                'user': sample_user
+            }
 
 
 def get_available_templates():
     """Return list of available email templates for preview"""
     return [
-        {'name': 'team_approval', 'display': 'Team Approval'},
-        {'name': 'team_creation', 'display': 'Team Creation Confirmation'},
-        {'name': 'member_joined', 'display': 'Member Joined Welcome'},
-        {'name': 'captain_transfer', 'display': 'Captain Transfer Notification'},
-        {'name': 'new_members_digest', 'display': 'New Members Digest'}
+        {'name': NotificationType.TEAM_APPROVAL.value, 'display': 'Team Approval'},
+        {'name': NotificationType.TEAM_CREATION.value, 'display': 'Team Creation Confirmation'},
+        {'name': NotificationType.MEMBER_JOINED.value, 'display': 'Member Joined Welcome'},
+        {'name': NotificationType.CAPTAIN_TRANSFER.value, 'display': 'Captain Transfer Notification'},
+        {'name': NotificationType.NEW_MEMBERS_DIGEST.value, 'display': 'New Members Digest'},
+        {'name': NotificationType.REGISTRATION_REMINDER.value, 'display': 'Registration Reminder'},
+        {'name': NotificationType.PAYMENT_REMINDER.value, 'display': 'Payment Reminder'},
     ]
 
 
 def get_sample_subject_for_template(template_name):
     """Generate sample email subjects for previews"""
     subjects = {
-        'team_approval': "Your team 'Lightning Runners' has been approved",
-        'team_creation': "Team 'Lightning Runners' Created",
-        'member_joined': "Welcome to Team 'Lightning Runners'",
-        'captain_transfer': "You're Now Captain of Team 'Lightning Runners'",
-        'new_members_digest': "New Team Members - Lightning Runners"
+        NotificationType.TEAM_APPROVAL.value: "Your team 'Lightning Runners' has been approved",
+        NotificationType.TEAM_CREATION.value: "Team 'Lightning Runners' Created",
+        NotificationType.MEMBER_JOINED.value: "Welcome to Team 'Lightning Runners'",
+        NotificationType.CAPTAIN_TRANSFER.value: "You're Now Captain of Team 'Lightning Runners'",
+        NotificationType.NEW_MEMBERS_DIGEST.value: "New Team Members - Lightning Runners",
+        NotificationType.REGISTRATION_REMINDER.value: "Reminder: Register for Light Rail Relay 2025",
+        NotificationType.PAYMENT_REMINDER.value: "Reminder: Complete Registration for Light Rail Relay 2025"
     }
     return subjects.get(template_name, f"Email Preview: {template_name.replace('_', ' ').title()}")

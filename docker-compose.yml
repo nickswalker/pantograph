@@ -20,8 +20,8 @@ services:
     volumes:
       - "./uploads:/app/uploads"
       - "./data:/app/data"
-    user: root
-    command: ["sh", "-c", "echo '0 7 * * * cd /app && uv run python cron_digest.py >> /var/log/cron.log 2>&1' | crontab - && cron -f"]
+    user: root # Cron won't inherit env vars from docker-compose, so we write them to a file and source that file in the cron job
+    command: ["sh", "-c", "printenv | grep -v '^_' | sed 's/^/export /' > /tmp/env && echo '0 7 * * * . /tmp/env && cd /app && uv run python cron_digest.py' | crontab - && cron -f"]
     networks:
       - web_network
 networks:

@@ -95,7 +95,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <time datetime="{{ membership.joined_at.isoformat() }}Z" title="{{ membership.joined_at.strftime('%B %-d, %Y at %I:%M %p') }}" class="small text-muted">
+                                        <time datetime="{{ membership.joined_at.isoformat() }}Z" title="{{ membership.joined_at.strftime('%B %-d, %Y at %I:%M %p') }}" class="small text-muted format-datetime-tooltip format-as-date">
                                             {{ membership.joined_at.strftime('%b %-d, %Y') }}
                                         </time>
                                     </td>
@@ -186,7 +186,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <time datetime="{{ membership.joined_at.isoformat() }}Z" title="{{ membership.joined_at.strftime('%B %-d, %Y at %I:%M %p') }}" class="small text-muted">
+                                        <time datetime="{{ membership.joined_at.isoformat() }}Z" title="{{ membership.joined_at.strftime('%B %-d, %Y at %I:%M %p') }}" class="small text-muted format-datetime-tooltip format-as-date">
                                             {{ membership.joined_at.strftime('%b %-d, %Y') }}
                                         </time>
                                     </td>
@@ -403,22 +403,24 @@
                             </div>
                             <hr>
                         {% endif %}
-                        <div class="row">
-                            <div class="col-12">
-                                <div class="mb-4">
-                                    <h6>Captain Notifications</h6>
-                                    <p class="text-muted small">Control which email notifications you receive as team captain.</p>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="captain_notifications"
-                                               {% if current_user.captain_notifications_enabled %}checked{% endif %}>
-                                        <label class="form-check-label" for="captain_notifications">
-                                            Receive notifications when new members join or leave the team.
-                                        </label>
+                        {% if team.format == TeamFormat.TEAM %}
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="mb-4">
+                                        <h6>Captain Notifications</h6>
+                                        <p class="text-muted small">Control which email notifications you receive as team captain.</p>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="captain_notifications"
+                                                   {% if current_user.captain_notifications_enabled %}checked{% endif %}>
+                                            <label class="form-check-label" for="captain_notifications">
+                                                Receive notifications when new members join or leave the team.
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        <hr>
+                            <hr>
+                        {% endif %}
                         <div class="row">
                             <div class="col-12">
                                 <div class="d-flex justify-content-between align-items-start gap-3">
