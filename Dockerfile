@@ -1,8 +1,8 @@
 FROM python:3.13-slim
 WORKDIR /app
 
-# Install cron for scheduled tasks
-RUN apt-get update && apt-get install -y cron && rm -rf /var/lib/apt/lists/*
+# Install cron for scheduled tasks and sqlite3
+RUN apt-get update && apt-get install -y cron sqlite3 && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
 RUN groupadd -r pantograph && useradd --create-home -r -g pantograph -u 1001 pantograph
