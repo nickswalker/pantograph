@@ -27,7 +27,7 @@ def admin_dashboard():
             'url': url_for('teams.gallery', team_id=team.id),
             'image_count': image_count,
             'format': team.format,
-            'estimated_duration': format_mm_ss_from_seconds(team.estimated_duration_seconds),
+            'estimated_duration_seconds': team.estimated_duration_seconds,
             'captain': team.captain,
             'created_at': team.created_at,
             'member_count': len([m for m in team.memberships if m.status == TeamMembershipStatus.ACTIVE]),

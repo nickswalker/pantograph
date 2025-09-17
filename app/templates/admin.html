@@ -29,6 +29,7 @@
                                     <th>Status</th>
                                     <th>Members</th>
                                     <th>Photos</th>
+                                    <th>Estimate</th>
                                     <th>Comments</th>
                                     <th>Baton Serial</th>
                                     <th>Created</th>
@@ -79,6 +80,9 @@
                                         </a>
                                     </td>
                                     <td>
+                                        {{ team.estimated_duration_seconds | format_hh_mm_from_seconds }}
+                                    </td>
+                                    <td>
                                         {% if team.comments %}
                                         <span class="text-truncate d-inline-block" style="max-width: 150px;" title="{{ team.comments }}">{{ team.comments }}</span>
                                         {% else %}
@@ -98,7 +102,7 @@
                                         </button>
                                     </td>
                                     <td>
-                                        <time datetime="{{ team.created_at.isoformat() }}Z" title="{{ team.created_at.strftime('%B %-d, %Y at %I:%M %p') }}" class="small text-muted">
+                                        <time datetime="{{ team.created_at.isoformat() }}Z" title="{{ team.created_at.strftime('%B %-d, %Y at %I:%M %p') }}" class="small text-muted format-datetime-tooltip format-as-date">
                                             {{ team.created_at.strftime('%-m/%-d/%y') }}
                                         </time>
                                     </td>
@@ -203,7 +207,7 @@
                                         <span class="text-success">Active</span>
                                     </td>
                                     <td>
-                                        <time datetime="{{ user.created_at.isoformat() }}Z" title="{{ user.created_at.strftime('%B %-d, %Y at %I:%M %p') }}" class="small text-muted">
+                                        <time datetime="{{ user.created_at.isoformat() }}Z" title="{{ user.created_at.strftime('%B %-d, %Y at %I:%M %p') }}" class="small text-muted format-datetime-tooltip format-as-date">
                                             {{ user.created_at.strftime('%-m/%-d/%y') }}
                                         </time>
                                     </td>
