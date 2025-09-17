@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
     {% include '_head.html' %}
-    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    {% set page_title %}{% block title %}{{ app_name }}{% endblock %}{% endset %}
+    {% set page_description %}{% block description %}Team registration and photo sharing for {{ config.EVENT_NAME }}{% endblock %}{% endset %}
+    <title>{{ page_title }}</title>
+    <meta name="description" content="{{ page_description }}">
+    <meta property="og:title" content="{{ page_title }}">
+    <meta property="og:description" content="{{ page_description }}">
     {% block head_extra %}{% endblock %}
 </head>
 <body>
