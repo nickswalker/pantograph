@@ -1,3 +1,4 @@
+import datetime
 import os
 
 
@@ -30,6 +31,11 @@ class Config:
     APPLICATION_NAME = "Pantograph"
     EVENT_NAME = "Light Rail Relay 2025"
     EVENT_URL = "https://raceconditionrunning.com/light-rail-relay-25"
+    REGISTRATION_CLOSES_AT = datetime.datetime.fromisoformat("2025-09-25-23:59:59-07:00")  # ISO 8601 format with timezone
+
+    EVENT_START_TIME = datetime.datetime.fromisoformat("2025-09-27T08:30:00-07:00")  # ISO 8601 format with timezone
+    # For testing with old images
+    #EVENT_START_TIME = datetime.datetime.fromisoformat("2024-09-28T08:30:00-07:00")  # ISO 8601 format with timezone
 
     # Core Flask configuration
     SECRET_KEY = get_secret('SECRET_KEY')

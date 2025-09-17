@@ -104,6 +104,24 @@
             <div class="card shadow-sm border-primary">
                 <div class="card-body text-center p-4">
 
+                    {% if deadline_info.is_closed %}
+                    <div class="alert alert-danger mb-4" role="alert">
+                        <ion-icon name="close-circle-outline" class="me-2"></ion-icon>
+                        <strong>Registration Closed:</strong> Team registration closed on {{ deadline_info.deadline_str }}.
+                    </div>
+                    {% elif deadline_info.days_remaining <= 7 and deadline_info.days_remaining > 0 %}
+                    <div class="alert alert-{{ 'warning' if deadline_info.days_remaining <= 3 else 'info' }} mb-4" role="alert">
+                        <ion-icon name="{{ 'warning-outline' if deadline_info.days_remaining <= 3 else 'information-circle-outline' }}" class="me-2"></ion-icon>
+                        <strong>Registration Deadline:</strong> 
+                        {% if deadline_info.days_remaining <= 3 %}
+                            Only {{ deadline_info.days_remaining }} day{{ 's' if deadline_info.days_remaining != 1 else '' }} remaining!
+                        {% else %}
+                            {{ deadline_info.days_remaining }} days remaining.
+                        {% endif %}
+                        Registration closes {{ deadline_info.deadline_str }}.
+                    </div>
+                    {% endif %}
+
                     {% if current_user.is_authenticated %}
                         {% set user_membership = current_user.memberships | selectattr('status', 'equalto', TeamMembershipStatus.ACTIVE) | first if current_user.memberships else none %}
                         {% set user_team = user_membership.team if user_membership else current_user.captained_teams | first if current_user.captained_teams else none %}
@@ -126,9 +144,15 @@
                         {% else %}
                             <p class="text-muted mb-4">Get started by creating your own team or joining an existing one:</p>
                             <div class="d-flex flex-column flex-sm-row justify-content-center gap-2">
-                                <a href="{{ url_for('user.create_team') }}" class="btn btn-primary btn-lg">
-                                    <ion-icon name="add-circle-outline" class="me-1"></ion-icon> Create Team
-                                </a>
+                                {% if deadline_info.is_closed %}
+                                    <button class="btn btn-secondary btn-lg" disabled>
+                                        <ion-icon name="close-circle-outline" class="me-1"></ion-icon> Registration Closed
+                                    </button>
+                                {% else %}
+                                    <a href="{{ url_for('user.create_team') }}" class="btn btn-primary btn-lg">
+                                        <ion-icon name="add-circle-outline" class="me-1"></ion-icon> Create Team
+                                    </a>
+                                {% endif %}
                                 <a href="{{ url_for('user.join_team') }}" class="btn btn-outline-primary btn-lg">
                                     <ion-icon name="person-add-outline" class="me-1"></ion-icon> Join Team
                                 </a>

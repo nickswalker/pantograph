@@ -1,12 +1,36 @@
 import logging
 import os
 import json
+from datetime import datetime
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 from app.config import Config
 import boto3
 
 from app.models import TeamMembershipStatus
+
+
+def get_registration_deadline_info():
+    """Get registration deadline information for template display."""
+    try:
+        deadline = Config.REGISTRATION_CLOSES_AT
+        now = datetime.now(deadline.tzinfo)
+
+        return {
+            'deadline': deadline,
+            'deadline_str': deadline.strftime('%B %d, %Y at %I:%M %p'),
+            'is_closed': now > deadline,
+            'days_remaining': (deadline - now).days if now <= deadline else 0
+        }
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to parse registration deadline: {e}")
+        return {
+            'deadline': None,
+            'deadline_str': 'TBD',
+            'is_closed': False,
+            'days_remaining': 9999
+        }
 
 
 def format_hh_mm_from_seconds(total_seconds):

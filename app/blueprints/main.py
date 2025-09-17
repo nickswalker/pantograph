@@ -7,7 +7,9 @@ main = Blueprint('main', __name__)
 
 @main.route('/')
 def index():
-    return render_template('index.html')
+    from app.utils import get_registration_deadline_info
+    deadline_info = get_registration_deadline_info()
+    return render_template('index.html', deadline_info=deadline_info)
 
 
 @main.route('/payment')

@@ -1,6 +1,7 @@
 import os
 import shutil
 import re
+from datetime import datetime
 from flask import Blueprint, request, render_template, jsonify, redirect, url_for
 from flask_login import login_required, current_user
 from app.models import db, Team, TeamMembership, TeamStatus, TeamFormat, TeamMembershipStatus
@@ -15,11 +16,21 @@ user = Blueprint('user', __name__)
 def create_team():
     # Handle GET request (show form to all users, authenticated or not)
     if request.method == 'GET':
-        return render_template('create_team.html', user=current_user)
+        from app.utils import get_registration_deadline_info
+        deadline_info = get_registration_deadline_info()
+        return render_template('create_team.html', user=current_user, deadline_info=deadline_info)
 
     # Handle POST request - require authentication for actual submission
     if not current_user.is_authenticated:
         return jsonify({'error': 'Please sign in to create a team', 'redirect_to_login': True}), 401
+
+    try:
+        registration_deadline = Config.REGISTRATION_CLOSES_AT
+        if datetime.now(registration_deadline.tzinfo) > registration_deadline:
+            return jsonify({'error': 'Team registration has closed. The deadline has passed.'}), 403
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to parse registration deadline: {e}")
 
     # Check if user is already associated with any team (as captain or member)
     existing_captained_team = Team.query.filter_by(captain_id=current_user.id).first()
