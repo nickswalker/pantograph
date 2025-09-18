@@ -5,7 +5,7 @@
 {% block header %}Registration is Closing Soon{% endblock %}
 
 {% block content %}
-    <p>You made an account on Pantograph but didn't join a team. <b>The last day to create a team for {{ event_name }} is {{ registration_close_date }}</b>. Captains can close their teams at any time, but you'll still be able to join open teams.</p>
+    <p>You made an account on Pantograph but didn't join a team. The last day to create a team for {{ event_name }} is <b>{{ registration_close_date }}</b>. You'll still be able to join any open teams, but captains may close their teams at any time.</p>
 
     <div class="btn-container">
         <a href="{{ url_for('user.create_team') }}" class="btn">Create Team</a>

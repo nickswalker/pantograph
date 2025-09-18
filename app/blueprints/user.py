@@ -144,7 +144,7 @@ def create_team():
             notification_type=NotificationType.TEAM_CREATION,
             recipient_user=current_user,
             subject=subject,
-            template_name='team_creation',
+            template_name='team_created',
             template_context=context,
             related_team=new_team,
             metadata=metadata

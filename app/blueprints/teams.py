@@ -701,7 +701,7 @@ def transfer_captain(team_id, user_id, team):
             notification_type=NotificationType.CAPTAIN_TRANSFER,
             recipient_user=new_captain,
             subject=subject,
-            template_name='captain_transfer',
+            template_name='captain_transferred',
             template_context=context,
             related_team=team,
             metadata=metadata
@@ -813,3 +813,59 @@ def generate_invite_link(team_id, team):
         db.session.rollback()
         logging.error(f"Failed to generate invite link for team {team_id}: {str(e)}")
         return jsonify({'error': f'Failed to generate invite link'}), 500
+
+
+@teams.route('/<team_id>/payment-reminder', methods=['POST'])
+@admin_required
+def send_payment_reminder(team_id):
+    try:
+        # Find team by ID
+        team = find_team_by_id(team_id)
+        if not team:
+            return jsonify({'error': 'Team not found'}), 404
+
+        # Only send reminders to pending teams
+        if team.status != TeamStatus.PENDING:
+            return jsonify({'error': 'Payment reminders can only be sent to pending teams'}), 400
+
+        # Get team captain
+        captain = team.captain
+        if not captain:
+            return jsonify({'error': 'Team has no captain'}), 400
+
+        # Send payment reminder email
+        from app.utils import send_email_with_logging, format_hh_mm_from_seconds
+        from app.models import NotificationType
+
+        subject = f"Payment Reminder for Team '{team.name}'"
+        estimated_duration_display = format_hh_mm_from_seconds(team.estimated_duration_seconds) if team.estimated_duration_seconds else 'Not specified'
+        team_url = url_for('teams.team_members', team_id=team.id, _external=True)
+
+        context = {
+            'team': team,
+            'estimated_duration_display': estimated_duration_display,
+            'team_url': team_url
+        }
+        metadata = {
+            'team_name': team.name,
+            'estimated_duration': estimated_duration_display
+        }
+
+        send_email_with_logging(
+            notification_type=NotificationType.PAYMENT_REMINDER,
+            recipient_user=captain,
+            subject=subject,
+            template_name='payment_reminder',
+            template_context=context,
+            related_team=team,
+            metadata=metadata
+        )
+
+        return jsonify({
+            'success': True,
+            'message': f'Payment reminder sent to {captain.name} ({captain.email})'
+        }), 200
+
+    except Exception as e:
+        logging.error(f"Failed to send payment reminder for team {team_id}: {str(e)}")
+        return jsonify({'error': f'Failed to send payment reminder'}), 500

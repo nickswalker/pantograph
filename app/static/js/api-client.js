@@ -282,6 +282,14 @@ export class TeamAPI extends ApiClient {
             body: JSON.stringify({ baton_serial: newSerial })
         });
     }
+
+    // Send payment reminder (admin)
+    async sendPaymentReminder(teamId) {
+        const url = this.buildUrl('sendPaymentReminder', { team_id: teamId });
+        return await this.request(url, {
+            method: 'POST'
+        });
+    }
 }
 
 // Membership Management API
@@ -358,10 +366,8 @@ export class UserAPI extends ApiClient {
         const url = this.buildUrl('deleteUser', { user_id: user_id });
         return await this.request(url, {
             method: 'DELETE'
-
         });
     }
-
 
     // Update user preferences
     async updatePreferences(data) {
@@ -378,6 +384,17 @@ export class UserAPI extends ApiClient {
         return await this.request(url, {
             method: 'PATCH',
             body: JSON.stringify(data)
+        });
+    }
+}
+
+// Admin Management API
+export class AdminAPI extends ApiClient {
+    // Send registration reminder (admin)
+    async sendRegistrationReminder() {
+        const url = this.getUrl('sendRegistrationReminder');
+        return await this.request(url, {
+            method: 'POST'
         });
     }
 }
@@ -521,6 +538,7 @@ export const api = new ApiClient();
 export const teamAPI = new TeamAPI();
 export const membershipAPI = new MembershipAPI();
 export const userAPI = new UserAPI();
+export const adminAPI = new AdminAPI();
 export const imageAPI = new ImageAPI();
 
 // Make utilities available globally

@@ -5,7 +5,7 @@ Provides sample data for previewing email templates in the admin interface.
 
 from datetime import datetime, timezone
 from app.models import TeamFormat, TeamStatus, NotificationType
-from app.utils import format_hh_mm_from_seconds
+from app.utils import format_hh_mm_from_seconds, get_registration_deadline_info
 
 
 class MockUser:
@@ -116,15 +116,17 @@ def get_sample_data_for_template(template_name):
             return {
                 **base_context,
                 'user': sample_user,
-                'registration_deadline': 'March 15, 2025',
+                'registration_close_date': get_registration_deadline_info()['deadline_str'],
                 'registration_url': '#registration-link'
             }
 
         case NotificationType.PAYMENT_REMINDER.value:
+            team = sample_team
             return {
                 **base_context,
                 'user': sample_user,
-                'team': sample_team,
+                'team': team,
+                'estimated_duration_display': format_hh_mm_from_seconds(team.estimated_duration_seconds),
             }
 
         case _:

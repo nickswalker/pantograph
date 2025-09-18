@@ -119,6 +119,9 @@
                                                 <li><a class="dropdown-item text-warning" href="#" onclick="cancelTeam('{{ team.name }}', '{{ team.id }}')">
                                                     <ion-icon name="ban-outline" class="me-2"></ion-icon>Cancel
                                                 </a></li>
+                                                <li><a class="dropdown-item text-info" href="#" onclick="sendPaymentReminder('{{ team.name }}', '{{ team.id }}')">
+                                                    <ion-icon name="mail-outline" class="me-2"></ion-icon>Send Payment Reminder
+                                                </a></li>
                                                 {% endif %}
                                                 {% if team.status != TeamStatus.WITHDRAWN and team.status != TeamStatus.CANCELLED %}
                                                 <li><a class="dropdown-item text-warning" href="#" onclick="withdrawTeam('{{ team.name }}', '{{ team.id }}')">
@@ -151,7 +154,13 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Users</h5>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Users</h5>
+                        <button class="btn btn-outline-info btn-sm" onclick="sendRegistrationReminder()">
+                            <ion-icon name="mail-outline" class="me-1"></ion-icon>
+                            Send Registration Reminder
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     {% if users %}
@@ -324,6 +333,58 @@
     </div>
 </div>
 
+<!-- Payment Reminder Confirmation Modal -->
+<div class="modal fade" id="paymentReminderModal" tabindex="-1" aria-labelledby="paymentReminderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentReminderModalLabel">
+                    <ion-icon name="mail-outline" class="text-info me-2"></ion-icon>
+                    Send Payment Reminder
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Send a payment reminder email to team <strong id="paymentReminderTeamName"></strong>?</p>
+                <p>This will send an email to the team captain with payment instructions and details about their pending team registration.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info" id="confirmSendReminderBtn">
+                    <span class="spinner-border spinner-border-sm d-none me-2"></span>
+                    Send Reminder
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Registration Reminder Confirmation Modal -->
+<div class="modal fade" id="registrationReminderModal" tabindex="-1" aria-labelledby="registrationReminderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="registrationReminderModalLabel">
+                    <ion-icon name="mail-outline" class="text-info me-2"></ion-icon>
+                    Send Registration Reminder
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Send registration reminder emails to all users without active team memberships?</p>
+                <p>This will send an email to users who have created accounts but haven't joined or created a team yet, reminding them that registration is closing soon.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info" id="confirmSendRegistrationReminderBtn">
+                    <span class="spinner-border spinner-border-sm d-none me-2"></span>
+                    Send Reminders
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Baton Serial Modal -->
 <div class="modal fade" id="editBatonSerialModal" tabindex="-1" aria-labelledby="editBatonSerialModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -353,7 +414,7 @@
 {% block scripts %}
 <script type="module">
 import * as bootstrap from 'bootstrap';
-import { userAPI, teamAPI, api, Utils } from '{{ url_for("static", filename="js/api-client.js") }}';
+import { userAPI, teamAPI, adminAPI, api, Utils } from '{{ url_for("static", filename="js/api-client.js") }}';
 
 let currentShortId = null;
 let currentUserId = null;
@@ -490,6 +551,99 @@ window.cancelTeam = async function(teamName, shortId) {
         api.redirectAfterDelay(window.location.href, 1500);
     } else {
         api.showToast(result.error || 'Failed to cancel team', 'danger');
+    }
+}
+
+// Payment reminder functions
+window.sendPaymentReminder = function(teamName, teamId) {
+    currentTeamId = teamId;
+    document.getElementById('paymentReminderTeamName').textContent = teamName;
+
+    const modal = new bootstrap.Modal(document.getElementById('paymentReminderModal'));
+    modal.show();
+
+    // Add click handler for send reminder button
+    document.getElementById('confirmSendReminderBtn').onclick = function() {
+        sendPaymentReminderEmail(currentTeamId);
+    };
+}
+
+window.sendPaymentReminderEmail = async function(teamId) {
+    const sendBtn = document.getElementById('confirmSendReminderBtn');
+
+    // Show loading state
+    sendBtn.disabled = true;
+    const spinner = sendBtn.querySelector('.spinner-border');
+    spinner.classList.remove('d-none');
+    sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
+
+    const result = await teamAPI.sendPaymentReminder(teamId);
+
+    if (result.success) {
+        // Show success toast
+        api.showToast(result.data.message, 'success');
+
+        // Hide modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('paymentReminderModal'));
+        modal.hide();
+
+        // Reset button
+        sendBtn.disabled = false;
+        spinner.classList.add('d-none');
+        sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm d-none me-2"></span>Send Reminder';
+    } else {
+        // Show error toast
+        api.showToast(result.error || 'Failed to send payment reminder', 'danger');
+
+        // Reset button
+        sendBtn.disabled = false;
+        spinner.classList.add('d-none');
+        sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm d-none me-2"></span>Send Reminder';
+    }
+}
+
+// Registration reminder functions
+window.sendRegistrationReminder = function() {
+    const modal = new bootstrap.Modal(document.getElementById('registrationReminderModal'));
+    modal.show();
+
+    // Add click handler for send reminder button
+    document.getElementById('confirmSendRegistrationReminderBtn').onclick = function() {
+        sendRegistrationReminderEmails();
+    };
+}
+
+window.sendRegistrationReminderEmails = async function() {
+    const sendBtn = document.getElementById('confirmSendRegistrationReminderBtn');
+
+    // Show loading state
+    sendBtn.disabled = true;
+    const spinner = sendBtn.querySelector('.spinner-border');
+    spinner.classList.remove('d-none');
+    sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
+
+    const result = await adminAPI.sendRegistrationReminder();
+
+    if (result.success) {
+        // Show success toast
+        api.showToast(result.data.message, 'success');
+
+        // Hide modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('registrationReminderModal'));
+        modal.hide();
+
+        // Reset button
+        sendBtn.disabled = false;
+        spinner.classList.add('d-none');
+        sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm d-none me-2"></span>Send Reminders';
+    } else {
+        // Show error toast
+        api.showToast(result.error || 'Failed to send registration reminders', 'danger');
+
+        // Reset button
+        sendBtn.disabled = false;
+        spinner.classList.add('d-none');
+        sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm d-none me-2"></span>Send Reminders';
     }
 }
 </script>

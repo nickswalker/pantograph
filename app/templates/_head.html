@@ -65,7 +65,7 @@ import 'bootstrap';
  import { Modal } from 'bootstrap';
 import { formatTimes } from '{{ url_for("static", filename="js/utils.js") }}';
 // Import and initialize shared API client
-import { api, userAPI, configureUrls } from '{{ url_for("static", filename="js/api-client.js") }}';
+import { api, userAPI, adminAPI, configureUrls } from '{{ url_for("static", filename="js/api-client.js") }}';
 
 // Global timezone conversion for all time elements
 document.addEventListener('DOMContentLoaded', function() {
@@ -99,6 +99,7 @@ configureUrls({
     unwithdrawMembership: '{{ url_for("teams.unwithdraw_membership", team_id="__TEAM_ID__", user_id="__USER_ID__") }}',
     removeMember: '{{ url_for("teams.remove_member", team_id="__TEAM_ID__", user_id="__USER_ID__") }}',
     promoteToCaptain: '{{ url_for("teams.transfer_captain", team_id="__TEAM_ID__", user_id="__USER_ID__") }}',
+    sendPaymentReminder: '{{ url_for("teams.send_payment_reminder", team_id="__TEAM_ID__") }}',
     {% endif %}
 
     // User management
@@ -110,6 +111,7 @@ configureUrls({
     // Admin routes
     approveTeam: '{{ url_for("admin.approve_team", team_id="__TEAM_ID__") }}',
     deleteTeam: '{{ url_for("admin.delete_team", team_id="__TEAM_ID__") }}',
+    sendRegistrationReminder: '{{ url_for("admin.send_registration_reminder") }}',
     admin: '{{ url_for("admin.admin_dashboard") }}',
     {% endif %}
 

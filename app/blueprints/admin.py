@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, jsonify, url_for, request
 from flask_login import current_user
 from app.models import db, User, Team, TeamMembership, TeamStatus, TeamFormat, TeamMembershipStatus, Image
 from app.permissions import admin_required
-from app.utils import is_allowed_image, format_mm_ss_from_seconds
+from app.utils import is_allowed_image, format_mm_ss_from_seconds, get_registration_deadline_info
 from app.config import Config
 
 admin = Blueprint('admin', __name__, url_prefix='/admin')
@@ -131,7 +131,7 @@ def approve_team(team_id):
             notification_type=NotificationType.TEAM_APPROVAL,
             recipient_user=team.captain,
             subject=subject,
-            template_name='team_approval',
+            template_name='team_approved',
             template_context=context,
             related_team=team,
             metadata=metadata
@@ -237,3 +237,73 @@ def send_test_email(template_name):
         import logging
         logging.error(f"Failed to send test email for template '{template_name}': {str(e)}")
         return jsonify({'error': f'Failed to send test email: {str(e)}'}), 500
+
+
+@admin.route('/send-registration-reminder', methods=['POST'])
+@admin_required
+def send_registration_reminder():
+    """Send registration reminder emails to all users without active team memberships"""
+    try:
+        # Find users without active team memberships
+        # This includes users who have never joined a team or whose teams are withdrawn/cancelled
+        users_without_teams = User.query.outerjoin(TeamMembership).filter(
+            (TeamMembership.user_id.is_(None)) |  # No memberships at all
+            (~TeamMembership.status.in_([TeamMembershipStatus.ACTIVE]))  # No active memberships
+        ).all()
+
+        # Filter to ensure we only get users who truly have no active memberships
+        users_to_remind = []
+        for user in users_without_teams:
+            active_memberships = [m for m in user.memberships if m.status == TeamMembershipStatus.ACTIVE]
+            if not active_memberships:
+                users_to_remind.append(user)
+
+        if not users_to_remind:
+            return jsonify({
+                'success': True,
+                'message': 'No users found without active team memberships'
+            }), 200
+
+        # Send registration reminder emails
+        from app.utils import send_email_with_logging
+        from app.models import NotificationType
+        from app.config import Config
+
+        sent_count = 0
+        for user in users_to_remind:
+            try:
+                subject = "Registration is Closing Soon"
+                context = {
+                    'event_name': Config.EVENT_NAME,
+                    'registration_close_date': get_registration_deadline_info()['deadline_str']
+                }
+                metadata = {
+                    'user_name': user.name,
+                    'user_email': user.email
+                }
+
+                send_email_with_logging(
+                    notification_type=NotificationType.REGISTRATION_REMINDER,
+                    recipient_user=user,
+                    subject=subject,
+                    template_name='registration_reminder',
+                    template_context=context,
+                    related_team=None,
+                    metadata=metadata
+                )
+                sent_count += 1
+
+            except Exception as e:
+                import logging
+                logging.error(f"Failed to send registration reminder to {user.email}: {str(e)}")
+                # Continue with other users even if one fails
+
+        return jsonify({
+            'success': True,
+            'message': f'Registration reminder emails sent to {sent_count} users'
+        }), 200
+
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to send registration reminders: {str(e)}")
+        return jsonify({'error': f'Failed to send registration reminders'}), 500
