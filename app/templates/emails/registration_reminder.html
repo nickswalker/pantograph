@@ -5,11 +5,13 @@
 {% block header %}Registration is Closing Soon{% endblock %}
 
 {% block content %}
-    <p>You made an account on Pantograph but didn't join a team. The last day to create a team for {{ event_name }} is <b>{{ registration_close_date }}</b>. You'll still be able to join any open teams, but captains may close their teams at any time.</p>
+    <p>You made an account on Pantograph but didn't create or join a team. The last day to create a team for {{ event_name }} is <b>{{ registration_close_date }}</b>. You'll still be able to join any open teams, but captains may close their teams at any time.</p>
 
     <div class="btn-container">
         <a href="{{ url_for('user.create_team') }}" class="btn">Create Team</a>
         <a href="{{ url_for('user.join_team') }}" class="btn">Join Team</a>
     </div>
+
+    <p class="small text-muted">To delete your account, log in, and select "Delete Account" from the drop-down at the top right.</p>
 
 {% endblock %}
