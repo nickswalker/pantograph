@@ -238,7 +238,7 @@ a:target span.cssbox_full {
           </div>
 
           <a id="image{{ image.id }}" href="#image{{ image.id }}">
-            <img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename) }}" class="cssbox_thumb card-img-top bg-secondary-subtle" style="height: 200px; object-fit: contain; object-position: center;" loading="lazy">
+            <img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename, size='thumb') }}" class="cssbox_thumb card-img-top bg-secondary-subtle" style="height: 200px; object-fit: contain; object-position: center;" loading="lazy">
             <span class="cssbox_full"><img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename) }}"></span>
           </a>
           <div class="card-body">
@@ -458,7 +458,7 @@ const imagesWithCoordinates = [
   {% for image in images %}
     {% if image.gps_coordinates %}
       {
-        imageUrl: '{{ url_for("teams_public.serve_image", team_id=team.id, filename=image.filename) }}',
+        imageUrl: '{{ url_for("teams_public.serve_image", team_id=team.id, filename=image.filename, size="thumb") }}',
         filename: {{ image.original_filename|tojson }},
         lat: {{ image.gps_coordinates[0] | float }},
         lng: {{ image.gps_coordinates[1] | float }}

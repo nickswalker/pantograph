@@ -91,6 +91,11 @@ class Config:
     MAX_PHOTOS_PER_TEAM = 30
     ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.tiff'}
 
+    # Gallery thumbnails (served in the grid + map popups instead of full-size originals)
+    THUMBNAIL_DIR = 'thumbs'        # subdirectory of each team's upload folder
+    THUMBNAIL_MAX_SIZE = 400        # longest edge, px
+    THUMBNAIL_QUALITY = 75
+
 
 # OAuth providers configuration for templates
 OAUTH_PROVIDERS = [

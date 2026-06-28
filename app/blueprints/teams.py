@@ -17,7 +17,7 @@ from app.permissions import (
 )
 from app.utils import is_allowed_image, validate_image_content, secure_filename_enhanced, find_team_by_id, \
     find_team_by_gallery_hash, load_station_names, parse_hh_mm_to_seconds, convert_to_jpeg, is_heic_file, \
-    format_mm_ss_from_seconds, load_exchange_points
+    format_mm_ss_from_seconds, load_exchange_points, thumbnail_basename, generate_thumbnail_from_image
 from app.config import Config
 from app.security import limiter
 from app.services import team_service, membership_service
@@ -346,6 +346,12 @@ def upload_images(team_id, team):
         # The file path that gets stored must be relative to the upload folder.
         db_file_path = os.path.join(team.id, final_stored_filename)
 
+        # Generate a gallery thumbnail from the already-decoded image (best-effort).
+        thumb_path = os.path.join(
+            save_path, Config.THUMBNAIL_DIR, thumbnail_basename(final_stored_filename)
+        )
+        generate_thumbnail_from_image(as_image, thumb_path)
+
         # Create Image record (use final filename for serving)
         image = Image(
             filename=file.filename,
@@ -423,7 +429,17 @@ def serve_image(team_id, filename):
         return abort(404, description="Image not found.")
 
     directory = os.path.abspath(os.path.join(Config.UPLOAD_FOLDER, team.id))
-    return send_from_directory(directory, secure_filename(filename))
+    safe_name = secure_filename(filename)
+
+    # Serve the lightweight thumbnail for grid/map requests, falling back to the
+    # original if it hasn't been generated (e.g. images predating thumbnailing).
+    if request.args.get('size') == 'thumb':
+        thumb_dir = os.path.join(directory, Config.THUMBNAIL_DIR)
+        thumb_name = thumbnail_basename(safe_name)
+        if os.path.exists(os.path.join(thumb_dir, thumb_name)):
+            return send_from_directory(thumb_dir, thumb_name)
+
+    return send_from_directory(directory, safe_name)
 
 
 @teams.route('/<team_id>/withdraw', methods=['POST'])

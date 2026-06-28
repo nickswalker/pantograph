@@ -2,9 +2,12 @@ import logging
 import os
 import json
 from datetime import datetime
-from PIL import Image
+from PIL import Image, ImageOps
 from PIL.ExifTags import TAGS, GPSTAGS
 from app.config import Config
+
+# Guard against decompression-bomb images exhausting worker memory.
+Image.MAX_IMAGE_PIXELS = 50_000_000
 
 
 def get_registration_deadline_info():
@@ -310,3 +313,57 @@ def convert_to_jpeg(image: Image, jpeg_path, quality=85):
 def is_heic_file(filename):
     """Check if file is HEIC format"""
     return filename.lower().endswith(('.heic', '.heif'))
+
+
+# --- Gallery thumbnails ---
+
+def thumbnail_basename(stored_basename):
+    """Thumbnail filename for a stored image basename (always a .jpg)."""
+    return os.path.splitext(stored_basename)[0] + '.jpg'
+
+
+def _write_thumbnail(img, dest_path):
+    """Resize ``img`` to the configured max size and write a JPEG to dest_path.
+
+    Bakes in EXIF orientation (the re-encoded thumbnail drops EXIF, so the
+    rotation must be applied to the pixels) and downsizes with LANCZOS.
+    """
+    img = ImageOps.exif_transpose(img)  # apply orientation, returns a copy when needed
+    img.thumbnail((Config.THUMBNAIL_MAX_SIZE, Config.THUMBNAIL_MAX_SIZE), Image.LANCZOS)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    img.save(dest_path, 'JPEG', quality=Config.THUMBNAIL_QUALITY, optimize=True)
+
+
+def generate_thumbnail_from_image(img, dest_path):
+    """Best-effort thumbnail from an already-decoded PIL image (upload path).
+
+    Operates on a copy so the caller's image is untouched. Never raises — a
+    failed thumbnail just means the gallery falls back to the original.
+    """
+    try:
+        _write_thumbnail(img.copy(), dest_path)
+        return True
+    except Exception as e:
+        logging.warning(f"Thumbnail generation failed for {dest_path}: {e}")
+        return False
+
+
+def generate_thumbnail_from_file(src_path, dest_path):
+    """Best-effort thumbnail from a file on disk, decoding cheaply (backfill path).
+
+    Uses JPEG ``draft`` mode so a large source decodes at reduced resolution
+    instead of materializing the full bitmap.
+    """
+    try:
+        with Image.open(src_path) as img:
+            try:
+                img.draft('RGB', (Config.THUMBNAIL_MAX_SIZE, Config.THUMBNAIL_MAX_SIZE))
+            except Exception:
+                pass  # draft is a JPEG-only optimization; ignore where unsupported
+            _write_thumbnail(img, dest_path)
+        return True
+    except Exception as e:
+        logging.warning(f"Thumbnail backfill failed for {src_path}: {e}")
+        return False
