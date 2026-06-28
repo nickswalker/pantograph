@@ -3,3 +3,5 @@ pantograph.db
 .env
 .env.dev
 .venv
+__pycache__/
+*.pyc
