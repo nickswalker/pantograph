@@ -20,8 +20,9 @@ from app.utils import is_allowed_image, validate_image_content, secure_filename_
     format_mm_ss_from_seconds, load_exchange_points
 from app.config import Config
 from app.security import limiter
-from app.services import team_service
+from app.services import team_service, membership_service
 from app.services.team_service import TeamStateError
+from app.services.exceptions import ServiceError
 
 teams = Blueprint('teams', __name__, url_prefix='/team')
 
@@ -535,104 +536,58 @@ def view_member(team_id, team, user_id):
 @team_captain_or_member_required()
 def withdraw_membership(team_id, user_id, team, membership):
     try:
-        if membership.status == TeamMembershipStatus.WITHDRAWN:
-            return jsonify({'error': 'Membership is already withdrawn'}), 400
-
-        # Don't allow captain to withdraw
-        if membership.user_id == team.captain_id:
-            return jsonify({'error': 'Captain cannot withdraw from their own team. Make someone else captain first.'}), 400
-
-        # Update membership status to withdrawn
-        membership.status = TeamMembershipStatus.WITHDRAWN
-        db.session.commit()
-
+        membership_service.withdraw_membership(team, membership)
         return jsonify({
             'success': True,
             'message': f'Successfully withdrawn from team "{membership.team.name}"'
         }), 200
-
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
     except Exception as e:
         db.session.rollback()
         logging.error(f"Failed to withdraw membership for user {user_id} from team {team_id}: {str(e)}")
-        return jsonify({'error': f'Failed to withdraw membership'}), 500
+        return jsonify({'error': 'Failed to withdraw membership'}), 500
 
 
 @teams.route('/<team_id>/members/<user_id>/unwithdraw', methods=['POST'])
 @team_captain_or_member_required()
 def unwithdraw_membership(team_id, user_id, team, membership):
     try:
-        if membership.status != TeamMembershipStatus.WITHDRAWN:
-            return jsonify({'error': 'Membership is not withdrawn'}), 400
-
-        # Update membership status to active
-        membership.status = TeamMembershipStatus.ACTIVE
-        db.session.commit()
-
+        membership_service.unwithdraw_membership(membership)
         return jsonify({
             'success': True,
             'message': f'Successfully re-joined team "{membership.team.name}"'
         }), 200
-
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
     except Exception as e:
         db.session.rollback()
         logging.error(f"Failed to re-join team {team_id} for user {user_id}: {str(e)}")
-        return jsonify({'error': f'Failed to re-join team'}), 500
+        return jsonify({'error': 'Failed to re-join team'}), 500
 
 
 @teams.route('/<team_id>/members/<user_id>/remove', methods=['POST'])
 @team_captain_required()
 def remove_member(team_id, user_id, team):
     try:
-        # Find membership in database
-        membership = TeamMembership.query.filter_by(team_id=team.id, user_id=user_id).first()
-        if not membership:
-            return jsonify({'error': 'Membership not found'}), 404
-
-        # Can't remove the captain
-        if membership.user_id == team.captain_id:
-            return jsonify({'error': 'Cannot remove team captain'}), 400
-
-        # Update membership status to removed
-        membership.status = TeamMembershipStatus.REMOVED
-        db.session.commit()
-
+        membership = membership_service.remove_member(team, user_id)
         return jsonify({
             'success': True,
             'message': f'Successfully removed {membership.user.name} from team "{team.name}"'
         }), 200
-
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
     except Exception as e:
         db.session.rollback()
-        logging.error(f"Failed to remove member {membership.user_id} from team {team_id}: {str(e)}")
-        return jsonify({'error': f'Failed to remove member'}), 500
+        logging.error(f"Failed to remove member {user_id} from team {team_id}: {str(e)}")
+        return jsonify({'error': 'Failed to remove member'}), 500
 
 
 @teams.route('/<team_id>/members/<user_id>/promote', methods=['POST'])
 @team_captain_required()
 def transfer_captain(team_id, user_id, team):
     try:
-        from app.models import User
-        # Check if new captain is a member of the team
-        new_captain = User.query.get(user_id)
-        if not new_captain:
-            return jsonify({'error': 'New captain not found'}), 404
-
-        # Verify new captain is an active member of this team
-        membership = TeamMembership.query.filter_by(
-            team_id=team.id,
-            user_id=user_id,
-            status=TeamMembershipStatus.ACTIVE
-        ).first()
-
-        if not membership:
-            return jsonify({'error': 'New captain must be an active member of the team'}), 400
-
-        # Store previous captain info for email
-        previous_captain = team.captain
-
-        # Transfer captaincy
-        team.captain_id = user_id
-        db.session.commit()
+        previous_captain, new_captain = membership_service.transfer_captain(team, user_id)
 
         # Send captain transfer notification email
         from app.utils import send_email_with_logging
@@ -675,10 +630,12 @@ def transfer_captain(team_id, user_id, team):
             'message': f'Successfully transferred captaincy to {new_captain.name}'
         }), 200
 
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
     except Exception as e:
         db.session.rollback()
         logging.error(f"Failed to transfer captaincy for team {team_id} to user {user_id}: {str(e)}")
-        return jsonify({'error': f'Failed to transfer captaincy'}), 500
+        return jsonify({'error': 'Failed to transfer captaincy'}), 500
 
 
 @teams.route('/<team_id>/details', methods=['POST'])

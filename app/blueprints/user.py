@@ -5,7 +5,7 @@ from datetime import datetime
 from flask import Blueprint, request, render_template, jsonify, redirect, url_for
 from flask_login import login_required, current_user
 from app.models import db, Team, TeamMembership, TeamStatus, TeamFormat, TeamMembershipStatus
-from app.utils import load_station_names, parse_hh_mm_to_seconds, parse_mm_ss_to_seconds
+from app.utils import load_station_names, parse_hh_mm_to_seconds
 from app.config import Config
 from app.permissions import user_self_or_admin_required
 
@@ -288,186 +288,80 @@ def my_registration():
 
 
 def handle_team_registration_post(stations, mode='join'):
-    """Shared handler for team registration POST requests"""
+    """Shared handler for team registration POST requests.
+
+    Parses the form, delegates the business rules to the membership service,
+    and dispatches the resulting notifications.
+    """
+    from app.services import membership_service
+    from app.services.membership_service import RegistrationInput
+    from app.services.exceptions import ServiceError
+
+    data = RegistrationInput(
+        team_id=request.form.get('team_id'),
+        invite_token=request.form.get('invite_token'),
+        willing_to_lead=request.form.get('willing_to_lead') == 'yes',
+        preferred_miles=request.form.get('preferred_miles'),
+        planned_pace_str=request.form.get('planned_pace'),
+        preferred_station=request.form.get('preferred_station'),
+        comments=request.form.get('comments', '').strip(),
+        waiver_agreed=request.form.get('waiver_agreed') == 'on',
+        team_password=request.form.get('team_password', '').strip(),
+        email_opt_in=request.form.get('email_opt_in') == 'true',
+    )
+
     try:
-        team_id = request.form.get('team_id')
-        willing_to_lead = request.form.get('willing_to_lead') == 'yes'
-        preferred_miles = request.form.get('preferred_miles')
-        planned_pace_str = request.form.get('planned_pace')
-        preferred_station = request.form.get('preferred_station')
-        comments = request.form.get('comments', '').strip()
-        waiver_agreed = request.form.get('waiver_agreed') == 'on'
-        team_password = request.form.get('team_password', '').strip()
-        invite_token = request.form.get('invite_token')
-        email_opt_in = request.form.get('email_opt_in') == 'true'
-
-        # Check if user is already associated with any team (as captain or member)
-        existing_captained_team = Team.query.filter_by(captain_id=current_user.id).first()
-        existing_membership = TeamMembership.query.filter_by(user_id=current_user.id, status=TeamMembershipStatus.ACTIVE).first()
-
-        # Validation
-        team = None
-        # Authorize joining the team
-        if invite_token:
-            team = Team.query.filter_by(invite_token=invite_token).first()
-            if not team:
-                return jsonify({'error': 'The invitation link is invalid or has expired.'}), 400
-            if team_id and team_id != team.id:
-                return jsonify({'error': 'Invitation and selected team do not match.'}), 400
-            # Otherwise, they've got a valid token, so we'll let them join the team.
-        else:
-            if not team_id:
-                 return jsonify({'error': 'Please select a team'}), 400
-            team = db.session.get(Team, team_id)
-
-        # Authorization logic: Check if user can join this specific team
-        # Skip password check for edit mode when user is already a member
-        is_editing_existing_membership = mode == 'edit' and existing_membership and existing_membership.team_id == team.id
-
-        if not is_editing_existing_membership:
-            if team.status == TeamStatus.OPEN:
-                # For open teams, check password if required (unless user is the team captain)
-                if team.password_hash and not invite_token and team.captain_id != current_user.id: # Invite token or team captain bypasses password
-                    if not team_password:
-                        return jsonify({'error': 'This team requires a password'}), 400
-                    if not team.check_password(team_password):
-                        return jsonify({'error': 'Incorrect team password'}), 400
-            elif team.status == TeamStatus.PENDING:
-                # For pending teams, only the captain can register
-                if team.captain_id != current_user.id:
-                    return jsonify({'error': 'This team is pending approval and not yet open for joining.'}), 403
-            else: # 'withdrawn' or other statuses
-                return jsonify({'error': f"Team '{team.name}' is not currently accepting new members."}), 403
-
-        if team.format == TeamFormat.SOLO:
-            return jsonify({'error': 'Solo teams cannot be joined.'}), 400
-
-        # Handle team switching (user joining different team)
-        is_switching_teams = existing_membership and existing_membership.team_id != team.id
-
-        # Validation for preferred_miles (now Numeric) and planned_pace (now seconds)
-        try:
-            preferred_miles_numeric = float(preferred_miles) # Convert to float for validation, will be stored as Numeric
-            if not (0.1 <= preferred_miles_numeric <= 36):
-                return jsonify({'error': 'Preferred miles must be a number between 0.1 and 36'}), 400
-        except ValueError:
-            return jsonify({'error': 'Preferred miles must be a valid number'}), 400
-
-        if not planned_pace_str or not re.match(r'^\d{1,2}:\d{2}$', planned_pace_str):
-            return jsonify({'error': 'Planned pace must be in MM:SS format'}), 400
-
-        planned_pace_seconds = parse_mm_ss_to_seconds(planned_pace_str)
-
-        if not waiver_agreed:
-            return jsonify({'error': 'You must agree to the waiver terms'}), 400
-
-        # Update email opt-in status
-        current_user.email_opt_in = email_opt_in
-
-        # Handle different scenarios
-        membership_to_log = None
-        if is_switching_teams:
-            # User is switching to a different team - remove old membership and create new one
-            db.session.delete(existing_membership)
-            membership = TeamMembership(
-                user_id=current_user.id,
-                team_id=team.id,
-                willing_to_lead=willing_to_lead,
-                preferred_miles=preferred_miles_numeric,
-                planned_pace_seconds=planned_pace_seconds,
-                preferred_station=preferred_station if preferred_station else None,
-                comments=comments if comments else None
-            )
-            db.session.add(membership)
-            membership_to_log = membership  # Log this as a new member
-            message = f'Successfully switched to {team.name}'
-        elif existing_membership:
-            # Update existing membership
-            existing_membership.willing_to_lead = willing_to_lead
-            existing_membership.preferred_miles = preferred_miles_numeric
-            existing_membership.planned_pace_seconds = planned_pace_seconds
-            existing_membership.preferred_station = preferred_station if preferred_station else None
-            existing_membership.comments = comments if comments else None
-            message = f'Successfully updated preferences for {team.name}'
-        elif existing_captained_team:
-            # Create membership for captain (captains don't automatically have memberships)
-            membership = TeamMembership(
-                user_id=current_user.id,
-                team_id=team.id,
-                willing_to_lead=willing_to_lead,
-                preferred_miles=preferred_miles_numeric,
-                planned_pace_seconds=planned_pace_seconds,
-                preferred_station=preferred_station if preferred_station else None,
-                comments=comments if comments else None
-            )
-            db.session.add(membership)
-            # Don't log captain joining their own team for digest
-            message = f'Successfully added preferences for {team.name}'
-        else:
-            # Create new team membership
-            membership = TeamMembership(
-                user_id=current_user.id,
-                team_id=team.id,
-                willing_to_lead=willing_to_lead,
-                preferred_miles=preferred_miles_numeric,
-                planned_pace_seconds=planned_pace_seconds,
-                preferred_station=preferred_station if preferred_station else None,
-                comments=comments if comments else None
-            )
-            db.session.add(membership)
-            # Log member join event for digest processing (only for new members, not captains)
-            if team.captain_id != current_user.id:
-                membership_to_log = membership
-            message = f'Successfully joined {team.name}'
-
-        # Commit all changes first
-        db.session.commit()
-
-        # Send member joined notification email (for new members only, not updates)
-        if membership_to_log and not is_switching_teams:
-            from app.utils import send_email_with_logging
-            from app.models import NotificationType
-
-            subject = f"Welcome to Team '{team.name}'!"
-            context = {
-                'team': team,
-                'membership': membership_to_log,
-                'team_url': url_for('teams.team_members', team_id=team.id, _external=True)
-            }
-            metadata = {
-                'team_name': team.name,
-                'member_name': current_user.name,
-                'preferred_miles': float(membership_to_log.preferred_miles) if membership_to_log.preferred_miles else None,
-                'willing_to_lead': membership_to_log.willing_to_lead
-            }
-
-            send_email_with_logging(
-                notification_type=NotificationType.MEMBER_JOINED,
-                recipient_user=current_user,
-                subject=subject,
-                template_name='member_joined',
-                template_context=context,
-                related_team=team,
-                metadata=metadata
-            )
-
-        # Log member join event for digest processing (after commit so we have IDs)
-        if membership_to_log:
-            from app.utils import log_member_join_event
-            log_member_join_event(team, membership_to_log)
-
-        return jsonify({
-            'success': True,
-            'message': message,
-            'team_name': team.name,
-            'redirect_url': url_for('teams.team_members', team_id=team.id)
-        }), 201
-
+        result = membership_service.register(current_user, data, mode=mode)
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
     except Exception as e:
         db.session.rollback()
         import logging
         logging.error(f"Failed to process team registration: {str(e)}")
-        return jsonify({'error': f'Failed to process registration'}), 500
+        return jsonify({'error': 'Failed to process registration'}), 500
+
+    team = result.team
+    membership_to_log = result.membership_to_log
+
+    # Send member joined notification email (for new members only, not updates or switches)
+    if membership_to_log and not result.is_switching:
+        from app.utils import send_email_with_logging
+        from app.models import NotificationType
+
+        subject = f"Welcome to Team '{team.name}'!"
+        context = {
+            'team': team,
+            'membership': membership_to_log,
+            'team_url': url_for('teams.team_members', team_id=team.id, _external=True)
+        }
+        metadata = {
+            'team_name': team.name,
+            'member_name': current_user.name,
+            'preferred_miles': float(membership_to_log.preferred_miles) if membership_to_log.preferred_miles else None,
+            'willing_to_lead': membership_to_log.willing_to_lead
+        }
+
+        send_email_with_logging(
+            notification_type=NotificationType.MEMBER_JOINED,
+            recipient_user=current_user,
+            subject=subject,
+            template_name='member_joined',
+            template_context=context,
+            related_team=team,
+            metadata=metadata
+        )
+
+    # Log member join event for digest processing (after commit so we have IDs)
+    if membership_to_log:
+        from app.utils import log_member_join_event
+        log_member_join_event(team, membership_to_log)
+
+    return jsonify({
+        'success': True,
+        'message': result.message,
+        'team_name': team.name,
+        'redirect_url': url_for('teams.team_members', team_id=team.id)
+    }), 201
 
 def _perform_user_deletion(user_to_delete):
     """Helper function to encapsulate user deletion logic."""

@@ -17,17 +17,14 @@ The valid status transitions are:
 """
 
 from app.models import db, TeamStatus, TeamFormat
+from app.services.exceptions import ServiceError
 
 
-class TeamStateError(Exception):
+class TeamStateError(ServiceError):
     """Raised when a requested team status transition is not permitted.
 
-    The message is safe to surface to the end user.
+    The message is safe to surface to the end user; these are always 400s.
     """
-
-    def __init__(self, message):
-        super().__init__(message)
-        self.message = message
 
 
 def withdraw_team(team):
