@@ -887,7 +887,7 @@ if (fileInput) {
       // Check if adding new files would exceed the limit
       const totalFiles = currentFiles.length + newFiles.length;
       if (totalFiles > maxFiles) {
-        api.showToast(`You can only upload ${maxFiles} files at once. You currently have ${currentFiles.length} files selected.`, 'warning');
+        api.showBanner(`You can only upload ${maxFiles} files at once. You currently have ${currentFiles.length} files selected.`, 'warning');
         return;
       }
 
@@ -906,7 +906,7 @@ if (fileInput) {
     } else {
       // Check if new files exceed the limit
       if (newFiles.length > maxFiles) {
-        api.showToast(`You can only upload ${maxFiles} files at once. Please select fewer files.`, 'warning');
+        api.showBanner(`You can only upload ${maxFiles} files at once. Please select fewer files.`, 'warning');
         return;
       }
 
@@ -974,9 +974,9 @@ function setupDragAndDrop() {
       const totalFiles = currentFiles.length + newFiles.length;
       if (totalFiles > maxFiles) {
         if (currentFiles.length > 0) {
-          api.showToast(`You can only upload ${maxFiles} files at once. You currently have ${currentFiles.length} files selected.`, 'warning');
+          api.showBanner(`You can only upload ${maxFiles} files at once. You currently have ${currentFiles.length} files selected.`, 'warning');
         } else {
-          api.showToast(`You can only upload ${maxFiles} files at once. Please select fewer files.`, 'warning');
+          api.showBanner(`You can only upload ${maxFiles} files at once. Please select fewer files.`, 'warning');
         }
         return;
       }
