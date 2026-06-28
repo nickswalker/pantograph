@@ -397,6 +397,14 @@ export class AdminAPI extends ApiClient {
             method: 'POST'
         });
     }
+
+    // Delete all images (admin)
+    async deleteAllImages() {
+        const url = this.getUrl('deleteAllImages');
+        return await this.request(url, {
+            method: 'POST'
+        });
+    }
 }
 
 // Image Management API

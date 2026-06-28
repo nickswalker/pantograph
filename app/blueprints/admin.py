@@ -18,7 +18,7 @@ def admin_dashboard():
 
     teams = []
     for team in db_teams:
-        # Count images from database (avoids double counting HEIC->JPEG conversions)
+        # Count images from database
         image_count = Image.query.filter_by(team_id=team.id).count()
 
         teams.append({
@@ -57,7 +57,16 @@ def admin_dashboard():
             'active_memberships': active_memberships
         })
 
-    return render_template('admin.html', teams=teams, users=users, user=current_user)
+    # Get captain emails for the Email Captains button
+    captain_emails = []
+    for team in db_teams:
+        if team.captain and team.captain.email:
+            captain_emails.append(team.captain.email)
+
+    # Remove duplicates (in case someone captains multiple teams)
+    captain_emails = list(set(captain_emails))
+
+    return render_template('admin.html', teams=teams, users=users, user=current_user, captain_emails=captain_emails)
 
 
 @admin.route('/team/<team_id>', methods=['DELETE'])
@@ -238,6 +247,47 @@ def send_test_email(template_name):
         logging.error(f"Failed to send test email for template '{template_name}': {str(e)}")
         return jsonify({'error': f'Failed to send test email: {str(e)}'}), 500
 
+
+@admin.route('/delete-all-images', methods=['POST'])
+@admin_required
+def delete_all_images():
+    try:
+        # Get all images from all teams
+        all_images = Image.query.all()
+        deleted_count = 0
+
+        for image in all_images:
+            # Delete the physical file(s)
+            file_path = os.path.join(Config.UPLOAD_FOLDER, image.file_path)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+            # Delete any other files with the same base filename (e.g., HEIC originals)
+            base_filename = os.path.splitext(file_path)[0]
+            import glob
+            matching_files = glob.glob(f"{base_filename}.*")
+            for matching_file in matching_files:
+                if matching_file != file_path and os.path.exists(matching_file):
+                    os.remove(matching_file)
+
+            # Delete the database record
+            db.session.delete(image)
+            deleted_count += 1
+
+        # Commit all deletions
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": f"Successfully deleted {deleted_count} images from all teams"
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "error": f"Failed to delete images: {str(e)}"
+        }), 500
 
 @admin.route('/send-registration-reminder', methods=['POST'])
 @admin_required
