@@ -3,7 +3,7 @@
 {% block title %}{{ team.name }}{% if team.format == TeamFormat.SOLO %}'s{% endif %} Photos - {{ super() }}{% endblock %}
 
 {% block head_extra %}
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.2/dist/maplibre-gl.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0-17/dist/maplibre-gl.css" crossorigin="anonymous">
 <style>
     :root {
          --line-1-primary-color: #3DAE2B;
@@ -347,7 +347,7 @@ a:target span.cssbox_full {
 
 {% block scripts %}
 <script type="module">
-import 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import ExifReader from 'exifreader';
 import * as bootstrap from 'bootstrap';
 import { formatTimes } from '{{ url_for("static", filename="js/utils.js") }}';
