@@ -11,6 +11,23 @@ html[data-bs-theme="dark"] .invert-when-dark {
   margin-bottom: -2px;
 }
 
+@media (pointer: coarse), (hover: none) {
+      [title] {
+        position: relative;
+      }
+      [title]:focus::after {
+        content: attr(title);
+        position: absolute;
+        top: 90%;
+        color: #000;
+        background-color: #fff;
+        border: 1px solid;
+        width: fit-content;
+        padding: 3px;
+      }
+    }
+
+
 /* Hack to soft disable team name for solo entries without actually disabling them,
    which affects which fields get submitted.
  */

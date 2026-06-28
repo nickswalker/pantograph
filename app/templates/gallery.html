@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Team {{ team.name }} Photos - {{ super() }}{% endblock %}
+{% block title %}{{ team.name }}{% if team.format == TeamFormat.SOLO %}'s{% endif %} Photos - {{ super() }}{% endblock %}
 
 {% block head_extra %}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.2/dist/maplibre-gl.css" crossorigin="anonymous">
@@ -63,6 +63,97 @@
         border-left-color: #343a40 !important;
     }
 
+    /* The work below, CSSBox, is released under the Creative Commons
+   Attribution-ShareAlike 4.0 license and is available on
+   https://github.com/TheLastProject/CSSBox. You are not required to add
+   additional credit to your website, just leave the above text in this file */
+div.cssbox {
+  display: inline-block;
+}
+
+span.cssbox_full {
+  z-index: 999999;
+  position: fixed;
+  height: 100%;
+  width: 100%;
+  background-color: rgba(0,0,0,0.8);
+  top: 0;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  cursor: default;
+  transition: opacity 0.3s linear;
+}
+
+span.cssbox_full img {
+  position: fixed;
+  background-color: white;
+  margin: 0;
+  padding: 0;
+  max-height: 90%;
+  max-width: 90%;
+  top: 50%;
+  left: 50%;
+  margin-right: -50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+a.cssbox_close,
+a.cssbox_prev,
+a.cssbox_next {
+  z-index: 999999;
+  position: fixed;
+  text-decoration: none;
+  visibility: hidden;
+  color: white;
+  font-size: 36px;
+}
+
+a.cssbox_close {
+  top: 1%;
+  right: 1%
+}
+
+a.cssbox_close::after {
+  content: '\00d7';
+}
+
+a.cssbox_prev,
+a.cssbox_next {
+  top: 50%;
+  transform: translate(0%, -50%);
+}
+
+a.cssbox_prev {
+  left: 5%;
+}
+
+a.cssbox_next {
+  right: 5%;
+}
+
+a:target ~ a.cssbox_close,
+a:target ~ a.cssbox_prev,
+a:target ~ a.cssbox_next {
+  visibility: visible;
+}
+
+a:target span.cssbox_full {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: initial;
+}
+
+/* Fix for when anchor is nested inside the cssbox */
+.cssbox:has(a:target) a.cssbox_close,
+.cssbox:has(a:target) a.cssbox_prev,
+.cssbox:has(a:target) a.cssbox_next {
+  visibility: visible;
+}
+/* This is the end of CSSBox */
+
+
 </style>
 {% endblock %}
 
@@ -99,11 +190,11 @@
     <label for="fileInput" class="col-sm-2 col-form-label d-none">Upload Photos:</label>
     <div class="p-0">
       <div class="input-group">
-        <input type="file" class="form-control" id="fileInput" name="files" multiple required>
+        <input type="file" class="form-control" id="fileInput" name="files" required data-max-files="1" accept="image/*">
       </div>
       <div class="mt-2 text-muted small text-center">
         <ion-icon name="cloud-upload-outline" class="me-1"></ion-icon>
-        Drag and drop images here or click to select files
+        Drag and drop an image here or click to select a file
       </div>
     </div>
   </div>
@@ -114,14 +205,14 @@
       </h5>
       <button type="submit" class="btn btn-primary" id="uploadButton">
         <ion-icon name="cloud-upload-outline" class="me-1"></ion-icon>
-        Upload Photos
+        Upload Photo
       </button>
     </div>
     <div id="previewGrid" class="row"></div>
-    <div class="text-center text-muted mt-3">
+    <!--div class="text-center text-muted mt-3">
       <ion-icon name="add-outline" class="me-1"></ion-icon>
       Drop more images here or <label for="fileInput" class="text-primary" style="cursor: pointer; text-decoration: underline;">click to add more</label>
-    </div>
+    </div-->
   </div>
 </form>
 {% endif %}
@@ -129,36 +220,43 @@
 <div class="row">
   {% for image in images %}
     <div class="col-md-3 mb-3">
-      <div class="card position-relative">
-        {% if permissions.can_upload_to_team(current_user, team) %}
-        <button type="button" class="btn-close position-absolute top-0 end-0 m-2 bg-white rounded-circle p-1 delete-button"
-                style="z-index: 10; width: 24px; height: 24px; opacity: 0.7; transition: all 0.2s ease;"
-                data-image-id="{{ image.id }}"
-                data-filename="{{ image.original_filename }}"
-                aria-label="Delete image"
-                onmouseover="this.style.backgroundColor='#dc3545'; this.style.opacity='1'"
-                onmouseout="this.style.backgroundColor='white'; this.style.opacity='0.7'">
-        </button>
-        {% endif %}
-        <div class="d-flex justify-content-center text-bg-light spinner-container p-5 d-none" >
-          <div class="spinner-border text-secondary opacity-50" role="status"><span class="visually-hidden">Loading...</span>
-            </div>
-        </div>
+      <div class="cssbox">
+        <div class="card position-relative">
+          {% if permissions.can_upload_to_team(current_user, team) %}
+          <button type="button" class="btn-close position-absolute top-0 end-0 m-2 bg-white rounded-circle p-1 delete-button"
+                  style="z-index: 10; width: 24px; height: 24px; opacity: 0.7; transition: all 0.2s ease;"
+                  data-image-id="{{ image.id }}"
+                  data-filename="{{ image.original_filename }}"
+                  aria-label="Delete image"
+                  onmouseover="this.style.backgroundColor='#dc3545'; this.style.opacity='1'"
+                  onmouseout="this.style.backgroundColor='white'; this.style.opacity='0.7'">
+          </button>
+          {% endif %}
+          <div class="d-flex justify-content-center text-bg-light spinner-container p-5 d-none" >
+            <div class="spinner-border text-secondary opacity-50" role="status"><span class="visually-hidden">Loading...</span>
+              </div>
+          </div>
 
-          <img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename) }}" class="card-img-top bg-secondary-subtle" style="height: 200px; object-fit: contain; object-position: center;">
+          <a id="image{{ image.id }}" href="#image{{ image.id }}">
+            <img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename) }}" class="cssbox_thumb card-img-top bg-secondary-subtle" style="height: 200px; object-fit: contain; object-position: center;" loading="lazy">
+            <span class="cssbox_full"><img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename) }}"></span>
+          </a>
           <div class="card-body">
-
             <h5 class="card-title">{% if image.exchange_id %}
             <span class="link-station-label link-station-label-dark d-inline-block" title="{{ exchange_names[image.exchange_id] }}"><span class="line-name line-name-{{ image.exchange_id[0] }}">{{ image.exchange_id[0] }}</span><span class="link-station-code">{{ image.exchange_id[1:] }}</span> </span>
                   <time datetime="{{ image.capture_time.isoformat() }}Z" title="{{ image.capture_time.strftime('%B %-d, %Y at %I:%M %p') }}" class="format-datetime-tooltip format-as-time-with-seconds">{{ image.capture_time.strftime('%I:%M %p') }} ({{image.capture_time.strftime('%B %-d, %Y')  }})</time>
             {% endif %} </h5>
             <p class="card-text">
-                {% if not image.gps_coordinates %}<span class="badge text-bg-warning">No GPS coordinates</span><br/>{% endif %}
+                {% if not image.gps_coordinates %}<span class="badge text-bg-warning" title="No geolocation data is included in the file. Check the troubleshooting section below.">No GPS coordinates</span><br/>{% endif %}
                 <span class="small text-muted">{{ image.original_filename }} uploaded by {{ image.uploader.name }} on <time datetime="{{ image.upload_time.isoformat() }}Z" title="{{ image.upload_time.strftime('%B %-d, %Y at %I:%M %p') }}" class="format-datetime-tooltip format-as-date">
                                             {{ image.upload_time.strftime('%b %-d, %Y') }}
                                         </time></span>
             </p>
           </div>
+        </div>
+        <a class="cssbox_close" href="#void"></a>
+        <a class="cssbox_prev" href="#image{{ images[loop.index0-1].id if loop.index0 > 0 else images[-1].id }}">&lt;</a>
+        <a class="cssbox_next" href="#image{{ images[loop.index0+1].id if loop.index0 < images|length-1 else images[0].id }}">&gt;</a>
       </div>
     </div>
   {% endfor %}
@@ -175,7 +273,46 @@
   {% endif %}
 </div>
 
-  <div id="map" style="width: 100%; height: 500px;"></div>
+
+  <div id="map" class="w-100 mb-4" style=" height: 500px;"></div>
+
+
+{% if permissions.can_upload_to_team(current_user, team) %}
+<!-- Troubleshooting Accordion -->
+<div class="accordion mb-4" id="troubleshootingAccordion">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="troubleshootingHeading">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#troubleshootingCollapse" aria-expanded="false" aria-controls="troubleshootingCollapse">
+        <ion-icon name="help-circle-outline" class="me-2"></ion-icon>
+        Troubleshooting location data
+      </button>
+    </h2>
+    <div id="troubleshootingCollapse" class="accordion-collapse collapse" aria-labelledby="troubleshootingHeading" data-bs-parent="#troubleshootingAccordion">
+      <div class="accordion-body">
+        <p class="mb-3">If your photos are missing GPS coordinates or showing "No GPS coordinates" badges, you may have disabled photo geotagging. There's no getting the data back in this case, but you can enable it for later photos. Here are some resources on where to find this setting:</p>
+        <ul class="list-unstyled">
+          <li class="mb-2">
+            <ion-icon name="phone-portrait-outline" class="me-2 text-primary"></ion-icon>
+            <strong>iPhone users:</strong>
+            <a href="https://support.apple.com/guide/personal-safety/manage-location-metadata-in-photos-ips0d7a5df82/web" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+              Manage location metadata in photos
+              <ion-icon name="open-outline" class="ms-1" style="font-size: 0.8rem;"></ion-icon>
+            </a>
+          </li>
+          <li>
+            <ion-icon name="logo-android" class="me-2 text-success"></ion-icon>
+            <strong>Android users:</strong>
+            <a href="https://support.google.com/photos/answer/9921876?hl=en" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+              Turn location info on or off in your photos
+              <ion-icon name="open-outline" class="ms-1" style="font-size: 0.8rem;"></ion-icon>
+            </a>
+          </li>
+        </ul>
+          <p>Mobile Safari's photo picker will remove location metadata by default. Once the picker opens, tap the Options icon in the lower right, then under "Include" enable the "Location" switch. You can leave the format as "Current" or "Automatic".</p>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Delete Confirmation Modal -->
 <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
@@ -205,6 +342,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -329,6 +467,9 @@ const imagesWithCoordinates = [
   {% endfor %}
 ];
 
+// Store uploaded image markers so we can remove them when images are deleted
+let uploadedImageMarkers = new Map(); // filename -> popup
+
 // Add thumbnail popups to the map for each image with GPS coordinates
 imagesWithCoordinates.forEach(({ imageUrl, filename, lat, lng }) => {
     // Create always-open popup with thumbnail
@@ -352,6 +493,7 @@ imagesWithCoordinates.forEach(({ imageUrl, filename, lat, lng }) => {
         ">
             <img src="${imageUrl}"
                  title="${filename}"
+                 loading="lazy"
                  style="
                      width: 100%;
                      height: 100%;
@@ -363,6 +505,8 @@ imagesWithCoordinates.forEach(({ imageUrl, filename, lat, lng }) => {
     `)
     .addTo(map);
 
+    // Store the popup so we can remove it later if the image is deleted
+    uploadedImageMarkers.set(filename, popup);
 });
 
 // Import shared API client
@@ -386,7 +530,7 @@ if (uploadForm) {
 
       if (result.success) {
         const uploadCount = result.data.images ? result.data.images.length : 0;
-        api.showToast(`${uploadCount} images uploaded successfully!`, 'success');
+        api.showToast(`Image uploaded successfully!`, 'success');
 
         // Clear the file input and previews before refresh to ensure clean state
         fileInput.value = '';
@@ -447,6 +591,12 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async func
       // Remove the card from the UI
       currentDeleteButton.closest('.col-md-3').remove();
 
+      // Remove the marker from the map if it exists
+      if (uploadedImageMarkers.has(filename)) {
+        uploadedImageMarkers.get(filename).remove();
+        uploadedImageMarkers.delete(filename);
+      }
+
       // Hide the modal
       bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal')).hide();
 
@@ -494,6 +644,7 @@ function addPreviewMarkerToMap(lat, lng, filename, imageUrl) {
       ">
           <img src="${imageUrl}"
                title="${filename}"
+                loading="lazy"
                style="
                    width: 100%;
                    height: 100%;
@@ -622,7 +773,7 @@ async function addFilePreviews(newFiles) {
                 aria-label="Remove image"
                 data-file-name="${file.name}">
         </button>
-        <img src="" class="card-img-top bg-secondary-subtle" style="max-width: 100%; max-height: 200px; object-fit: contain; object-position: center;">
+        <img src="" class="card-img-top bg-secondary-subtle" style="max-width: 100%; max-height: 200px; object-fit: contain; object-position: center;" loading="lazy">
         <div class="card-body">
           <h5 class="card-title"></h5>
           <p class="card-text">
@@ -693,7 +844,7 @@ async function addFilePreviews(newFiles) {
         //gpsCoordinates = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank">(${lat}, ${lon})</a>`;
         addPreviewMarkerToMap(lat, lon, file.name, previewElement.querySelector('img').src);
       } else {
-        gpsCoordinates = `<span class="badge text-bg-warning">No GPS Coordinates</span>`;
+        gpsCoordinates = `<span class="badge text-bg-warning" title="No geolocation data is included in the file. Check the troubleshooting section below.">No GPS Coordinates</span>`;
       }
 
       // Update EXIF status in the UI
@@ -703,7 +854,7 @@ async function addFilePreviews(newFiles) {
             formatTimes([timeElement])
         }
         else {
-            previewElement.querySelector('.captureTime').innerHTML = '<span class="badge text-bg-danger">No Capture Time</span>';
+            previewElement.querySelector('.captureTime').innerHTML = '<span class="badge text-bg-danger" title="There is no time metadata in this file. It cannot be used.">No Capture Time</span>';
         }
       previewElement.querySelector('.gpsCoordinates').innerHTML = gpsCoordinates;
     } catch (error) {
@@ -728,9 +879,17 @@ if (fileInput) {
   // Handle file input changes (when user selects new files)
   fileInput.addEventListener('change', async function(event) {
     const newFiles = Array.from(event.target.files);
+    const maxFiles = parseInt(fileInput.getAttribute('data-max-files') || '99', 10);
 
     // If we already have files, merge them instead of replacing
     if (currentFiles.length > 0) {
+      // Check if adding new files would exceed the limit
+      const totalFiles = currentFiles.length + newFiles.length;
+      if (totalFiles > maxFiles) {
+        api.showToast(`You can only upload ${maxFiles} files at once. You currently have ${currentFiles.length} files selected.`, 'warning');
+        return;
+      }
+
       // Merge new files with existing files
       const mergedFiles = [...currentFiles, ...newFiles];
 
@@ -744,6 +903,12 @@ if (fileInput) {
       // Only process new files when adding to existing selection
       await addFilePreviews(newFiles);
     } else {
+      // Check if new files exceed the limit
+      if (newFiles.length > maxFiles) {
+        api.showToast(`You can only upload ${maxFiles} files at once. Please select fewer files.`, 'warning');
+        return;
+      }
+
       // First time selecting files, just use the new files
       currentFiles = newFiles;
       await addFilePreviews(currentFiles);
@@ -801,8 +966,21 @@ function setupDragAndDrop() {
     const files = dt.files;
 
     if (files.length > 0) {
-      // Merge new files with existing files
       const newFiles = Array.from(files);
+      const maxFiles = parseInt(fileInput.getAttribute('data-max-files') || '99', 10);
+
+      // Check if adding new files would exceed the limit
+      const totalFiles = currentFiles.length + newFiles.length;
+      if (totalFiles > maxFiles) {
+        if (currentFiles.length > 0) {
+          api.showToast(`You can only upload ${maxFiles} files at once. You currently have ${currentFiles.length} files selected.`, 'warning');
+        } else {
+          api.showToast(`You can only upload ${maxFiles} files at once. Please select fewer files.`, 'warning');
+        }
+        return;
+      }
+
+      // Merge new files with existing files
       const mergedFiles = [...currentFiles, ...newFiles];
 
       // Update file input with merged files

@@ -76,7 +76,7 @@ class Config:
     # Upload configuration
     UPLOAD_FOLDER = './uploads'
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-    MAX_PHOTOS_PER_TEAM = 23
+    MAX_PHOTOS_PER_TEAM = 30
     ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.tiff'}
 
 
