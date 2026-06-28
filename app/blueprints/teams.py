@@ -1,6 +1,7 @@
 import datetime
 import logging
 import os
+import re
 import time
 import hashlib
 import secrets
@@ -9,6 +10,7 @@ import io
 
 from flask import Blueprint, request, redirect, render_template, send_from_directory, jsonify, abort, url_for, Response
 from flask_login import current_user
+from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
 from app.models import db, Team, TeamMembership, TeamStatus, TeamMembershipStatus, TeamFormat
 from app.permissions import (
@@ -28,6 +30,13 @@ teams = Blueprint('teams', __name__, url_prefix='/team')
 
 # Also register the public gallery and uploads routes without prefix
 teams_public = Blueprint('teams_public', __name__)
+_SAFE_TEAM_ID_RE = re.compile(r'^[A-Za-z0-9_-]+$')
+
+
+def _send_cached_image(directory, filename):
+    response = send_from_directory(directory, filename, max_age=Config.IMAGE_CACHE_MAX_AGE)
+    response.headers['Cache-Control'] = f'public, max-age={Config.IMAGE_CACHE_MAX_AGE}, immutable'
+    return response
 
 
 @teams.route('/<team_id>/gallery')
@@ -43,7 +52,9 @@ def gallery(team_id, team):
     from app.models import Image
 
     # Get images from database
-    images = Image.query.filter_by(team_id=team.id).order_by(Image.capture_time.asc(), Image.upload_time.asc()).all()
+    images = Image.query.options(joinedload(Image.uploader)).filter_by(team_id=team.id).order_by(
+        Image.capture_time.asc(), Image.upload_time.asc()
+    ).all()
     exchange_names = {exchange_id: exchange_data['name'] for exchange_id, exchange_data in load_exchange_points().items()}
     # Format image data for template
     image_data = []
@@ -77,7 +88,9 @@ def public_gallery(gallery_hash):
         return "Invalid gallery URL.", 404
 
     # Get images from database
-    images = Image.query.filter_by(team_id=team.id).order_by(Image.capture_time.asc(), Image.upload_time.asc()).all()
+    images = Image.query.options(joinedload(Image.uploader)).filter_by(team_id=team.id).order_by(
+        Image.capture_time.asc(), Image.upload_time.asc()
+    ).all()
 
     # Format image data for template (same as team gallery but read-only)
     image_data = []
@@ -391,45 +404,14 @@ def serve_image(team_id, filename):
     if not is_allowed_image(filename):
         return abort(404, description="Invalid file type.")
 
-    # Find team in database by team_id
-    team = find_team_by_id(team_id)
-    if not team:
+    if not _SAFE_TEAM_ID_RE.match(team_id):
         return abort(404, description="Invalid team URL.")
 
-    # Check if user has access to this team's images
-    # Allow access if: authenticated user with team access OR public gallery access
-    has_access = False
-
-    if current_user.is_authenticated:
-        # Check if user has team access (member, captain, or admin)
-        from app.permissions import PermissionChecker
-        has_access = PermissionChecker.can_access_team(current_user, team)
-
-    # If no authenticated access, check if this is a public gallery request
-    # Public gallery access is allowed via gallery_hash in referrer
-    if not has_access:
-        referrer = request.referrer
-        if referrer and f"/gallery/{team.gallery_hash}" in referrer:
-            has_access = True
-
-    if not has_access:
-        return abort(403, description="Access denied to team images.")
-
-    # Verify the image actually belongs to this team
-    from app.models import Image
-
-    # Look for image where the file_path matches the requested filename within the team's directory
-    image = Image.query.filter_by(
-        team_id=team.id,
-        file_path=os.path.join(team.id, secure_filename(filename))
-    ).first()
-
-
-    if not image:
-        return abort(404, description="Image not found.")
-
-    directory = os.path.abspath(os.path.join(Config.UPLOAD_FOLDER, team.id))
     safe_name = secure_filename(filename)
+    if safe_name != filename:
+        return abort(404, description="Invalid filename.")
+
+    directory = os.path.abspath(os.path.join(Config.UPLOAD_FOLDER, team_id))
 
     # Serve the lightweight thumbnail for grid/map requests, falling back to the
     # original if it hasn't been generated (e.g. images predating thumbnailing).
@@ -437,9 +419,10 @@ def serve_image(team_id, filename):
         thumb_dir = os.path.join(directory, Config.THUMBNAIL_DIR)
         thumb_name = thumbnail_basename(safe_name)
         if os.path.exists(os.path.join(thumb_dir, thumb_name)):
-            return send_from_directory(thumb_dir, thumb_name)
+            return _send_cached_image(thumb_dir, thumb_name)
+        return send_from_directory(directory, safe_name)
 
-    return send_from_directory(directory, safe_name)
+    return _send_cached_image(directory, safe_name)
 
 
 @teams.route('/<team_id>/withdraw', methods=['POST'])
