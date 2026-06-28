@@ -138,6 +138,7 @@ window.confirmDeleteUser = function(userName, userId) {
     }, 3000);
 
     // Show modal
+    api.clearModalAlert('deleteUserModal');
     const modal = new Modal(document.getElementById('deleteUserModal'));
     modal.show();
 
@@ -160,6 +161,7 @@ window.confirmDeleteOwnAccount = function(userId) {
     }, 3000);
 
     // Show modal
+    api.clearModalAlert('deleteOwnAccountModal');
     const modal = new Modal(document.getElementById('deleteOwnAccountModal'));
     modal.show();
 
@@ -179,18 +181,18 @@ window.deleteOwnAccount = async function(userId) {
     const result = await userAPI.deleteUser(userId);
 
     if (result.success) {
-        // Show success toast
-        api.showToast('Your account has been deleted. You will be signed out shortly.', 'success');
-
         // Hide modal
         const modal = Modal.getInstance(document.getElementById('deleteOwnAccountModal'));
         modal.hide();
 
+        // Show success banner
+        api.showBanner('Your account has been deleted. You will be signed out shortly.', 'success');
+
         // Redirect to home after short delay (user will be signed out)
         api.redirectAfterDelay('/', 2000);
     } else {
-        // Show error toast
-        api.showToast(result.error || 'Failed to delete your account', 'danger');
+        // Show error inline in the still-open modal
+        api.showModalAlert('deleteOwnAccountModal', 'danger', result.error || 'Failed to delete your account');
 
         // Reset button
         deleteBtn.disabled = false;
@@ -208,18 +210,18 @@ window.deleteUser = async function(userId) {
     const result = await userAPI.deleteUser(userId);
 
     if (result.success) {
-        // Show success toast
-        api.showToast(result.data.message, 'success');
-
         // Hide modal
         const modal = Modal.getInstance(document.getElementById('deleteUserModal'));
         modal.hide();
 
+        // Show success banner
+        api.showBanner(result.data.message, 'success');
+
         // Reload page after short delay
         api.redirectAfterDelay(window.location.href, 1500);
     } else {
-        // Show error toast
-        api.showToast(result.error || 'Failed to delete user', 'danger');
+        // Show error inline in the still-open modal
+        api.showModalAlert('deleteUserModal', 'danger', result.error || 'Failed to delete user');
 
         // Reset button
         deleteBtn.disabled = false;

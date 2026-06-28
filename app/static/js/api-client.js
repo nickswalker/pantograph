@@ -139,37 +139,73 @@ export class ApiClient {
         return window.confirm(`${title}\n\n${message}`);
     }
 
-    // Toast notifications (using Bootstrap alerts for now)
-    showToast(message, type = 'info') {
-        // Create toast container if it doesn't exist
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'position-fixed top-0 end-0 p-3';
-            toastContainer.style.zIndex = '1055';
-            document.body.appendChild(toastContainer);
-        }
+    // Page-level banner, pinned to the top of the viewport. Stays until dismissed
+    // or replaced, since toasts disappearing before they can be read is the problem
+    // this replaces.
+    showBanner(message, type = 'info') {
+        const banner = document.getElementById('sticky-banner-container');
+        if (!banner) return;
 
-        const toastId = 'toast-' + Date.now();
-        const toast = document.createElement('div');
-        toast.id = toastId;
-        toast.innerHTML = `
-            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        banner.innerHTML = `
+            <div class="alert alert-${type} alert-dismissible mb-0" role="alert">
                 ${message}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         `;
+    }
 
-        toastContainer.appendChild(toast);
+    // Feedback scoped to a modal that's still open (e.g. a failed confirm action).
+    // Injects into the modal's body so the user sees it without the modal closing.
+    showModalAlert(modal, type, message) {
+        if (typeof modal === 'string') {
+            modal = document.getElementById(modal);
+        }
+        if (!modal) return;
+        const body = modal.querySelector('.modal-body');
+        if (!body) return;
 
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            const element = document.getElementById(toastId);
-            if (element) {
-                element.remove();
-            }
-        }, 5000);
+        let alertEl = body.querySelector('.js-modal-alert');
+        if (!alertEl) {
+            alertEl = document.createElement('div');
+            alertEl.className = 'js-modal-alert';
+            body.prepend(alertEl);
+        }
+        alertEl.innerHTML = `
+            <div class="alert alert-${type} alert-dismissible" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+    }
+
+    clearModalAlert(modal) {
+        if (typeof modal === 'string') {
+            modal = document.getElementById(modal);
+        }
+        const alertEl = modal && modal.querySelector('.js-modal-alert');
+        if (alertEl) alertEl.innerHTML = '';
+    }
+
+    // Feedback scoped to a specific table row (e.g. a failed per-member action).
+    // Inserts a full-width alert row directly below the row that triggered it.
+    showRowAlert(row, type, message) {
+        if (!row) return;
+        const existing = row.nextElementSibling;
+        if (existing && existing.classList.contains('js-row-alert')) {
+            existing.remove();
+        }
+
+        const alertRow = document.createElement('tr');
+        alertRow.className = 'js-row-alert';
+        alertRow.innerHTML = `
+            <td colspan="${row.children.length}" class="p-0">
+                <div class="alert alert-${type} alert-dismissible m-2 mb-2" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            </td>
+        `;
+        row.after(alertRow);
     }
 
     // Redirect with delay

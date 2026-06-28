@@ -117,10 +117,10 @@
                                             </button>
                                             <ul class="dropdown-menu">
                                                 {% if team.status == TeamStatus.PENDING %}
-                                                <li><a class="dropdown-item text-success" href="#" onclick="approveTeam('{{ team.name }}', '{{ team.id }}')">
+                                                <li><a class="dropdown-item text-success" href="#" onclick="approveTeam(this, '{{ team.name }}', '{{ team.id }}')">
                                                     <ion-icon name="checkmark-outline" class="me-2"></ion-icon>Approve
                                                 </a></li>
-                                                <li><a class="dropdown-item text-warning" href="#" onclick="cancelTeam('{{ team.name }}', '{{ team.id }}')">
+                                                <li><a class="dropdown-item text-warning" href="#" onclick="cancelTeam(this, '{{ team.name }}', '{{ team.id }}')">
                                                     <ion-icon name="ban-outline" class="me-2"></ion-icon>Cancel
                                                 </a></li>
                                                 <li><a class="dropdown-item text-info" href="#" onclick="sendPaymentReminder('{{ team.name }}', '{{ team.id }}')">
@@ -128,7 +128,7 @@
                                                 </a></li>
                                                 {% endif %}
                                                 {% if team.status != TeamStatus.WITHDRAWN and team.status != TeamStatus.CANCELLED %}
-                                                <li><a class="dropdown-item text-warning" href="#" onclick="withdrawTeam('{{ team.name }}', '{{ team.id }}')">
+                                                <li><a class="dropdown-item text-warning" href="#" onclick="withdrawTeam(this, '{{ team.name }}', '{{ team.id }}')">
                                                     <ion-icon name="close-outline" class="me-2"></ion-icon>Withdraw
                                                 </a></li>
                                                 {% endif %}
@@ -436,6 +436,7 @@ window.openEditBatonSerialModal = function(teamId, teamName, currentSerial, prev
     document.getElementById('editBatonSerialTeamName').textContent = teamName;
     // Use previous serial as default if current serial is empty
     document.getElementById('baton_serial_input').value = currentSerial || previousSerial || '';
+    api.clearModalAlert('editBatonSerialModal');
     const modal = new bootstrap.Modal(document.getElementById('editBatonSerialModal'));
     modal.show();
 }
@@ -444,12 +445,12 @@ document.getElementById('saveBatonSerialBtn').addEventListener('click', async ()
     const newSerial = document.getElementById('baton_serial_input').value;
     const result = await teamAPI.updateBatonSerial(currentTeamId, newSerial);
     if (result.success) {
-        api.showToast(result.data.message, 'success');
         const modal = bootstrap.Modal.getInstance(document.getElementById('editBatonSerialModal'));
         modal.hide();
+        api.showBanner(result.data.message, 'success');
         api.redirectAfterDelay(window.location.href, 1500);
     } else {
-        api.showToast(result.error || 'Failed to update baton serial', 'danger');
+        api.showModalAlert('editBatonSerialModal', 'danger', result.error || 'Failed to update baton serial');
     }
 });
 
@@ -457,9 +458,9 @@ document.getElementById('saveBatonSerialBtn').addEventListener('click', async ()
 window.copyToClipboard = async function(text) {
     const success = await Utils.copyToClipboard(text);
     if (success) {
-        api.showToast('URL copied to clipboard!', 'success');
+        api.showBanner('URL copied to clipboard!', 'success');
     } else {
-        api.showToast('Failed to copy URL', 'danger');
+        api.showBanner('Failed to copy URL', 'danger');
     }
 }
 
@@ -480,6 +481,7 @@ window.confirmDeleteTeam = function(teamName, shortId) {
     }, 3000);
 
     // Show modal
+    api.clearModalAlert('deleteTeamModal');
     const modal = new bootstrap.Modal(document.getElementById('deleteTeamModal'));
     modal.show();
 
@@ -499,18 +501,18 @@ window.deleteTeam = async function(shortId) {
     const result = await teamAPI.deleteTeam(shortId);
 
     if (result.success) {
-        // Show success toast
-        api.showToast(result.data.message, 'success');
-
         // Hide modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('deleteTeamModal'));
         modal.hide();
 
+        // Show success banner
+        api.showBanner(result.data.message, 'success');
+
         // Reload page after short delay
         api.redirectAfterDelay(window.location.href, 1500);
     } else {
-        // Show error toast
-        api.showToast(result.error || 'Failed to delete team', 'danger');
+        // Show error inline in the still-open modal
+        api.showModalAlert('deleteTeamModal', 'danger', result.error || 'Failed to delete team');
 
         // Reset button
         deleteBtn.disabled = false;
@@ -519,7 +521,7 @@ window.deleteTeam = async function(shortId) {
 }
 
 // Team management functions
-window.approveTeam = async function(teamName, teamId) {
+window.approveTeam = async function(el, teamName, teamId) {
     if (!api.confirm(`Are you sure you want to approve team "${teamName}"?`)) {
         return;
     }
@@ -527,14 +529,14 @@ window.approveTeam = async function(teamName, teamId) {
     const result = await teamAPI.approveTeam(teamId);
 
     if (result.success) {
-        api.showToast(result.data.message, 'success');
+        api.showBanner(result.data.message, 'success');
         api.redirectAfterDelay(window.location.href, 1500);
     } else {
-        api.showToast(result.error || 'Failed to approve team', 'danger');
+        api.showRowAlert(el.closest('tr'), 'danger', result.error || 'Failed to approve team');
     }
 }
 
-window.withdrawTeam = async function(teamName, shortId) {
+window.withdrawTeam = async function(el, teamName, shortId) {
     if (!api.confirm(`Are you sure you want to withdraw team "${teamName}"?`)) {
         return;
     }
@@ -542,14 +544,14 @@ window.withdrawTeam = async function(teamName, shortId) {
     const result = await teamAPI.withdrawTeam(shortId);
 
     if (result.success) {
-        api.showToast(result.data.message, 'success');
+        api.showBanner(result.data.message, 'success');
         api.redirectAfterDelay(window.location.href, 1500);
     } else {
-        api.showToast(result.error || 'Failed to withdraw team', 'danger');
+        api.showRowAlert(el.closest('tr'), 'danger', result.error || 'Failed to withdraw team');
     }
 }
 
-window.cancelTeam = async function(teamName, shortId) {
+window.cancelTeam = async function(el, teamName, shortId) {
     if (!api.confirm(`Are you sure you want to cancel team "${teamName}"? This action is permanent and cannot be undone.`)) {
         return;
     }
@@ -557,10 +559,10 @@ window.cancelTeam = async function(teamName, shortId) {
     const result = await teamAPI.cancelTeam(shortId);
 
     if (result.success) {
-        api.showToast(result.data.message, 'success');
+        api.showBanner(result.data.message, 'success');
         api.redirectAfterDelay(window.location.href, 1500);
     } else {
-        api.showToast(result.error || 'Failed to cancel team', 'danger');
+        api.showRowAlert(el.closest('tr'), 'danger', result.error || 'Failed to cancel team');
     }
 }
 
@@ -569,6 +571,7 @@ window.sendPaymentReminder = function(teamName, teamId) {
     currentTeamId = teamId;
     document.getElementById('paymentReminderTeamName').textContent = teamName;
 
+    api.clearModalAlert('paymentReminderModal');
     const modal = new bootstrap.Modal(document.getElementById('paymentReminderModal'));
     modal.show();
 
@@ -590,20 +593,20 @@ window.sendPaymentReminderEmail = async function(teamId) {
     const result = await teamAPI.sendPaymentReminder(teamId);
 
     if (result.success) {
-        // Show success toast
-        api.showToast(result.data.message, 'success');
-
         // Hide modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('paymentReminderModal'));
         modal.hide();
+
+        // Show success banner
+        api.showBanner(result.data.message, 'success');
 
         // Reset button
         sendBtn.disabled = false;
         spinner.classList.add('d-none');
         sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm d-none me-2"></span>Send Reminder';
     } else {
-        // Show error toast
-        api.showToast(result.error || 'Failed to send payment reminder', 'danger');
+        // Show error inline in the still-open modal
+        api.showModalAlert('paymentReminderModal', 'danger', result.error || 'Failed to send payment reminder');
 
         // Reset button
         sendBtn.disabled = false;
@@ -614,6 +617,7 @@ window.sendPaymentReminderEmail = async function(teamId) {
 
 // Registration reminder functions
 window.sendRegistrationReminder = function() {
+    api.clearModalAlert('registrationReminderModal');
     const modal = new bootstrap.Modal(document.getElementById('registrationReminderModal'));
     modal.show();
 
@@ -635,20 +639,20 @@ window.sendRegistrationReminderEmails = async function() {
     const result = await adminAPI.sendRegistrationReminder();
 
     if (result.success) {
-        // Show success toast
-        api.showToast(result.data.message, 'success');
-
         // Hide modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('registrationReminderModal'));
         modal.hide();
+
+        // Show success banner
+        api.showBanner(result.data.message, 'success');
 
         // Reset button
         sendBtn.disabled = false;
         spinner.classList.add('d-none');
         sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm d-none me-2"></span>Send Reminders';
     } else {
-        // Show error toast
-        api.showToast(result.error || 'Failed to send registration reminders', 'danger');
+        // Show error inline in the still-open modal
+        api.showModalAlert('registrationReminderModal', 'danger', result.error || 'Failed to send registration reminders');
 
         // Reset button
         sendBtn.disabled = false;
