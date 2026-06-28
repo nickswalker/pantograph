@@ -17,3 +17,15 @@ services:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
     command: ["uv", "run", "python", "wsgi.py"]
+
+  pantograph-worker:
+    volumes:
+      - "./app:/app/app"
+      - "./data:/app/data"
+    env_file:
+      - .env
+      - .env.dev
+    environment:
+      - FLASK_ENV=development
+      # Don't send real email in dev; log instead.
+      - MAIL_BACKEND=console

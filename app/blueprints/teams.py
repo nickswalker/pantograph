@@ -589,8 +589,8 @@ def transfer_captain(team_id, user_id, team):
     try:
         previous_captain, new_captain = membership_service.transfer_captain(team, user_id)
 
-        # Send captain transfer notification email
-        from app.utils import send_email_with_logging
+        # Queue captain transfer notification email
+        from app.services import notification_service
         from app.models import NotificationType
 
         # Get current team member count
@@ -615,7 +615,7 @@ def transfer_captain(team_id, user_id, team):
             'member_count': member_count
         }
 
-        send_email_with_logging(
+        notification_service.enqueue(
             notification_type=NotificationType.CAPTAIN_TRANSFER,
             recipient_user=new_captain,
             subject=subject,
@@ -756,8 +756,9 @@ def send_payment_reminder(team_id):
         if not captain:
             return jsonify({'error': 'Team has no captain'}), 400
 
-        # Send payment reminder email
-        from app.utils import send_email_with_logging, format_hh_mm_from_seconds
+        # Queue payment reminder email
+        from app.services import notification_service
+        from app.utils import format_hh_mm_from_seconds
         from app.models import NotificationType
 
         subject = f"Payment Reminder for Team '{team.name}'"
@@ -774,7 +775,7 @@ def send_payment_reminder(team_id):
             'estimated_duration': estimated_duration_display
         }
 
-        send_email_with_logging(
+        notification_service.enqueue(
             notification_type=NotificationType.PAYMENT_REMINDER,
             recipient_user=captain,
             subject=subject,

@@ -123,8 +123,8 @@ def create_team():
 
         db.session.commit()
 
-        # Send team creation confirmation email
-        from app.utils import send_email_with_logging
+        # Queue team creation confirmation email
+        from app.services import notification_service
         from app.models import NotificationType
         from app.utils import format_hh_mm_from_seconds
 
@@ -140,7 +140,7 @@ def create_team():
             'estimated_duration_seconds': new_team.estimated_duration_seconds
         }
 
-        send_email_with_logging(
+        notification_service.enqueue(
             notification_type=NotificationType.TEAM_CREATION,
             recipient_user=current_user,
             subject=subject,
@@ -323,9 +323,9 @@ def handle_team_registration_post(stations, mode='join'):
     team = result.team
     membership_to_log = result.membership_to_log
 
-    # Send member joined notification email (for new members only, not updates or switches)
+    # Queue member joined notification email (for new members only, not updates or switches)
     if membership_to_log and not result.is_switching:
-        from app.utils import send_email_with_logging
+        from app.services import notification_service
         from app.models import NotificationType
 
         subject = f"Welcome to Team '{team.name}'!"
@@ -341,7 +341,7 @@ def handle_team_registration_post(stations, mode='join'):
             'willing_to_lead': membership_to_log.willing_to_lead
         }
 
-        send_email_with_logging(
+        notification_service.enqueue(
             notification_type=NotificationType.MEMBER_JOINED,
             recipient_user=current_user,
             subject=subject,
@@ -351,10 +351,10 @@ def handle_team_registration_post(stations, mode='join'):
             metadata=metadata
         )
 
-    # Log member join event for digest processing (after commit so we have IDs)
+    # Coalesce into the captain's new-member digest (after commit so we have IDs)
     if membership_to_log:
-        from app.utils import log_member_join_event
-        log_member_join_event(team, membership_to_log)
+        from app.services import notification_service
+        notification_service.enqueue_member_join(team, membership_to_log)
 
     return jsonify({
         'success': True,

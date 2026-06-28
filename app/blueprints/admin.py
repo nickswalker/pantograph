@@ -127,14 +127,14 @@ def approve_team(team_id):
             return jsonify({'error': e.message}), 400
 
         # Send approval email to team captain with logging
-        from app.utils import send_email_with_logging
+        from app.services import notification_service
         from app.models import NotificationType
 
         subject = f"Team '{team.name}' Registration Approved"
         context = {'team': team}
         metadata = {'team_name': team.name, 'team_format': team.format.value}
 
-        send_email_with_logging(
+        notification_service.enqueue(
             notification_type=NotificationType.TEAM_APPROVAL,
             recipient_user=team.captain,
             subject=subject,
@@ -217,7 +217,7 @@ def send_test_email(template_name):
     """Send a test email with sample data to the current admin user"""
     try:
         from app.email_preview import get_sample_data_for_template, get_sample_subject_for_template
-        from app.utils import send_email_with_logging
+        from app.services import notification_service
         from app.models import NotificationType
 
         # Get sample data for this template
@@ -225,7 +225,7 @@ def send_test_email(template_name):
         subject = f"[TEST] {get_sample_subject_for_template(template_name)}"
 
         # Send test email to current admin user
-        send_email_with_logging(
+        notification_service.enqueue(
             notification_type=NotificationType.EVENT_UPDATE,  # Use a generic type for test emails
             recipient_user=current_user,
             subject=subject,
@@ -237,7 +237,7 @@ def send_test_email(template_name):
 
         return jsonify({
             'success': True,
-            'message': f'Test email sent to {current_user.email}'
+            'message': f'Test email queued to {current_user.email} (sends shortly)'
         }), 200
 
     except Exception as e:
@@ -313,11 +313,11 @@ def send_registration_reminder():
             }), 200
 
         # Send registration reminder emails
-        from app.utils import send_email_with_logging
+        from app.services import notification_service
         from app.models import NotificationType
         from app.config import Config
 
-        sent_count = 0
+        queued_count = 0
         for user in users_to_remind:
             try:
                 subject = "Registration is Closing Soon"
@@ -330,7 +330,7 @@ def send_registration_reminder():
                     'user_email': user.email
                 }
 
-                send_email_with_logging(
+                notification_service.enqueue(
                     notification_type=NotificationType.REGISTRATION_REMINDER,
                     recipient_user=user,
                     subject=subject,
@@ -339,16 +339,16 @@ def send_registration_reminder():
                     related_team=None,
                     metadata=metadata
                 )
-                sent_count += 1
+                queued_count += 1
 
             except Exception as e:
                 import logging
-                logging.error(f"Failed to send registration reminder to {user.email}: {str(e)}")
+                logging.error(f"Failed to queue registration reminder to {user.email}: {str(e)}")
                 # Continue with other users even if one fails
 
         return jsonify({
             'success': True,
-            'message': f'Registration reminder emails sent to {sent_count} users'
+            'message': f'Registration reminder emails queued for {queued_count} users'
         }), 200
 
     except Exception as e:

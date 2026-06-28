@@ -44,10 +44,9 @@ class NotificationType(enum.Enum):
     REGISTRATION_REMINDER = 'registration_reminder'
 
 class NotificationStatus(enum.Enum):
-    PENDING = 'pending'
+    PENDING = 'pending'   # queued; eligible to send once scheduled_for passes
     SENT = 'sent'
-    FAILED = 'failed'
-    BOUNCED = 'bounced'
+    FAILED = 'failed'     # retries exhausted
 
 class Team(db.Model):
     id = db.Column(db.String(8), primary_key=True, default=lambda: secrets.token_urlsafe(6))
@@ -183,7 +182,20 @@ class Image(db.Model):
         return f'<Image {self.filename} by {self.uploader.name}>'
 
 
+def _naive_utcnow():
+    """Current UTC time as a naive datetime, for consistent SQLite comparisons."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class NotificationLog(db.Model):
+    """Email outbox + audit log.
+
+    Every notification is a row here. Web requests only ever insert PENDING rows
+    (with the email already rendered into ``body_html``); a single background
+    worker drains rows whose ``scheduled_for`` has passed and sends them, moving
+    them to SENT or, after exhausting retries, FAILED. Terminal rows remain as
+    the audit trail.
+    """
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     notification_type = db.Column(db.Enum(NotificationType), nullable=False)
@@ -194,10 +206,17 @@ class NotificationLog(db.Model):
     # Email details
     subject = db.Column(db.String(255), nullable=True)
     template_name = db.Column(db.String(100), nullable=True)
+    body_html = db.Column(db.Text, nullable=True)  # pre-rendered at enqueue time
     email_id = db.Column(db.String(255), nullable=True)
 
     # Metadata for notification-specific data (JSON)
     notification_data = db.Column(db.Text, nullable=True)  # JSON string for flexible data
+
+    # Queue mechanics
+    scheduled_for = db.Column(db.DateTime, default=_naive_utcnow, index=True)  # eligible-at
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    next_attempt_at = db.Column(db.DateTime, default=_naive_utcnow, index=True)  # backoff gate
+    dedup_key = db.Column(db.String(255), nullable=True, index=True)  # idempotency / digest coalescing
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

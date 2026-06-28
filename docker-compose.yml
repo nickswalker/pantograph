@@ -13,7 +13,7 @@ services:
     networks:
       - web_network
 
-  pantograph-cron:
+  pantograph-worker:
     image: pantograph:latest
     restart: unless-stopped
     env_file:
@@ -22,8 +22,8 @@ services:
     volumes:
       - "./uploads:/app/uploads"
       - "./data:/app/data"
-    user: root # Cron won't inherit env vars from docker-compose, so we write them to a file and source that file in the cron job
-    command: ["sh", "-c", "printenv | grep -v '^_' | sed 's/^/export /' > /tmp/env && echo '0 7 * * * . /tmp/env && cd /app && uv run python cron_digest.py' | crontab - && cron -f"]
+    # Single always-on sender that drains the notification outbox.
+    command: ["uv", "run", "python", "-m", "app.worker"]
     networks:
       - web_network
 networks:

@@ -73,6 +73,18 @@ class Config:
     AWS_SECRET_ACCESS_KEY = get_secret('AWS_SECRET_ACCESS_KEY')
     AWS_REGION = get_secret('AWS_REGION')
 
+    # Notification delivery (handled by the background worker).
+    #   'ses'     - actually send via AWS SES
+    #   'console' - log instead of sending (default outside production)
+    #   'noop'    - mark sent without sending
+    MAIL_BACKEND = os.getenv(
+        'MAIL_BACKEND',
+        'ses' if os.getenv('FLASK_ENV') == 'production' else 'console'
+    )
+    MAX_SEND_ATTEMPTS = 5          # retries before a notification is marked FAILED
+    WORKER_POLL_INTERVAL = 30      # seconds between worker drains
+    DIGEST_HOUR = 7               # local (event timezone) hour to send new-member digests
+
     # Upload configuration
     UPLOAD_FOLDER = './uploads'
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
