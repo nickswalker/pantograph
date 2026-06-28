@@ -74,12 +74,12 @@ window.sendTestEmail = async function(templateName, templateDisplay) {
         const result = await response.json();
         
         if (result.success) {
-            api.showToast(`Test email "${templateDisplay}" sent successfully!`, 'success');
+            api.showBanner(`Test email "${templateDisplay}" sent successfully!`, 'success');
         } else {
-            api.showToast(result.error || 'Failed to send test email', 'danger');
+            api.showBanner(result.error || 'Failed to send test email', 'danger');
         }
     } catch (error) {
-        api.showToast('Failed to send test email: ' + error.message, 'danger');
+        api.showBanner('Failed to send test email: ' + error.message, 'danger');
     } finally {
         // Reset button
         button.disabled = false;

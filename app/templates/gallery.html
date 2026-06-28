@@ -530,7 +530,7 @@ if (uploadForm) {
 
       if (result.success) {
         const uploadCount = result.data.images ? result.data.images.length : 0;
-        api.showToast(`Image uploaded successfully!`, 'success');
+        api.showBanner(`${uploadCount} image${uploadCount === 1 ? '' : 's'} uploaded successfully!`, 'success');
 
         // Clear the file input and previews before refresh to ensure clean state
         fileInput.value = '';
@@ -542,10 +542,10 @@ if (uploadForm) {
           window.location.reload();
         }, 1500);
       } else {
-        api.showToast(result.error || 'Upload failed', 'danger');
+        api.showBanner(result.error || 'Upload failed', 'danger');
       }
     } catch (error) {
-      api.showToast('Upload failed: ' + error.message, 'danger');
+      api.showBanner('Upload failed: ' + error.message, 'danger');
     } finally {
       api.resetButton(uploadButton);
     }
@@ -566,6 +566,7 @@ document.querySelectorAll('.delete-button').forEach(button => {
     document.getElementById('deleteFileName').textContent = filename;
 
     // Show the modal
+    api.clearModalAlert('deleteConfirmModal');
     const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
     modal.show();
   });
@@ -600,13 +601,13 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async func
       // Hide the modal
       bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal')).hide();
 
-      // Show success toast
-      api.showToast(`${filename} deleted successfully`, 'success');
+      // Show success banner
+      api.showBanner(`${filename} deleted successfully`, 'success');
     } else {
-      api.showToast(result.error || 'Failed to delete the file.', 'danger');
+      api.showModalAlert('deleteConfirmModal', 'danger', result.error || 'Failed to delete the file.');
     }
   } catch (error) {
-    api.showToast('Failed to delete the file: ' + error.message, 'danger');
+    api.showModalAlert('deleteConfirmModal', 'danger', 'Failed to delete the file: ' + error.message);
   } finally {
     // Reset button state
     this.innerHTML = originalText;

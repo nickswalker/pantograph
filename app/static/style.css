@@ -41,3 +41,17 @@ html[data-bs-theme="dark"] .invert-when-dark {
     border: var(--bs-border-width) var(--bs-border-style) var(--bs-border-color) !important;
   }
 }
+
+.sticky-banner-container {
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+}
+
+.sticky-banner-container:empty {
+  display: none;
+}
+
+.sticky-banner-container .alert {
+  border-radius: 0;
+}

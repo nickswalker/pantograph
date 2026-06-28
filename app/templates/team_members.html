@@ -109,13 +109,13 @@
                                             <ul class="dropdown-menu">
                                                 {% if current_user.is_captain_of(team) %}
                                                 <li>
-                                                    <button class="dropdown-item" onclick="transferCaptaincy('{{ team.id }}', '{{ membership.user_id }}', '{{ membership.user.name }}')">
+                                                    <button class="dropdown-item" onclick="transferCaptaincy(this, '{{ team.id }}', '{{ membership.user_id }}', '{{ membership.user.name }}')">
                                                         <ion-icon name="crown-outline" class="me-2"></ion-icon>Make Captain
                                                     </button>
                                                 </li>
                                                 {% endif %}
                                                 <li>
-                                                    <button class="dropdown-item text-danger" onclick="removeMember('{{ membership.user_id }}', '{{ membership.user.name }}')">
+                                                    <button class="dropdown-item text-danger" onclick="removeMember(this, '{{ membership.user_id }}', '{{ membership.user.name }}')">
                                                         <ion-icon name="person-remove-outline" class="me-2"></ion-icon>Remove
                                                     </button>
                                                 </li>
@@ -485,16 +485,16 @@
             const result = await membershipAPI.withdrawMembership('{{ team.id }}', membershipId);
 
             if (result.success) {
-                api.showToast(result.data.message, 'success');
+                api.showBanner(result.data.message, 'success');
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
             } else {
-                api.showToast(result.error || 'Failed to withdraw membership', 'danger');
+                api.showBanner(result.error || 'Failed to withdraw membership', 'danger');
             }
         };
 
-        window.removeMember = async function(userId, memberName) {
+        window.removeMember = async function(el, userId, memberName) {
             if (!confirm(`Are you sure you want to remove ${memberName} from the team? They will be asked to join another team.`)) {
                 return;
             }
@@ -502,16 +502,16 @@
             const result = await membershipAPI.removeMember('{{ team.id }}', userId);
 
             if (result.success) {
-                api.showToast(result.data.message, 'success');
+                api.showBanner(result.data.message, 'success');
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
             } else {
-                api.showToast(result.error || 'Failed to remove member', 'danger');
+                api.showRowAlert(el.closest('tr'), 'danger', result.error || 'Failed to remove member');
             }
         };
 
-        window.transferCaptaincy = async function(shortId, newCaptainId, newCaptainName) {
+        window.transferCaptaincy = async function(el, shortId, newCaptainId, newCaptainName) {
             if (!confirm(`Are you sure you want to transfer team captaincy to ${newCaptainName}? You will no longer be the captain of this team.`)) {
                 return;
             }
@@ -519,12 +519,12 @@
             const result = await membershipAPI.promoteToCaptain(shortId, newCaptainId);
 
             if (result.success) {
-                api.showToast(result.data.message, 'success');
+                api.showBanner(result.data.message, 'success');
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
             } else {
-                api.showToast(result.error || 'Failed to transfer captaincy', 'danger');
+                api.showRowAlert(el.closest('tr'), 'danger', result.error || 'Failed to transfer captaincy');
             }
         };
 
@@ -564,9 +564,9 @@
                 copyBtn.disabled = false;
                 generateBtn.innerHTML = '<ion-icon name="sparkles-outline"></ion-icon> Regenerate Link';
 
-                api.showToast(data.message, 'success');
+                api.showBanner(data.message, 'success');
             } else {
-                api.showToast(result.error || 'Failed to generate link', 'danger');
+                api.showBanner(result.error || 'Failed to generate link', 'danger');
                 api.resetButton(generateBtn);
             }
         }
@@ -576,12 +576,12 @@
             const result = await teamAPI.manageTeamPassword('{{ team.id }}', password);
 
             if (result.success) {
-                api.showToast(result.data.message, 'success');
+                api.showBanner(result.data.message, 'success');
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
             } else {
-                api.showToast(result.error || 'Failed to update password', 'danger');
+                api.showBanner(result.error || 'Failed to update password', 'danger');
             }
         };
 
@@ -593,12 +593,12 @@
             const result = await teamAPI.manageTeamPassword('{{ team.id }}', null);
 
             if (result.success) {
-                api.showToast(result.data.message, 'success');
+                api.showBanner(result.data.message, 'success');
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
             } else {
-                api.showToast(result.error || 'Failed to remove password', 'danger');
+                api.showBanner(result.error || 'Failed to remove password', 'danger');
             }
         };
 
@@ -611,12 +611,12 @@
             const result = await teamAPI.withdrawTeam(shortId);
 
             if (result.success) {
-                api.showToast(result.data.message, 'success');
+                api.showBanner(result.data.message, 'success');
                 setTimeout(() => {
                     window.location.href = '{{ url_for("main.index") }}';
                 }, 2000);
             } else {
-                api.showToast(result.error || 'Failed to withdraw team', 'danger');
+                api.showBanner(result.error || 'Failed to withdraw team', 'danger');
             }
         };
 
@@ -628,12 +628,12 @@
             const result = await teamAPI.unwithdrawTeam(shortId);
 
             if (result.success) {
-                api.showToast(result.data.message, 'success');
+                api.showBanner(result.data.message, 'success');
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
             } else {
-                api.showToast(result.error || 'Failed to un-withdraw team', 'danger');
+                api.showBanner(result.error || 'Failed to un-withdraw team', 'danger');
             }
         };
 
@@ -646,12 +646,12 @@
             const result = await teamAPI.cancelTeam(shortId);
 
             if (result.success) {
-                api.showToast(result.data.message, 'success');
+                api.showBanner(result.data.message, 'success');
                 setTimeout(() => {
                     window.location.href = '{{ url_for("main.index") }}';
                 }, 2000);
             } else {
-                api.showToast(result.error || 'Failed to cancel team', 'danger');
+                api.showBanner(result.error || 'Failed to cancel team', 'danger');
             }
         };
 
@@ -663,12 +663,12 @@
             const result = await teamAPI.closeTeam(shortId);
 
             if (result.success) {
-                api.showToast(result.data.message, 'success');
+                api.showBanner(result.data.message, 'success');
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
             } else {
-                api.showToast(result.error || 'Failed to close team', 'danger');
+                api.showBanner(result.error || 'Failed to close team', 'danger');
             }
         };
 
@@ -680,12 +680,12 @@
             const result = await teamAPI.reopenTeam(shortId);
 
             if (result.success) {
-                api.showToast(result.data.message, 'success');
+                api.showBanner(result.data.message, 'success');
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
             } else {
-                api.showToast(result.error || 'Failed to reopen team', 'danger');
+                api.showBanner(result.error || 'Failed to reopen team', 'danger');
             }
         };
 
@@ -700,11 +700,11 @@
                 });
 
                 if (result.success) {
-                    api.showToast(result.data.message, 'success');
+                    api.showBanner(result.data.message, 'success');
                 } else {
                     // Revert checkbox on error
                     e.target.checked = !enabled;
-                    api.showToast(result.error || 'Failed to update notification preferences', 'danger');
+                    api.showBanner(result.error || 'Failed to update notification preferences', 'danger');
                 }
             });
         }
@@ -719,7 +719,7 @@
                 const password = passwordInput.value.trim();
 
                 if (!password) {
-                    api.showToast('Please enter a password', 'warning');
+                    api.showBanner('Please enter a password', 'warning');
                     return;
                 }
 
@@ -741,13 +741,13 @@
                 const previousBatonSerial = previousBatonSerialInput.value.trim();
 
                 if (!estimatedDuration) {
-                    api.showToast('Please enter an estimated duration.', 'warning');
+                    api.showBanner('Please enter an estimated duration.', 'warning');
                     return;
                 }
 
                 // Basic regex validation for HH:MM using shared utility
                 if (!Utils.validateTime(estimatedDuration)) {
-                    api.showToast('Estimated duration must be in HH:MM format (e.g., 05:30 or 12:00).', 'warning');
+                    api.showBanner('Estimated duration must be in HH:MM format (e.g., 05:30 or 12:00).', 'warning');
                     return;
                 }
 
@@ -758,12 +758,12 @@
                 });
 
                 if (result.success) {
-                    api.showToast(result.data.message, 'success');
+                    api.showBanner(result.data.message, 'success');
                     setTimeout(() => {
                         window.location.reload();
                     }, 2000);
                 } else {
-                    api.showToast(result.error || 'Failed to update team details', 'danger');
+                    api.showBanner(result.error || 'Failed to update team details', 'danger');
                 }
             });
         }

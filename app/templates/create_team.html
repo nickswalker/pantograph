@@ -244,8 +244,8 @@ document.getElementById('create-team-form').addEventListener('submit', async fun
     const result = await teamAPI.createTeam(new FormData(this));
 
     if (result.success) {
-        // Show success toast
-        api.showToast(result.data.message, 'success');
+        // Show success alert
+        api.showAlert(alertContainer, 'success', result.data.message, 'checkmark-circle');
 
         // Redirect after a short delay
         api.redirectAfterDelay(result.data.redirect_url || '{{ url_for("user.join_team") }}');
