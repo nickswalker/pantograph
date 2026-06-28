@@ -34,7 +34,7 @@ def team_access_required(param_name='team_id'):
             if not team:
                 abort(404, description="Team not found")
 
-            if not _check_team_access(team):
+            if not PermissionChecker.can_access_team(current_user, team):
                 abort(403, description="Access denied to team")
 
             # Add team to kwargs for convenience
@@ -58,7 +58,7 @@ def team_captain_required(param_name='team_id'):
             if not team:
                 abort(404, description="Team not found")
 
-            if not (current_user.is_admin or team.captain_id == current_user.id):
+            if not PermissionChecker.can_manage_team(current_user, team):
                 abort(403, description="Captain privileges required")
 
             # Add team to kwargs for convenience
@@ -98,7 +98,7 @@ def team_captain_or_member_required(param_name='team_id'):
                     abort(404, description="Membership not found for this user")
 
             # Check if user is admin or team captain
-            if current_user.is_admin or team.captain_id == current_user.id:
+            if PermissionChecker.can_manage_team(current_user, team):
                 kwargs['team'] = team
                 if membership:
                     kwargs['membership'] = membership
@@ -154,11 +154,11 @@ def team_upload_allowed(param_name='team_id'):
                 abort(404, description="Team not found")
 
             # Check if team status allows uploads
-            if team.status in [TeamStatus.PENDING, TeamStatus.WITHDRAWN, TeamStatus.CANCELLED]:
+            if not PermissionChecker.team_allows_uploads(team):
                 abort(403, description=f"Photo uploads are not allowed for a team with '{team.status}' status")
 
             # Check if current user has access to this team
-            if not _check_team_access(team):
+            if not PermissionChecker.can_access_team(current_user, team):
                 abort(403, description="You do not have permission to upload photos for this team")
 
             # Check if current user is removed from this team (captains can't be removed)
@@ -173,31 +173,14 @@ def team_upload_allowed(param_name='team_id'):
     return decorator
 
 
-def _check_team_access(team):
-    """Helper function to check if current user has access to team (member, captain, or admin)"""
-    if not current_user.is_authenticated:
-        return False
-
-    # Admin has access to all teams
-    if current_user.is_admin:
-        return True
-
-    # Captain has access to their own team
-    if team.captain_id == current_user.id:
-        return True
-
-    # Only active team members have access
-    membership = TeamMembership.query.filter_by(user_id=current_user.id, team_id=team.id).first()
-    return membership is not None and membership.status != TeamMembershipStatus.REMOVED
-
-
-# Permission checker functions (for use in templates or business logic)
+# Permission checker functions (single source of truth for team permission
+# predicates, used by the decorators above, route handlers, and templates).
 class PermissionChecker:
     """Helper class for checking permissions in templates or business logic"""
 
     @staticmethod
     def can_access_team(user, team):
-        """Check if user can access team"""
+        """Check if user can access team (admin, captain, or non-removed member)"""
         if not user or not user.is_authenticated:
             return False
 
@@ -215,12 +198,17 @@ class PermissionChecker:
         return user.is_admin or team.captain_id == user.id
 
     @staticmethod
+    def team_allows_uploads(team):
+        """Check if the team's status permits photo uploads (user-independent)"""
+        return team.status not in [TeamStatus.PENDING, TeamStatus.WITHDRAWN, TeamStatus.CANCELLED]
+
+    @staticmethod
     def can_upload_to_team(user, team):
         """Check if user can upload photos to team"""
         if not user or not user.is_authenticated:
             return False
 
-        if team.status in [TeamStatus.PENDING, TeamStatus.WITHDRAWN, TeamStatus.CANCELLED]:
+        if not PermissionChecker.team_allows_uploads(team):
             return False
 
         if not PermissionChecker.can_access_team(user, team):

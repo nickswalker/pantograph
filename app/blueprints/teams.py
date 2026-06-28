@@ -20,6 +20,8 @@ from app.utils import is_allowed_image, validate_image_content, secure_filename_
     format_mm_ss_from_seconds, load_exchange_points
 from app.config import Config
 from app.security import limiter
+from app.services import team_service
+from app.services.team_service import TeamStateError
 
 teams = Blueprint('teams', __name__, url_prefix='/team')
 
@@ -426,120 +428,86 @@ def serve_image(team_id, filename):
 @teams.route('/<team_id>/withdraw', methods=['POST'])
 @team_captain_required()
 def withdraw_team(team_id, team):
-    if team.status == TeamStatus.WITHDRAWN:
-        return jsonify({'error': 'Team is already withdrawn'}), 400
-
-    if team.status not in [TeamStatus.OPEN, TeamStatus.CLOSED]:
-        return jsonify({f'error': team.status.value + ' teams can\'t be withdrawn'}), 400
-
     try:
-        # Update team status to withdrawn
-        team.status = TeamStatus.WITHDRAWN
-        db.session.commit()
-
-
+        team_service.withdraw_team(team)
         return jsonify({
             'success': True,
             'message': f'Team "{team.name}" withdrawn successfully'
         }), 200
-
+    except TeamStateError as e:
+        return jsonify({'error': e.message}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': f'Failed to withdraw team: {str(e)}'}), 500
+        logging.error(f"Failed to withdraw team {team_id}: {str(e)}")
+        return jsonify({'error': 'Failed to withdraw team'}), 500
 
 
 @teams.route('/<team_id>/unwithdraw', methods=['POST'])
 @team_captain_required()
 def unwithdraw_team(team_id, team):
-    if team.status != TeamStatus.WITHDRAWN:
-        return jsonify({'error': 'Team is not withdrawn'}), 400
-
     try:
-        # Update team status back to open
-        team.status = TeamStatus.OPEN
-        db.session.commit()
-
+        team_service.unwithdraw_team(team)
         return jsonify({
             'success': True,
             'message': f'Team "{team.name}" un-withdrawn successfully'
         }), 200
-
+    except TeamStateError as e:
+        return jsonify({'error': e.message}), 400
     except Exception as e:
         db.session.rollback()
         logging.error(f"Failed to un-withdraw team {team_id}: {str(e)}")
-        return jsonify({'error': f'Failed to un-withdraw team'}), 500
+        return jsonify({'error': 'Failed to un-withdraw team'}), 500
 
 
 @teams.route('/<team_id>/cancel', methods=['POST'])
 @team_captain_required()
 def cancel_team(team_id, team):
-    if team.status != TeamStatus.PENDING:
-        return jsonify({'error': 'Only pending teams can be cancelled'}), 400
-
-    if team.status == TeamStatus.CANCELLED:
-        return jsonify({'error': 'Team is already cancelled'}), 400
-
     try:
-        # Update team status to cancelled
-        team.status = TeamStatus.CANCELLED
-        db.session.commit()
-
+        team_service.cancel_team(team)
         return jsonify({
             'success': True,
             'message': f'Team "{team.name}" cancelled successfully'
         }), 200
-
+    except TeamStateError as e:
+        return jsonify({'error': e.message}), 400
     except Exception as e:
         db.session.rollback()
         logging.error(f"Failed to cancel team {team_id}: {str(e)}")
-        return jsonify({'error': f'Failed to cancel team'}), 500
+        return jsonify({'error': 'Failed to cancel team'}), 500
 
 
 @teams.route('/<team_id>/close', methods=['POST'])
 @team_captain_required()
 def close_team(team_id, team):
-    if team.status != TeamStatus.OPEN:
-        return jsonify({'error': 'Only open teams can be closed'}), 400
-
-    if team.status == TeamStatus.CLOSED:
-        return jsonify({'error': 'Team is already closed'}), 400
-
     try:
-        # Update team status to closed
-        team.status = TeamStatus.CLOSED
-        db.session.commit()
-
+        team_service.close_team(team)
         return jsonify({
             'success': True,
             'message': f'Team "{team.name}" closed to new registrations'
         }), 200
-
+    except TeamStateError as e:
+        return jsonify({'error': e.message}), 400
     except Exception as e:
         db.session.rollback()
         logging.error(f"Failed to close team {team_id}: {str(e)}")
-        return jsonify({'error': f'Failed to close team'}), 500
+        return jsonify({'error': 'Failed to close team'}), 500
 
 
 @teams.route('/<team_id>/reopen', methods=['POST'])
 @team_captain_required()
 def reopen_team(team_id, team):
-    if team.status != TeamStatus.CLOSED:
-        return jsonify({'error': 'Team is not closed'}), 400
-
     try:
-        # Update team status back to open
-        team.status = TeamStatus.OPEN
-        db.session.commit()
-
+        team_service.reopen_team(team)
         return jsonify({
             'success': True,
             'message': f'Team "{team.name}" reopened for new registrations'
         }), 200
-
+    except TeamStateError as e:
+        return jsonify({'error': e.message}), 400
     except Exception as e:
         db.session.rollback()
         logging.error(f"Failed to reopen team {team_id}: {str(e)}")
-        return jsonify({'error': f'Failed to reopen team'}), 500
+        return jsonify({'error': 'Failed to reopen team'}), 500
 
 
 @teams.route('/<team_id>/members/<user_id>')

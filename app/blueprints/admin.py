@@ -2,7 +2,7 @@ import os
 import shutil
 from flask import Blueprint, render_template, jsonify, url_for, request
 from flask_login import current_user
-from app.models import db, User, Team, TeamMembership, TeamStatus, TeamFormat, TeamMembershipStatus, Image
+from app.models import db, User, Team, TeamMembership, TeamMembershipStatus, Image
 from app.permissions import admin_required
 from app.utils import is_allowed_image, format_mm_ss_from_seconds, get_registration_deadline_info
 from app.config import Config
@@ -112,21 +112,19 @@ def delete_team(team_id):
 def approve_team(team_id):
     try:
         from app.utils import find_team_by_id
+        from app.services import team_service
+        from app.services.team_service import TeamStateError
         # Find team in database by team_id
         team = find_team_by_id(team_id)
 
         if not team:
             return jsonify({'error': 'Team not found'}), 404
 
-        if team.status != TeamStatus.PENDING:
-            return jsonify({'error': 'Only pending teams can be approved'}), 400
-
-        # Update team status - Solo teams go to 'closed', Team goes to 'open'
-        if team.format == TeamFormat.SOLO:
-            team.status = TeamStatus.CLOSED
-        else:
-            team.status = TeamStatus.OPEN
-        db.session.commit()
+        try:
+            # Solo teams go to 'closed', Team goes to 'open'
+            team_service.approve_team(team)
+        except TeamStateError as e:
+            return jsonify({'error': e.message}), 400
 
         # Send approval email to team captain with logging
         from app.utils import send_email_with_logging
