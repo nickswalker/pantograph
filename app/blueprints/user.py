@@ -250,6 +250,10 @@ def my_registration():
         # No existing registration, redirect to join team
         return redirect(url_for('user.join_team'))
 
+    if existing_membership and existing_membership.team.format == TeamFormat.SOLO:
+        # Bounce them to team members page for solo teams
+        return redirect(url_for('teams.team_members', team_id=existing_membership.team.id))
+
     if request.method == 'GET':
         if existing_membership:
             # User has membership - show edit form

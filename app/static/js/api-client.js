@@ -337,10 +337,10 @@ export class MembershipAPI extends ApiClient {
     }
 
     // Remove member
-    async removeMember(teamId, membershipId) {
+    async removeMember(teamId, userId) {
         const url = this.buildUrl('removeMember', {
             team_id: teamId,
-            user_id: membershipId
+            user_id: userId
         });
         return await this.request(url, {
             method: 'POST'

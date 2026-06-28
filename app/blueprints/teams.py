@@ -10,7 +10,7 @@ import io
 from flask import Blueprint, request, redirect, render_template, send_from_directory, jsonify, abort, url_for, Response
 from flask_login import current_user
 from werkzeug.utils import secure_filename
-from app.models import db, Team, TeamMembership, TeamStatus, TeamMembershipStatus
+from app.models import db, Team, TeamMembership, TeamStatus, TeamMembershipStatus, TeamFormat
 from app.permissions import (
     team_access_required, team_captain_required,
     team_captain_or_member_required, team_upload_allowed, admin_required
@@ -79,15 +79,13 @@ def public_gallery(gallery_hash):
     # Format image data for template (same as team gallery but read-only)
     image_data = []
     for image in images:
-        # Format capture time as string for consistency with old format
-        capture_time_str = image.capture_time.strftime("%Y:%m:%d %H:%M:%S") if image.capture_time else None
         gps_coordinates = (image.gps_lat, image.gps_lng) if image.gps_lat and image.gps_lng else None
 
         image_data.append({
             'id': image.id,
             'filename': os.path.basename(image.file_path),  # For URL generation
             'original_filename': image.filename,
-            'capture_time': capture_time_str,
+            'capture_time': image.capture_time,
             'gps_coordinates': gps_coordinates,
             'uploader': image.uploader,
             'upload_time': image.upload_time,
@@ -221,16 +219,13 @@ def delete_image(team_id, image_id, team):
     if os.path.exists(file_path):
         os.remove(file_path)
 
-    # If this was a converted HEIC file, also delete the original HEIC file
-    if file_path.lower().endswith('.jpg'):
-        # Check if there's a corresponding HEIC file with the same timestamp
-        base_filename = os.path.splitext(os.path.basename(file_path))[0]
-        team_dir = os.path.dirname(file_path)
-        for ext in ['.heic', '.heif']:
-            heic_path = os.path.join(team_dir, base_filename + ext)
-            if os.path.exists(heic_path):
-                os.remove(heic_path)
-                break
+    # Delete any other files with the same base filename (e.g., HEIC originals)
+    base_filename = os.path.splitext(file_path)[0]
+    import glob
+    matching_files = glob.glob(f"{base_filename}.*")
+    for matching_file in matching_files:
+        if matching_file != file_path and os.path.exists(matching_file):
+            os.remove(matching_file)
 
     # Delete the database record
     db.session.delete(image)
@@ -618,10 +613,10 @@ def unwithdraw_membership(team_id, user_id, team, membership):
 
 @teams.route('/<team_id>/members/<user_id>/remove', methods=['POST'])
 @team_captain_required()
-def remove_member(team_id, membership_id, team):
+def remove_member(team_id, user_id, team):
     try:
         # Find membership in database
-        membership = db.session.get(TeamMembership, membership_id)
+        membership = TeamMembership.query.filter_by(team_id=team.id, user_id=user_id).first()
         if not membership:
             return jsonify({'error': 'Membership not found'}), 404
 
@@ -735,6 +730,9 @@ def update_team_details(team_id, team):
         estimated_duration_str = data.get('estimated_duration', '').strip()
         comments = data.get('comments', '').strip()
         has_baton = data.get('has_baton') == True
+        if team.format == TeamFormat.SOLO:
+            email_opt_in = data.get('email_opt_in') == True
+            team.captain.email_opt_in = email_opt_in
 
         # Validation
         if not estimated_duration_str:

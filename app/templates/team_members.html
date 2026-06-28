@@ -115,7 +115,7 @@
                                                 </li>
                                                 {% endif %}
                                                 <li>
-                                                    <button class="dropdown-item text-danger" onclick="removeMember('{{ membership.id }}', '{{ membership.user.name }}')">
+                                                    <button class="dropdown-item text-danger" onclick="removeMember('{{ membership.user_id }}', '{{ membership.user.name }}')">
                                                         <ion-icon name="person-remove-outline" class="me-2"></ion-icon>Remove
                                                     </button>
                                                 </li>
@@ -390,10 +390,18 @@
                                             <label for="previous_baton_serial_input" class="form-label">Previous Baton Serial</label>
                                             <input type="text" class="form-control" id="previous_baton_serial_input" name="previous_baton_serial" value="{{ team.previous_baton_serial or '' }}" maxlength="12" {% if team.status != TeamStatus.PENDING %}disabled{% endif %}>
                                             <div class="form-text">If you have a baton from a previous year, enter its serial number here.  {% if team.status != TeamStatus.PENDING %}You can't change this after you've paid and your team is approved.
-
                                             {% endif %}</div>
 
                                         </div>
+                                        {% if team.format == TeamFormat.SOLO %}
+                                        <div class="mb-4">
+
+                                            <input class="form-check-input" type="checkbox" id="notify_next_lrr" name="notify_next" {% if current_user.email_opt_in %}checked{% endif %}>
+                                            <label class="form-check-label" for="notify_next_lrr">
+                                                Email me when the next LRR happens
+                                            </label>
+                                        </div>
+                                        {% endif %}
                                         <div class="text-end">
                                             <button class="btn btn-outline-primary" type="submit">Save Changes
                                             </button>
@@ -403,6 +411,7 @@
                             </div>
                             <hr>
                         {% endif %}
+
                         {% if team.format == TeamFormat.TEAM %}
                             <div class="row">
                                 <div class="col-12">
@@ -485,12 +494,12 @@
             }
         };
 
-        window.removeMember = async function(membershipId, memberName) {
+        window.removeMember = async function(userId, memberName) {
             if (!confirm(`Are you sure you want to remove ${memberName} from the team? They will be asked to join another team.`)) {
                 return;
             }
 
-            const result = await membershipAPI.removeMember('{{ team.id }}', membershipId);
+            const result = await membershipAPI.removeMember('{{ team.id }}', userId);
 
             if (result.success) {
                 api.showToast(result.data.message, 'success');
