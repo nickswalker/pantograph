@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+from functools import lru_cache
 from datetime import datetime
 from PIL import Image, ImageOps
 from PIL.ExifTags import TAGS, GPSTAGS
@@ -105,6 +106,7 @@ def load_station_names():
         print(f"Error loading station names: {e}")
         return []
 
+@lru_cache(maxsize=1)
 def load_exchange_points() -> dict:
     try:
         with open('data/lrr_1_line.geojson', 'r') as f:
