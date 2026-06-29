@@ -2,6 +2,7 @@ import os
 from flask import Flask
 from flask_login import LoginManager
 from authlib.integrations.flask_client import OAuth
+from sqlalchemy import text
 from werkzeug.middleware.proxy_fix import ProxyFix
 from pillow_heif import register_heif_opener
 
@@ -98,6 +99,13 @@ def create_app():
     # Initialize database
     with app.app_context():
         db.create_all()
+        if db.engine.url.drivername.startswith('sqlite'):
+            try:
+                db.session.execute(text('PRAGMA journal_mode=WAL'))
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.warning("Failed to enable SQLite WAL mode: %s", e)
         print("Database initialized")
 
     return app
