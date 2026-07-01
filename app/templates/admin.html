@@ -19,9 +19,9 @@
 
     <div class="row">
         <div class="col-12">
-            <div class="card">
+            <div class="card shadow-sm">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Teams</h5>
+                    <h3 class="card-title mb-0">Teams</h3>
                 </div>
                 <div class="card-body">
                     {% if teams %}
@@ -145,8 +145,9 @@
                         </table>
                     </div>
                     {% else %}
-                    <div class="alert alert-info" role="alert">
-                        No teams yet.
+                    <div class="text-center text-muted py-4">
+                        <ion-icon name="people-outline" style="font-size: 2rem; opacity: 0.6;"></ion-icon>
+                        <p class="mt-2 mb-0">No teams yet.</p>
                     </div>
                     {% endif %}
                 </div>
@@ -156,10 +157,10 @@
 
     <div class="row mt-4">
         <div class="col-12">
-            <div class="card">
+            <div class="card shadow-sm">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">Users</h5>
+                        <h3 class="card-title mb-0">Users</h3>
                         <div class="btn-group" role="group">
                             <button class="btn btn-outline-primary btn-sm" onclick="sendRegistrationReminder()">
                                 <ion-icon name="mail-outline" class="me-1"></ion-icon>
@@ -248,8 +249,9 @@
                         </table>
                     </div>
                     {% else %}
-                    <div class="alert alert-info" role="alert">
-                        No users yet.
+                    <div class="text-center text-muted py-4">
+                        <ion-icon name="person-outline" style="font-size: 2rem; opacity: 0.6;"></ion-icon>
+                        <p class="mt-2 mb-0">No users yet.</p>
                     </div>
                     {% endif %}
                 </div>
@@ -259,9 +261,9 @@
 
     <div class="row mt-4">
         <div class="col-md-6">
-            <div class="card">
+            <div class="card shadow-sm">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Quick Stats</h5>
+                    <h3 class="card-title mb-0">Quick Stats</h3>
                 </div>
                 <div class="card-body">
                     <dl class="row">
@@ -279,9 +281,9 @@
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card">
+            <div class="card shadow-sm">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Instructions</h5>
+                    <h3 class="card-title mb-0">Instructions</h3>
                 </div>
                 <div class="card-body">
                     <p><strong>Team Status Workflow:</strong></p>

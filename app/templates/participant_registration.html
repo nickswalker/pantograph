@@ -52,7 +52,7 @@
 
                         {% if existing_team and existing_team.status == TeamStatus.WITHDRAWN %}
                         <div class="alert alert-danger" role="alert">
-                            <ion-icon name="warning" class="me-2"></ion-icon>
+                            <ion-icon name="warning-outline" class="me-2"></ion-icon>
                             <strong>Team has been withdrawn.</strong><br>
                             The team "{{ existing_team.name }}" has been withdrawn from the event. You cannot edit your preferences or participate with this team anymore.
                             <a href="{{ url_for('user.join_team') }}" class="alert-link">Join a different team</a> to continue participating.
@@ -82,13 +82,13 @@
                     {% elif mode == 'switch' %}
                         {% if existing_membership and existing_membership.status == TeamMembershipStatus.REMOVED %}
                         <div class="alert alert-danger" role="alert">
-                            <ion-icon name="warning" class="me-2"></ion-icon>
+                            <ion-icon name="warning-outline" class="me-2"></ion-icon>
                             <strong>You have been removed from team "{{ existing_team.name }}".</strong><br>
                             The team captain has removed you from this team. Please select a different team below to continue participating.
                         </div>
                         {% else %}
                         <div class="alert alert-warning" role="alert">
-                            <ion-icon name="warning" class="me-2"></ion-icon>
+                            <ion-icon name="warning-outline" class="me-2"></ion-icon>
                             <strong>You're currently on team "{{ existing_team.name }}".</strong><br>
                             Joining a different team will immediately remove you from "{{ existing_team.name }}".
                         </div>
@@ -97,7 +97,7 @@
 
                     {% if error_message %}
                     <div class="alert alert-warning" role="alert">
-                        <ion-icon name="warning" class="me-2"></ion-icon>
+                        <ion-icon name="warning-outline" class="me-2"></ion-icon>
                         {{ error_message }}
                     </div>
                     {% elif (not teams or (existing_team and teams|selectattr('id', 'ne', existing_team.id)|list|length == 0)) and mode != 'edit' and mode != 'view' and not pending_captain_team and not invited_team %}
@@ -123,7 +123,6 @@
 
                         <div class="mb-3">
                             <label for="team_id" class="form-label">
-                                <ion-icon name="flag" class="me-1"></ion-icon>
                                 Team
                                 {% if not is_team_selection_disabled %}<span class="text-danger">*</span>{% endif %}
                             </label>
@@ -158,7 +157,6 @@
                         {% if not is_team_selection_disabled %}
                         <div class="mb-4" id="password-section" style="display: none;">
                             <label for="team_password" class="form-label">
-                                <ion-icon name="key" class="me-1"></ion-icon>
                                 Team Password <span class="text-danger">*</span>
                             </label>
                             <input type="password" class="form-control" id="team_password" name="team_password"{% if mode == 'preview' %} disabled{% endif %}>
@@ -169,13 +167,9 @@
 
                         <div class="mb-4">
                         <div class="mb-3">
-                            <h5 class="">
-                                <ion-icon name="options" class="me-2"></ion-icon>
-                                Preferences
-                            </h5>
+                            <h5 class="">Preferences</h5>
                             <p>These will be visible to your teammates to make planning easier.</p>
                             <label for="preferred_miles" class="form-label">
-                                <ion-icon name="footsteps" class="me-1"></ion-icon>
                                 How many miles would you like to run? <span class="text-danger">*</span>
                             </label>
                             <input type="number" class="form-control" id="preferred_miles" name="preferred_miles"
@@ -185,7 +179,6 @@
 
                         <div class="mb-3">
                             <label for="planned_pace" class="form-label">
-                                <ion-icon name="speedometer" class="me-1"></ion-icon>
                                 What pace per mile would you run your preferred distance? <span class="text-danger">*</span>
                             </label>
                             <input type="text" class="form-control" id="planned_pace" name="planned_pace"
@@ -195,7 +188,6 @@
 
                         <div class="mb-3">
                             <label for="preferred_station" class="form-label">
-                                <ion-icon name="train" class="me-1"></ion-icon>
                                 Which station is closest to where you'd like to finish?
                             </label>
                             <select class="form-select" id="preferred_station" name="preferred_station" {% if is_form_disabled or mode == 'preview' or mode == 'view' %}disabled{% endif %}>
@@ -209,7 +201,6 @@
 
                          <div class="mb-3">
                             <label for="willing_to_lead" class="form-label">
-                                <ion-icon name="compass" class="me-1"></ion-icon>
                                 Are you willing to lead your legs? <span class="text-danger">*</span>
                             </label>
                             <select class="form-select" id="willing_to_lead" name="willing_to_lead" required {% if is_form_disabled or mode == 'preview' or mode == 'view' %}disabled{% endif %}>
@@ -222,7 +213,6 @@
 
                         <div class="mb-3">
                             <label for="comments" class="form-label">
-                                <ion-icon name="chatbubble-ellipses" class="me-1"></ion-icon>
                                 Any notes or comments for scheduling?
                             </label>
                             <textarea class="form-control" id="comments" name="comments" rows="3"
@@ -235,10 +225,7 @@
 
                         {% if mode != 'edit' and mode != 'view' %}
                         <div class="mb-4">
-                            <h5 class="mb-3">
-                                <ion-icon name="document-text" class="me-2"></ion-icon>
-                                Waiver and Release
-                            </h5>
+                            <h5 class="mb-3">Waiver and Release</h5>
                             <div class="card">
                                 <div class="card-body card-text text-muted overflow-auto" style="max-height: 300px">
                                     {% include '_waiver.html' %}
@@ -256,14 +243,11 @@
                         {% endif %}
 
                         <div class="mb-4">
-                            <div class="d-flex align-items-center">
-                                <ion-icon name="mail" class="me-2"></ion-icon>
-                                <div class="form-check mb-0">
-                                    <input class="form-check-input" type="checkbox" id="email_opt_in" name="email_opt_in" value="true" {% if (mode == 'edit' or mode == 'view') and user.email_opt_in %}checked{% endif %} {% if is_form_disabled or mode == 'preview' or mode == 'view' %}disabled{% endif %}>
-                                    <label class="form-check-label" for="email_opt_in">
-                                       Email me when the next LRR happens.
-                                    </label>
-                                </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="email_opt_in" name="email_opt_in" value="true" {% if (mode == 'edit' or mode == 'view') and user.email_opt_in %}checked{% endif %} {% if is_form_disabled or mode == 'preview' or mode == 'view' %}disabled{% endif %}>
+                                <label class="form-check-label" for="email_opt_in">
+                                   Email me when the next LRR happens.
+                                </label>
                             </div>
                         </div>
 
