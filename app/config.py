@@ -90,6 +90,7 @@ class Config:
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
     MAX_PHOTOS_PER_TEAM = 30
     ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.tiff'}
+    IMAGE_CACHE_MAX_AGE = 31536000  # 1 year; stored filenames are timestamp-prefixed and never overwritten
 
     # Gallery thumbnails (served in the grid + map popups instead of full-size originals)
     THUMBNAIL_DIR = 'thumbs'        # subdirectory of each team's upload folder
