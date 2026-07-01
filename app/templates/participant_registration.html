@@ -52,7 +52,7 @@
 
                         {% if existing_team and existing_team.status == TeamStatus.WITHDRAWN %}
                         <div class="alert alert-danger" role="alert">
-                            <ion-icon name="warning" class="me-2"></ion-icon>
+                            <ion-icon name="warning-outline" class="me-2"></ion-icon>
                             <strong>Team has been withdrawn.</strong><br>
                             The team "{{ existing_team.name }}" has been withdrawn from the event. You cannot edit your preferences or participate with this team anymore.
                             <a href="{{ url_for('user.join_team') }}" class="alert-link">Join a different team</a> to continue participating.
@@ -82,13 +82,13 @@
                     {% elif mode == 'switch' %}
                         {% if existing_membership and existing_membership.status == TeamMembershipStatus.REMOVED %}
                         <div class="alert alert-danger" role="alert">
-                            <ion-icon name="warning" class="me-2"></ion-icon>
+                            <ion-icon name="warning-outline" class="me-2"></ion-icon>
                             <strong>You have been removed from team "{{ existing_team.name }}".</strong><br>
                             The team captain has removed you from this team. Please select a different team below to continue participating.
                         </div>
                         {% else %}
                         <div class="alert alert-warning" role="alert">
-                            <ion-icon name="warning" class="me-2"></ion-icon>
+                            <ion-icon name="warning-outline" class="me-2"></ion-icon>
                             <strong>You're currently on team "{{ existing_team.name }}".</strong><br>
                             Joining a different team will immediately remove you from "{{ existing_team.name }}".
                         </div>
@@ -97,7 +97,7 @@
 
                     {% if error_message %}
                     <div class="alert alert-warning" role="alert">
-                        <ion-icon name="warning" class="me-2"></ion-icon>
+                        <ion-icon name="warning-outline" class="me-2"></ion-icon>
                         {{ error_message }}
                     </div>
                     {% elif (not teams or (existing_team and teams|selectattr('id', 'ne', existing_team.id)|list|length == 0)) and mode != 'edit' and mode != 'view' and not pending_captain_team and not invited_team %}
