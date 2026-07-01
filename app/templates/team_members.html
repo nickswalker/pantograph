@@ -292,9 +292,9 @@
                                     <div class="mb-4">
                                         <h6>Team Password</h6>
                                         <p class="text-muted small">Control access to your team by setting or changing the password.            {% if team.has_password %}
-                                        <span type="button" class="btn btn-link d-inline-block px-0 text-secondary" onclick="removePassword()">
+                                        <button type="button" class="btn btn-link p-0 align-baseline text-secondary" onclick="removePassword()">
                                             <small><ion-icon name="lock-open-outline" class="me-1"></ion-icon>Remove Password</small>
-                                        </span>
+                                        </button>
                                         {% endif %}</p>
                                         <form id="password-form" class="mb-2">
                                             <div class="input-group">
