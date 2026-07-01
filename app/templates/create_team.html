@@ -41,7 +41,6 @@
                     <form id="create-team-form"{% if not current_user.is_authenticated or deadline_info.is_closed %} class="opacity-75"{% endif %}>
                         <div class="mb-3">
                             <label for="format" class="form-label">
-                                <ion-icon name="options" class="me-1"></ion-icon>
                                 Format <span class="text-danger">*</span>
                             </label>
                             <select class="form-select" id="format" name="format" required{% if not current_user.is_authenticated or deadline_info.is_closed %} disabled{% endif %}>
@@ -54,7 +53,6 @@
 
                         <div class="mb-3" id="team-name-section">
                             <label for="team_name" class="form-label">
-                                <ion-icon name="flag" class="me-1"></ion-icon>
                                 Team Name <span class="text-danger">*</span>
                             </label>
                             <input type="text" class="form-control" id="team_name" name="team_name" required maxlength="255"{% if not current_user.is_authenticated or deadline_info.is_closed %} disabled{% endif %}{% if not current_user.is_authenticated %} placeholder="Your team name would go here"{% endif %}>
@@ -63,7 +61,6 @@
 
                         <div class="mb-3">
                             <label for="estimated_duration" class="form-label">
-                                <ion-icon name="time" class="me-1"></ion-icon>
                                 Estimated Duration <span class="text-danger">*</span>
                             </label>
                             <input type="text" class="form-control" id="estimated_duration" name="estimated_duration"
@@ -73,7 +70,6 @@
 
                         <div class="mb-3" id="password-section" style="display: none;">
                             <label for="password" class="form-label">
-                                <ion-icon name="lock-closed" class="me-1"></ion-icon>
                                 Team Password
                             </label>
                             <input type="password" class="form-control" id="password" name="password" maxlength="255"{% if not current_user.is_authenticated or deadline_info.is_closed %} disabled{% endif %}>
@@ -86,7 +82,6 @@
 
                         <div class="mb-3">
                             <label for="comments" class="form-label">
-                                <ion-icon name="chatbubble-ellipses" class="me-1"></ion-icon>
                                 Comments
                             </label>
                             <textarea class="form-control" id="comments" name="comments" rows="3"
@@ -96,7 +91,6 @@
 
                         <div class="mb-3">
                             <label for="previous_baton_serial" class="form-label">
-                                <ion-icon name="keypad" class="me-1"></ion-icon>
                                 Previous Baton Serial
                             </label>
                             <input type="text" class="form-control" id="previous_baton_serial" name="previous_baton_serial" maxlength="12" placeholder=""{% if not current_user.is_authenticated or deadline_info.is_closed %} disabled{% endif %}>
@@ -112,10 +106,7 @@
 
 
                         <div class="mb-4" id="waiver-section" style="display: none;">
-                            <h5 class="mb-3">
-                                <ion-icon name="document-text" class="me-2"></ion-icon>
-                                Waiver and Release
-                            </h5>
+                            <h5 class="mb-3">Waiver and Release</h5>
                             <div class="card">
                                 <div class="card-body card-text text-muted overflow-auto" style="max-height: 300px">
                                     {% include '_waiver.html' %}
@@ -130,14 +121,11 @@
                         </div>
 
                          <div id="email-opt-in-section" style="display: none;" class="mb-4">
-                            <div class="d-flex align-items-center">
-                                <ion-icon name="mail" class="me-2"></ion-icon>
-                                <div class="form-check mb-0">
-                                    <input class="form-check-input" type="checkbox" id="email_opt_in" name="email_opt_in" value="true" {% if (mode == 'edit' or mode == 'view') and user.email_opt_in %}checked{% endif %}{% if not current_user.is_authenticated or deadline_info.is_closed %} disabled{% endif %}>
-                                    <label class="form-check-label" for="email_opt_in">
-                                       Email me when the next LRR happens.
-                                    </label>
-                                </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="email_opt_in" name="email_opt_in" value="true" {% if (mode == 'edit' or mode == 'view') and user.email_opt_in %}checked{% endif %}{% if not current_user.is_authenticated or deadline_info.is_closed %} disabled{% endif %}>
+                                <label class="form-check-label" for="email_opt_in">
+                                   Email me when the next LRR happens.
+                                </label>
                             </div>
                         </div>
 
