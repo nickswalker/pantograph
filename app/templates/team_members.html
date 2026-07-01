@@ -275,7 +275,7 @@
         </div>
 
         <!-- Captain Actions Card -->
-        {% if current_user.is_captain_of(team) and team.status != TeamStatus.CANCELLED %}
+        {% if permissions.can_manage_team(current_user, team) and team.status != TeamStatus.CANCELLED %}
         <div class="row mt-4">
             <div class="col-12">
                 <div class="card">
@@ -412,7 +412,7 @@
                             <hr>
                         {% endif %}
 
-                        {% if team.format == TeamFormat.TEAM %}
+                        {% if team.format == TeamFormat.TEAM and current_user.is_captain_of(team) %}
                             <div class="row">
                                 <div class="col-12">
                                     <div class="mb-4">
