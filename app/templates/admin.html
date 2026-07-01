@@ -120,7 +120,7 @@
                                                 <li><a class="dropdown-item text-success" href="#" onclick="approveTeam(this, '{{ team.name }}', '{{ team.id }}')">
                                                     <ion-icon name="checkmark-outline" class="me-2"></ion-icon>Approve
                                                 </a></li>
-                                                <li><a class="dropdown-item text-warning" href="#" onclick="cancelTeam(this, '{{ team.name }}', '{{ team.id }}')">
+                                                <li><a class="dropdown-item text-warning" href="#" onclick="confirmCancelTeam('{{ team.name }}', '{{ team.id }}')">
                                                     <ion-icon name="ban-outline" class="me-2"></ion-icon>Cancel
                                                 </a></li>
                                                 <li><a class="dropdown-item text-info" href="#" onclick="sendPaymentReminder('{{ team.name }}', '{{ team.id }}')">
@@ -345,6 +345,76 @@
     </div>
 </div>
 
+<!-- Cancel Team Confirmation Modal -->
+<div class="modal fade" id="cancelTeamModal" tabindex="-1" aria-labelledby="cancelTeamModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cancelTeamModalLabel">
+                    <ion-icon name="warning-outline" class="text-warning me-2"></ion-icon>
+                    Cancel Team
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <strong>⚠ Warning: This action cannot be undone!</strong>
+                </div>
+                <p>You are about to permanently cancel the pending team <strong id="cancelTeamName"></strong>.</p>
+                <p>This will:</p>
+                <ul>
+                    <li>Mark the team as cancelled</li>
+                    <li>Prevent the team from being approved or joined</li>
+                    <li>Require its members to register with a different team</li>
+                </ul>
+                <p>Are you sure you want to continue?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Keep Team</button>
+                <button type="button" class="btn btn-warning" id="confirmCancelBtn" disabled>
+                    <span class="spinner-border spinner-border-sm d-none me-2"></span>
+                    Cancel Team
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete All Images Confirmation Modal -->
+<div class="modal fade" id="deleteAllImagesModal" tabindex="-1" aria-labelledby="deleteAllImagesModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteAllImagesModalLabel">
+                    <ion-icon name="warning-outline" class="text-danger me-2"></ion-icon>
+                    Delete All Images
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong>⚠ Warning: This action cannot be undone!</strong>
+                </div>
+                <p>You are about to permanently delete <strong>every photo uploaded by every team</strong> in this event.</p>
+                <p>This will:</p>
+                <ul>
+                    <li>Remove all photos from every team's gallery</li>
+                    <li>Delete the files from storage</li>
+                    <li>Affect every team, not just one</li>
+                </ul>
+                <p>Are you sure you want to continue?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Keep Images</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteAllImagesBtn" disabled>
+                    <span class="spinner-border spinner-border-sm d-none me-2"></span>
+                    Delete All Images
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Payment Reminder Confirmation Modal -->
 <div class="modal fade" id="paymentReminderModal" tabindex="-1" aria-labelledby="paymentReminderModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -431,6 +501,7 @@ import { userAPI, teamAPI, adminAPI, api, Utils } from '{{ url_for("static", fil
 let currentShortId = null;
 let currentUserId = null;
 let currentTeamId = null;
+let currentCancelShortId = null;
 
 // Baton serial modal
 window.openEditBatonSerialModal = function(teamId, teamName, currentSerial, previousSerial) {
@@ -553,18 +624,57 @@ window.withdrawTeam = async function(el, teamName, shortId) {
     }
 }
 
-window.cancelTeam = async function(el, teamName, shortId) {
-    if (!api.confirm(`Are you sure you want to cancel team "${teamName}"? This action is permanent and cannot be undone.`)) {
-        return;
-    }
+window.confirmCancelTeam = function(teamName, shortId) {
+    currentCancelShortId = shortId;
+    document.getElementById('cancelTeamName').textContent = teamName;
+
+    // Enable cancel button after 3 seconds
+    const cancelBtn = document.getElementById('confirmCancelBtn');
+    cancelBtn.disabled = true;
+    cancelBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Please wait...';
+
+    setTimeout(() => {
+        cancelBtn.disabled = false;
+        cancelBtn.innerHTML = 'Cancel Team';
+    }, 3000);
+
+    // Show modal
+    api.clearModalAlert('cancelTeamModal');
+    const modal = new bootstrap.Modal(document.getElementById('cancelTeamModal'));
+    modal.show();
+
+    // Add click handler for cancel button
+    cancelBtn.onclick = function() {
+        cancelTeamAction(currentCancelShortId);
+    };
+}
+
+window.cancelTeamAction = async function(shortId) {
+    const cancelBtn = document.getElementById('confirmCancelBtn');
+
+    // Show loading state
+    cancelBtn.disabled = true;
+    cancelBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cancelling...';
 
     const result = await teamAPI.cancelTeam(shortId);
 
     if (result.success) {
+        // Hide modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('cancelTeamModal'));
+        modal.hide();
+
+        // Show success banner
         api.showBanner(result.data.message, 'success');
+
+        // Reload page after short delay
         api.redirectAfterDelay(window.location.href, 1500);
     } else {
-        api.showRowAlert(el.closest('tr'), 'danger', result.error || 'Failed to cancel team');
+        // Show error inline in the still-open modal
+        api.showModalAlert('cancelTeamModal', 'danger', result.error || 'Failed to cancel team');
+
+        // Reset button
+        cancelBtn.disabled = false;
+        cancelBtn.innerHTML = 'Cancel Team';
     }
 }
 
@@ -663,35 +773,57 @@ window.sendRegistrationReminderEmails = async function() {
     }
 }
 
-// Delete all images function
-window.confirmDeleteAllImages = async function () {
-    const confirmed = confirm('Are you sure you want to delete ALL images from ALL teams?\n\nThis action cannot be undone and will permanently remove all photos from the system.');
+// Delete all images functions
+window.confirmDeleteAllImages = function () {
+    const deleteBtn = document.getElementById('confirmDeleteAllImagesBtn');
 
-    if (!confirmed) return;
+    // Enable delete button after 3 seconds
+    deleteBtn.disabled = true;
+    deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Please wait...';
 
-    const button = event.target.closest('button');
-    const originalContent = button.innerHTML;
+    setTimeout(() => {
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = 'Delete All Images';
+    }, 3000);
+
+    // Show modal
+    api.clearModalAlert('deleteAllImagesModal');
+    const modal = new bootstrap.Modal(document.getElementById('deleteAllImagesModal'));
+    modal.show();
+
+    // Add click handler for delete button
+    deleteBtn.onclick = function() {
+        deleteAllImagesAction();
+    };
+}
+
+window.deleteAllImagesAction = async function () {
+    const deleteBtn = document.getElementById('confirmDeleteAllImagesBtn');
 
     // Show loading state
-    button.disabled = true;
-    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
+    deleteBtn.disabled = true;
+    deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
 
     try {
         const result = await adminAPI.deleteAllImages();
 
         if (result.success) {
+            // Hide modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteAllImagesModal'));
+            modal.hide();
+
+            // Show success banner
             api.showBanner(result.data.message, 'success');
-            // Optionally reload the page to refresh statistics
-            setTimeout(() => window.location.reload(), 2000);
+            setTimeout(() => window.location.reload(), 1500);
         } else {
-            api.showBanner(result.error || 'Failed to delete images', 'danger');
+            api.showModalAlert('deleteAllImagesModal', 'danger', result.error || 'Failed to delete images');
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = 'Delete All Images';
         }
     } catch (error) {
-        api.showBanner('Failed to delete images: ' + error.message, 'danger');
-    } finally {
-        // Reset button state
-        button.disabled = false;
-        button.innerHTML = originalContent;
+        api.showModalAlert('deleteAllImagesModal', 'danger', 'Failed to delete images: ' + error.message);
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = 'Delete All Images';
     }
 }
 </script>
