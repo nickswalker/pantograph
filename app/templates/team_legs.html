@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}{{ team.name }} - Leg Assignments - {{ super() }}{% endblock %}
+
+{% block content %}
+    {% include '_team_status_alerts.html' %}
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="mb-0">{{ team.name }} Leg Assignments</h1>
+            <a href="{{ url_for('teams.team_members', team_id=team.id) }}" class="link-secondary text-decoration-none small">
+                <ion-icon name="arrow-back-outline" class="me-1"></ion-icon>Back to Members
+            </a>
+        </div>
+        {% if can_edit %}
+        <div class="d-flex align-items-center gap-2">
+            <span id="legs-dirty-indicator" class="badge text-bg-warning d-none">Unsaved changes</span>
+            <span id="legs-saved-indicator" class="badge text-bg-success d-none">All changes saved</span>
+            <button type="button" id="legs-save-btn" class="btn btn-primary" disabled>
+                <ion-icon name="save-outline" class="me-1"></ion-icon>Save Assignments
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <p class="text-muted small">
+        {% if can_edit %}
+            Drag a member from the bench onto a leg to assign them, or use their <ion-icon name="add-outline"></ion-icon>
+            menu. Each placed chip has its own remove button. A member can be assigned to multiple legs, and a leg can
+            have multiple members.
+        {% else %}
+            This board is read-only. Only the team captain or a site admin can change assignments.
+        {% endif %}
+    </p>
+
+    <div id="legs-loading" class="text-center text-muted py-5 d-none">
+        <ion-icon name="hourglass-outline" style="font-size: 2rem;"></ion-icon>
+        <p class="mt-2 mb-0">Loading board&hellip;</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Legs</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="legs-list" class="list-group list-group-flush"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Bench</h5>
+                </div>
+                <div class="card-body">
+                    <div id="legs-bench" class="d-flex flex-column gap-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script type="module">
+        import { initLegBoard } from '{{ url_for("static", filename="js/leg-board.js") }}';
+
+        window.legBoard = initLegBoard({
+            teamId: '{{ team.id }}',
+            canEdit: {{ 'true' if can_edit else 'false' }},
+            legsListEl: document.getElementById('legs-list'),
+            benchEl: document.getElementById('legs-bench'),
+            saveButtonEl: document.getElementById('legs-save-btn'),
+            dirtyIndicatorEl: document.getElementById('legs-dirty-indicator'),
+            savedIndicatorEl: document.getElementById('legs-saved-indicator'),
+            loadingEl: document.getElementById('legs-loading'),
+        });
+    </script>
+{% endblock %}

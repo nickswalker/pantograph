@@ -6,7 +6,15 @@
     {% include '_team_status_alerts.html' %}
 
     {% set captain_has_joined = active_members | selectattr('user_id', 'equalto', team.captain_id) | list | length > 0 %}
-    <h1> {{team.name }}{% if team.format == TeamFormat.TEAM %} Members{% endif %}</h1>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h1 class="mb-0"> {{team.name }}{% if team.format == TeamFormat.TEAM %} Members{% endif %}</h1>
+        {% if team.format == TeamFormat.TEAM %}
+        <a href="{{ url_for('teams.team_legs', team_id=team.id) }}" class="btn btn-outline-primary">
+            <ion-icon name="git-network-outline" class="me-1"></ion-icon>
+            {% if permissions.can_manage_team(current_user, team) %}Assign Legs{% else %}View Leg Assignments{% endif %}
+        </a>
+        {% endif %}
+    </div>
 
     <p class="mb-4">
         {% if team.runs_line(TeamLines.ONE) %}<span class="line-badge line-badge-1">1 Line</span>{% endif %}

@@ -51,7 +51,8 @@
         "@turf": "https://cdn.jsdelivr.net/npm/@turf/turf@7.3.5/+esm",
         "@popperjs/core": "https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/esm/popper.min.js",
         "exifreader": "https://cdn.jsdelivr.net/npm/exifreader@4.41.0/+esm",
-        "heic-to": "https://cdn.jsdelivr.net/npm/heic-to@1.5.2/+esm"
+        "heic-to": "https://cdn.jsdelivr.net/npm/heic-to@1.5.2/+esm",
+        "sortablejs": "https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/modular/sortable.esm.js"
       }
     }
 </script>
@@ -81,6 +82,9 @@ configureUrls({
 {% if team %}
     uploadImages: '{{ url_for("teams.upload_images", team_id="__TEAM_ID__") }}',
         deleteImage: '{{ url_for("teams.delete_image", team_id="__TEAM_ID__", image_id="__IMAGE_ID__") }}',
+    // Leg assignment board: GET is open to any team member, PUT (save) is
+    // captain/admin-only but shares the same URL (different HTTP method).
+    assignments: '{{ url_for("teams.get_assignments", team_id="__TEAM_ID__") }}',
 {% endif %}
 
 {% if team and permissions.can_manage_team(current_user, team) or current_user.is_admin %}

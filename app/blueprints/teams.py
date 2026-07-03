@@ -15,7 +15,8 @@ from werkzeug.utils import secure_filename
 from app.models import db, Team, TeamMembership, TeamStatus, TeamMembershipStatus, TeamFormat
 from app.permissions import (
     team_access_required, team_captain_required,
-    team_captain_or_member_required, team_upload_allowed, admin_required
+    team_captain_or_member_required, team_upload_allowed, admin_required,
+    PermissionChecker
 )
 from app.utils import is_allowed_image, validate_image_content, secure_filename_enhanced, find_team_by_id, \
     find_team_by_gallery_hash, load_end_station_names, course_lines_for, max_preferred_miles, parse_hh_mm_to_seconds, convert_to_jpeg, is_heic_file, \
@@ -144,6 +145,36 @@ def team_members(team_id, team):
                          team_id=team_id,
                          willing_leaders_count=willing_leaders_count,
                          avg_preferred_miles=avg_preferred_miles)
+
+
+@teams.route('/<team_id>/legs')
+@team_access_required()
+def team_legs(team_id, team):
+    """Leg-assignment board: one row per relay leg with drag-and-drop member
+    chips, plus a bench of every team member.
+
+    Any non-removed member can view; only the captain/site-admin get the
+    editing affordances (enforced both here for rendering and by the PUT
+    endpoint for the actual save).
+    """
+    # If the current user is the captain and hasn't completed their registration for this team,
+    # redirect them to their registration page.
+    if current_user.is_authenticated and current_user.id == team.captain_id:
+        captain_membership = TeamMembership.query.filter_by(team_id=team.id, user_id=current_user.id).first()
+        if not captain_membership:
+            return redirect(url_for('user.my_registration'))
+
+    # The board only makes sense for TEAM-format entries (solo entries have
+    # nobody to assign but themselves).
+    if team.format != TeamFormat.TEAM:
+        return redirect(url_for('teams.team_members', team_id=team.id))
+
+    can_edit = PermissionChecker.can_manage_team(current_user, team)
+
+    return render_template('team_legs.html',
+                         team=team,
+                         team_id=team_id,
+                         can_edit=can_edit)
 
 
 def _export_members_data(team, format_type='csv'):

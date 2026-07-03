@@ -11,22 +11,50 @@ which route handlers translate into JSON responses.
 from sqlalchemy.orm import joinedload
 
 from app.models import db, LegAssignment, TeamMembership, TeamMembershipStatus
+from app.services import course_service
 from app.services.exceptions import ServiceError
 
 
 def _valid_leg_indexes():
-    """WP1/WP3 INTEGRATION POINT: leg indexes defined by the course data.
+    """Leg indexes defined by the course data.
 
-    Returns a set of valid leg indexes, or ``None`` when course data is
-    unavailable — in which case callers only validate that a leg index is a
-    positive integer. Once WP1's course loader
-    (``app.services.course_service``) lands, replace this body with something
-    like::
-
-        from app.services import course_service
-        return {leg['index'] for leg in course_service.load_course()['legs']}
+    Returns a set of valid leg indexes (0-based, per WP1's ``legs_2026.json``:
+    22 legs, ids 0-21). Callers additionally validate that a leg index is a
+    non-negative integer regardless of course data availability.
     """
-    return None
+    return {leg['index'] for leg in course_service.load_course()['legs']}
+
+
+def _serialize_course():
+    """Trim WP1's course model down to what the board needs.
+
+    Each leg's index, start/end exchange id *and* display name, distance,
+    ascent, descent. Geometry and commute data are omitted here — they're not
+    needed to render the board (a future map overlay may want geometry, but
+    that's out of scope for WP3).
+    """
+    course = course_service.load_course()
+    exchanges = course_service.exchanges_by_id()
+
+    def _endpoint(exchange_id):
+        exchange = exchanges.get(exchange_id)
+        return {'id': exchange_id, 'name': exchange['name'] if exchange else None}
+
+    return {
+        'event': course.get('event'),
+        'units': course.get('units'),
+        'legs': [
+            {
+                'index': leg['index'],
+                'start': _endpoint(leg['start']),
+                'end': _endpoint(leg['end']),
+                'distance': leg['distance'],
+                'ascent': leg['ascent'],
+                'descent': leg['descent'],
+            }
+            for leg in course['legs']
+        ],
+    }
 
 
 def _serialize_assignment(assignment):
@@ -78,9 +106,7 @@ def get_board(team):
         'team_id': team.id,
         'assignments': [_serialize_assignment(a) for a in assignments],
         'members': [_serialize_member(m) for m in visible],
-        # WP1/WP3 INTEGRATION POINT: course summary (legs, exchanges, units)
-        # from app.services.course_service goes here once WP1 lands.
-        'course': None,
+        'course': _serialize_course(),
     }
 
 
@@ -89,11 +115,11 @@ def replace_assignments(team, assignments_payload):
 
     ``assignments_payload`` is a list of ``{'leg_index': int,
     'membership_id': str}`` dicts. Validates that each leg index is a
-    positive integer (and, once course data is wired in, that it exists in
-    the course), that no (leg, member) pair appears twice — several members
-    may share a leg — and that each membership belongs to this team and is
-    ACTIVE. On any validation failure the existing assignments are left
-    untouched.
+    non-negative integer that exists in the course (0-21, per
+    ``data/legs_2026.json``), that no (leg, member) pair appears twice —
+    several members may share a leg — and that each membership belongs to
+    this team and is ACTIVE. On any validation failure the existing
+    assignments are left untouched.
 
     Returns the saved assignments in serialized form, ordered by leg index.
     """
@@ -112,9 +138,10 @@ def replace_assignments(team, assignments_payload):
             raise ServiceError('Each assignment must be an object with leg_index and membership_id')
 
         leg_index = item.get('leg_index')
-        # bool is a subclass of int; reject it explicitly.
-        if isinstance(leg_index, bool) or not isinstance(leg_index, int) or leg_index < 1:
-            raise ServiceError('leg_index must be a positive integer')
+        # bool is a subclass of int; reject it explicitly. Leg indexes are
+        # 0-based (see data/legs_2026.json), so 0 is a valid leg index.
+        if isinstance(leg_index, bool) or not isinstance(leg_index, int) or leg_index < 0:
+            raise ServiceError('leg_index must be a non-negative integer')
         if valid_leg_indexes is not None and leg_index not in valid_leg_indexes:
             raise ServiceError(f'Leg {leg_index} does not exist in the course')
 

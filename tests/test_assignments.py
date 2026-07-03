@@ -115,7 +115,16 @@ def test_member_can_get(client, seeded):
     body = response.get_json()
     assert body['team_id'] == seeded['team_id']
     assert body['assignments'] == []
-    assert body['course'] is None  # WP1 integration point, not yet wired
+    course = body['course']
+    assert course is not None
+    assert course['event'] == 'lrr2026'
+    assert 'units' in course
+    assert len(course['legs']) == 22
+    first_leg = next(leg for leg in course['legs'] if leg['index'] == 0)
+    assert set(first_leg.keys()) == {'index', 'start', 'end', 'distance', 'ascent', 'descent'}
+    assert set(first_leg['start'].keys()) == {'id', 'name'}
+    assert isinstance(first_leg['start']['name'], str)
+    assert isinstance(first_leg['end']['name'], str)
     members = {m['membership_id']: m for m in body['members']}
     # Active members are listed; the withdrawn (unassigned) member is not.
     assert seeded['captain_membership_id'] in members
@@ -212,14 +221,38 @@ def test_two_members_may_share_a_leg(client, seeded):
     )
 
 
-@pytest.mark.parametrize('bad_leg', [0, -1, 1.5, 'one', None, True])
+@pytest.mark.parametrize('bad_leg', [-1, 1.5, 'one', None, True])
 def test_put_rejects_bad_leg_index(client, seeded, bad_leg):
     login(client, seeded['captain_id'])
     response = _put(client, seeded, [
         {'leg_index': bad_leg, 'membership_id': seeded['runner_membership_id']},
     ])
     assert response.status_code == 400
-    assert 'positive integer' in response.get_json()['error']
+    assert 'non-negative integer' in response.get_json()['error']
+
+
+def test_put_accepts_leg_zero(client, seeded):
+    """Leg indexes are 0-based (data/legs_2026.json leg 0 is the first leg),
+    so leg_index == 0 must be a valid assignment, not rejected as falsy."""
+    login(client, seeded['captain_id'])
+    response = _put(client, seeded, [
+        {'leg_index': 0, 'membership_id': seeded['runner_membership_id']},
+    ])
+    assert response.status_code == 200
+    assert response.get_json()['assignments'] == [
+        {'leg_index': 0, 'membership_id': seeded['runner_membership_id']},
+    ]
+
+
+def test_put_rejects_leg_index_outside_course(client, seeded):
+    """The course has 22 legs (indexes 0-21, see data/legs_2026.json); once
+    course data is wired in, out-of-range indexes must be rejected."""
+    login(client, seeded['captain_id'])
+    response = _put(client, seeded, [
+        {'leg_index': 22, 'membership_id': seeded['runner_membership_id']},
+    ])
+    assert response.status_code == 400
+    assert 'does not exist in the course' in response.get_json()['error']
 
 
 def test_put_rejects_missing_membership_id(client, seeded):

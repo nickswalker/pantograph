@@ -395,6 +395,26 @@ export class MembershipAPI extends ApiClient {
     }
 }
 
+// Leg Assignment Board API
+export class AssignmentAPI extends ApiClient {
+    // Board state: assignments + members + course summary
+    async getBoard(teamId) {
+        const url = this.buildUrl('assignments', { team_id: teamId });
+        return await this.request(url, {
+            method: 'GET'
+        });
+    }
+
+    // Full replacement of the team's assignment set (captain/admin only)
+    async saveAssignments(teamId, assignments) {
+        const url = this.buildUrl('assignments', { team_id: teamId });
+        return await this.request(url, {
+            method: 'PUT',
+            body: JSON.stringify({ assignments })
+        });
+    }
+}
+
 // User Management API
 export class UserAPI extends ApiClient {
     // Delete user account
@@ -584,6 +604,7 @@ export const membershipAPI = new MembershipAPI();
 export const userAPI = new UserAPI();
 export const adminAPI = new AdminAPI();
 export const imageAPI = new ImageAPI();
+export const assignmentAPI = new AssignmentAPI();
 
 // Make utilities available globally
 window.Utils = Utils;
@@ -595,10 +616,12 @@ export default {
     MembershipAPI,
     UserAPI,
     ImageAPI,
+    AssignmentAPI,
     Utils,
     api,
     teamAPI,
     membershipAPI,
     userAPI,
-    imageAPI
+    imageAPI,
+    assignmentAPI
 };
