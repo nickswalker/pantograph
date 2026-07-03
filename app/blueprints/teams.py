@@ -22,7 +22,7 @@ from app.utils import is_allowed_image, validate_image_content, secure_filename_
     format_mm_ss_from_seconds, load_exchange_points, thumbnail_basename, generate_thumbnail_from_image
 from app.config import Config
 from app.security import limiter
-from app.services import team_service, membership_service
+from app.services import team_service, membership_service, assignment_service
 from app.services.team_service import TeamStateError
 from app.services.exceptions import ServiceError
 
@@ -211,6 +211,45 @@ def export_members_tsv(team_id, team):
         mimetype='text/tab-separated-values',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'}
     )
+
+
+@teams.route('/<team_id>/assignments', methods=['GET'])
+@team_access_required()
+def get_assignments(team_id, team):
+    """Board state: leg assignments plus members with their join preferences.
+
+    Readable by any team member (captain, admin, or member) — same access
+    rule as the members page.
+    """
+    return jsonify(assignment_service.get_board(team)), 200
+
+
+@teams.route('/<team_id>/assignments', methods=['PUT'])
+@team_captain_required()
+def put_assignments(team_id, team):
+    """Full replacement of the team's assignment set (captain or admin only).
+
+    Accepts either a bare list ``[{"leg_index": 1, "membership_id": "..."}]``
+    or ``{"assignments": [...]}``.
+    """
+    data = request.get_json(silent=True)
+    if isinstance(data, dict):
+        payload = data.get('assignments')
+    else:
+        payload = data
+    if not isinstance(payload, list):
+        return jsonify({'error': 'Request body must be a JSON list of assignments '
+                                 '(or an object with an "assignments" list)'}), 400
+
+    try:
+        saved = assignment_service.replace_assignments(team, payload)
+        return jsonify({'success': True, 'assignments': saved}), 200
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to save assignments for team {team_id}: {str(e)}")
+        return jsonify({'error': 'Failed to save assignments'}), 500
 
 
 @teams.route('/<team_id>/images/<image_id>', methods=['DELETE'])

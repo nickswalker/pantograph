@@ -223,6 +223,36 @@ class Image(db.Model):
         return f'<Image {self.filename} by {self.uploader.name}>'
 
 
+class LegAssignment(db.Model):
+    """A team member assigned to run one leg of the relay.
+
+    Keyed by membership (not user) so that a member's withdrawal naturally
+    flags their legs. Several members may share a leg and a member may be
+    assigned multiple legs, but the same member cannot be assigned to the
+    same leg twice. Legs may be left unassigned while drafting.
+    """
+
+    id = db.Column(db.String(8), primary_key=True, default=lambda: secrets.token_urlsafe(6))
+    team_id = db.Column(db.String(8), db.ForeignKey('team.id'), nullable=False)
+    membership_id = db.Column(db.String(8), db.ForeignKey('team_membership.id'), nullable=False)
+    leg_index = db.Column(db.Integer, nullable=False)
+
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    team = db.relationship('Team', backref='leg_assignments')
+    membership = db.relationship('TeamMembership', backref='leg_assignments')
+
+    # A member may appear on a leg at most once (but legs may be shared)
+    __table_args__ = (
+        db.UniqueConstraint('team_id', 'leg_index', 'membership_id', name='unique_team_leg_membership'),
+    )
+
+    def __repr__(self):
+        return f'<LegAssignment leg {self.leg_index} of team {self.team_id}>'
+
+
 def _naive_utcnow():
     """Current UTC time as a naive datetime, for consistent SQLite comparisons."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
