@@ -93,3 +93,17 @@ html[data-bs-theme="dark"] .invert-when-dark {
 html[data-bs-theme="dark"] .line-badge {
   border: 1px solid rgba(255, 255, 255, 0.25);
 }
+
+/* Used by the leg assignment board (app/static/js/leg-board.js)'s dropzones
+   and, more importantly, by the "Optimize remaining" suggested chips
+   (app/static/js/leg-solver-ui.js) -- a suggestion must read as visually
+   distinct ("dashed/outlined") from a real, saved assignment. */
+.border-dashed {
+  border-style: dashed !important;
+}
+
+.leg-chip-suggested {
+  background-color: transparent;
+  border-color: var(--bs-primary) !important;
+  opacity: 0.85;
+}
