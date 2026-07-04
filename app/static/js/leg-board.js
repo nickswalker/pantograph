@@ -10,11 +10,19 @@
  * "Add to leg" dropdown (native <button data-bs-toggle="dropdown"> + menu,
  * fully keyboard operable), and every placed chip has a remove button.
  *
- * No solver here (WP5) and no preference badges (WP4) -- this module only
- * knows how to load, render, mutate, and save the assignment set. It does
- * expose a hook, `window.onAssignmentsChanged(state)`, called after every
- * change, so WP4 can render live satisfaction badges without this module
- * knowing anything about preferences.
+ * No solver here (WP5) and no preference-badge *computation* (WP4) -- this
+ * module only knows how to load, render, mutate, and save the assignment
+ * set. It does expose a hook, `window.onAssignmentsChanged(state)`, called
+ * after every change (including initial load), so WP4 can render live
+ * satisfaction badges without this module knowing anything about
+ * preferences.
+ *
+ * The one WP4 concession here: every bench chip and leg row renders an empty
+ * `[data-metrics-mount]` element (a bench chip per member, a leg row per
+ * leg). WP3 never writes into them; WP4's renderer (leg-badges.js) fills
+ * them in on the `onAssignmentsChanged` hook, which fires after this
+ * module's own `_render()` has already replaced the relevant innerHTML, so
+ * there's no race between the two.
  */
 
 import { assignmentAPI, api } from './api-client.js';
@@ -265,6 +273,7 @@ export class LegBoard {
                         <div class="fw-semibold">${escapeHtml(member.name)}${leaderMarker}${this._statusBadge(member)}</div>
                         <div class="text-muted">${details.join(' &middot; ') || 'No preferences stated'}</div>
                         <div class="text-muted">${legsHeld} leg${legsHeld === 1 ? '' : 's'} assigned</div>
+                        <div class="d-flex flex-wrap gap-1 mt-1" data-metrics-mount="member" data-membership-id="${escapeHtml(member.membership_id)}"></div>
                     </div>
                     ${addControl}
                 </div>`;
@@ -331,6 +340,7 @@ export class LegBoard {
                             ${formatMiles(leg.distance)} mi &middot; +${leg.ascent} / -${leg.descent} ft
                         </div>
                     </div>
+                    <div class="d-flex flex-wrap gap-1 mb-2" data-metrics-mount="leg" data-leg-index="${leg.index}"></div>
                     <div class="leg-dropzone d-flex flex-wrap align-items-center gap-2 p-2 border border-dashed rounded"
                          data-leg-index="${leg.index}">
                         ${chips}${emptyHint}

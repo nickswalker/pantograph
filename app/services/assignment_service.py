@@ -25,13 +25,29 @@ def _valid_leg_indexes():
     return {leg['index'] for leg in course_service.load_course()['legs']}
 
 
-def _serialize_course():
-    """Trim WP1's course model down to what the board needs.
+def _serialize_course(team):
+    """Trim WP1's course model down to what the board (and WP4's metrics)
+    need.
 
     Each leg's index, start/end exchange id *and* display name, distance,
-    ascent, descent. Geometry and commute data are omitted here — they're not
-    needed to render the board (a future map overlay may want geometry, but
-    that's out of scope for WP3).
+    ascent, descent. Full geometry is omitted here — not needed to render the
+    board (a future map overlay may want it, but that's out of scope).
+
+    WP4 needs two more things to compute badges client-side, added here
+    cheaply (see docs/plans/leg-assignments.md, "Status & integration
+    notes"): the commute-distance matrix (for the end-exchange near/violated
+    check when a member's last leg doesn't end exactly at their preferred
+    station) and a station-name -> exchange-id index (covering the real
+    exchange names, spelling aliases like "U-District", and non-course
+    stations like "Boeing Access Road" that intentionally carry no
+    commute/leg data, so a preference pointing at one resolves but naturally
+    falls out of the commute lookup as "no data").
+
+    ``estimated_duration_seconds`` (Team model) rides along inside ``course``
+    rather than as a new top-level GET field, because WP3's
+    ``onAssignmentsChanged`` hook forwards ``state.course`` verbatim but only
+    explicitly re-picks ``course``/``members``/``assignments`` -- putting it
+    here means WP4 gets it for free with no board changes.
     """
     course = course_service.load_course()
     exchanges = course_service.exchanges_by_id()
@@ -54,6 +70,9 @@ def _serialize_course():
             }
             for leg in course['legs']
         ],
+        'commute': course.get('commute', []),
+        'station_index': course_service.station_name_to_exchange_id(),
+        'estimated_duration_seconds': team.estimated_duration_seconds,
     }
 
 
@@ -106,7 +125,7 @@ def get_board(team):
         'team_id': team.id,
         'assignments': [_serialize_assignment(a) for a in assignments],
         'members': [_serialize_member(m) for m in visible],
-        'course': _serialize_course(),
+        'course': _serialize_course(team),
     }
 
 
