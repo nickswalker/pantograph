@@ -19,7 +19,8 @@ def index():
 
 @main.route('/payment')
 def payment():
-    return render_template('payment.html', contact_email=current_app.config['CONTACT_EMAIL'])
+    return render_template('payment.html', contact_email=current_app.config['CONTACT_EMAIL'],
+                           baton_price=current_app.config['BATON_PRICE_USD'])
 
 
 @main.route('/privacy')

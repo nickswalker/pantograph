@@ -21,6 +21,13 @@ class TeamFormat(enum.Enum):
     SOLO = 'Solo'
     TEAM = 'Team'
 
+class TeamLines(enum.Enum):
+    """Which Link line(s) a team runs.
+    """
+    ONE = '1 Line'
+    TWO = '2 Line'
+    BOTH = 'Both Lines'
+
 class TeamMembershipStatus(enum.Enum):
     ACTIVE = 'active'
     WITHDRAWN = 'withdrawn'
@@ -53,13 +60,17 @@ class Team(db.Model):
     name = db.Column(db.String(255), unique=True, nullable=False)
     gallery_hash = db.Column(db.String(8), unique=True, nullable=False, default=lambda: secrets.token_urlsafe(6))  # Public gallery view hash
     format = db.Column(db.Enum(TeamFormat), nullable=False)
+    lines = db.Column(db.Enum(TeamLines), nullable=False, default=TeamLines.ONE)
     estimated_duration_seconds = db.Column(db.Integer, nullable=False)  # Stored as total seconds
     comments = db.Column(db.Text, nullable=True)
     password_hash = db.Column(db.String(255), nullable=True)  # Optional password for joining
     invite_token = db.Column(db.String(32), unique=True, nullable=True) # Shareable, revocable invite token
     status = db.Column(db.Enum(TeamStatus), nullable=False, default=TeamStatus.PENDING)
+    # A Both Lines team runs two branches concurrently, so it needs two batons.
     previous_baton_serial = db.Column(db.String(12), nullable=True)
+    previous_baton_serial_2 = db.Column(db.String(12), nullable=True)
     baton_serial = db.Column(db.String(12), nullable=True)
+    baton_serial_2 = db.Column(db.String(12), nullable=True)
     captain_id = db.Column(db.String(8), db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -84,6 +95,26 @@ class Team(db.Model):
     def has_password(self):
         """Returns True if the team has a password set."""
         return self.password_hash is not None
+
+    @property
+    def batons_required(self):
+        """Two for Both Lines (one per branch), otherwise one."""
+        return 2 if self.lines == TeamLines.BOTH else 1
+
+    @property
+    def previous_baton_serials(self):
+        """Serials of batons the team already owns from a previous year."""
+        return [s for s in (self.previous_baton_serial, self.previous_baton_serial_2) if s]
+
+    @property
+    def baton_serials(self):
+        """Serials of batons issued to the team."""
+        return [s for s in (self.baton_serial, self.baton_serial_2) if s]
+
+    @property
+    def batons_to_purchase(self):
+        """Batons still to be bought, after crediting any they bring."""
+        return max(self.batons_required - len(self.previous_baton_serials), 0)
 
     @property
     def members(self):

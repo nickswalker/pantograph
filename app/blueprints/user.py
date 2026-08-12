@@ -4,12 +4,29 @@ import re
 from datetime import datetime
 from flask import Blueprint, request, render_template, jsonify, redirect, url_for
 from flask_login import login_required, current_user
-from app.models import db, Team, TeamMembership, TeamStatus, TeamFormat, TeamMembershipStatus
-from app.utils import load_end_station_names, parse_hh_mm_to_seconds
+from app.models import db, Team, TeamMembership, TeamStatus, TeamFormat, TeamLines, TeamMembershipStatus
+from app.utils import load_end_station_names, parse_hh_mm_to_seconds, course_lines_for, course_distance_miles
 from app.config import Config
 from app.permissions import user_self_or_admin_required
 
 user = Blueprint('user', __name__)
+
+
+def team_line_options():
+    """Line choices for the registration form, with each option's distance."""
+    return [
+        {'value': option.value, 'distance': course_distance_miles(course_lines_for(option))}
+        for option in TeamLines
+    ]
+
+
+def stations_for_team(team):
+    """End stations selectable for ``team``; the full course when unknown.
+
+    A generic join has no team picked yet, so the superset is offered and
+    membership_service.register does the authoritative check on submit.
+    """
+    return load_end_station_names(course_lines_for(team.lines) if team else None)
 
 
 @user.route('/create-team', methods=['GET', 'POST'])
@@ -18,7 +35,9 @@ def create_team():
     if request.method == 'GET':
         from app.utils import get_registration_deadline_info
         deadline_info = get_registration_deadline_info()
-        return render_template('create_team.html', user=current_user, deadline_info=deadline_info)
+        return render_template('create_team.html', user=current_user, deadline_info=deadline_info,
+                               line_options=team_line_options(),
+                               baton_price=Config.BATON_PRICE_USD)
 
     # Handle POST request - require authentication for actual submission
     if not current_user.is_authenticated:
@@ -46,10 +65,12 @@ def create_team():
     try:
         team_name = request.form.get('team_name', '').strip()
         format_type_str = request.form.get('format', '').strip()
+        lines_str = request.form.get('lines', '').strip()
         estimated_duration_str = request.form.get('estimated_duration', '').strip()
         comments = request.form.get('comments', '').strip()
         password = request.form.get('password', '').strip()
         previous_baton_serial = request.form.get('previous_baton_serial', '').strip()
+        previous_baton_serial_2 = request.form.get('previous_baton_serial_2', '').strip()
         email_opt_in = request.form.get('email_opt_in') == 'true'
 
         # Validation
@@ -60,6 +81,17 @@ def create_team():
             format_type = TeamFormat(format_type_str)
         except ValueError:
             return jsonify({'error': 'Format must be Solo or Team'}), 400
+
+        try:
+            team_lines = TeamLines(lines_str)
+        except ValueError:
+            return jsonify({'error': 'Lines must be 1 Line, 2 Line, or Both Lines'}), 400
+
+        # Both Lines runs two branches at the same time, so it needs at least
+        # two runners and two batons -- impossible for a solo entry.
+        if format_type == TeamFormat.SOLO and team_lines == TeamLines.BOTH:
+            return jsonify({'error': 'A solo entry cannot run Both Lines: the two branches run '
+                                     'concurrently. Choose the 1 Line or the 2 Line.'}), 400
 
         if not estimated_duration_str:
             return jsonify({'error': 'Estimated duration is required'}), 400
@@ -79,9 +111,12 @@ def create_team():
         new_team = Team(
             name=team_name,
             format=format_type,
+            lines=team_lines,
             estimated_duration_seconds=estimated_duration_seconds,
             comments=comments if comments else None,
             previous_baton_serial=previous_baton_serial if previous_baton_serial else None,
+            # Only a Both Lines team has a second baton to declare.
+            previous_baton_serial_2=(previous_baton_serial_2 or None) if team_lines == TeamLines.BOTH else None,
             status=TeamStatus.PENDING,
             captain_id=current_user.id
         )
@@ -93,18 +128,19 @@ def create_team():
         # Always create TeamMembership for captain with standard defaults
         captain_membership = None
         if format_type == TeamFormat.SOLO:
-            # Calculate planned pace for solo team based on estimated duration over 36 miles
-            # Ensure to handle division by zero if estimated_duration_seconds could be 0
+            # Pace comes from the estimated duration over the full distance of
+            # whichever line(s) they registered for.
+            course_miles = course_distance_miles(course_lines_for(team_lines))
             planned_pace_seconds = 0
-            if estimated_duration_seconds > 0:
-                planned_pace_seconds = round(estimated_duration_seconds / 36)
+            if estimated_duration_seconds > 0 and course_miles > 0:
+                planned_pace_seconds = round(estimated_duration_seconds / course_miles)
 
             # Solo teams get reasonable defaults that can be edited later
             captain_membership = TeamMembership(
                 user_id=current_user.id,
                 team_id=new_team.id,
                 willing_to_lead=True,
-                preferred_miles=36,    # Full distance default
+                preferred_miles=course_miles,    # Full distance default
                 planned_pace_seconds=planned_pace_seconds,
                 preferred_station=None,
                 comments=None
@@ -219,7 +255,8 @@ def join_team():
 
         return render_template('participant_registration.html',
                              teams=open_teams,
-                             stations=stations,
+                             stations=stations_for_team(
+                                 invited_team or pending_captain_team or existing_team),
                              user=current_user,
                              mode=mode,
                              existing_team=existing_team,
@@ -240,11 +277,12 @@ def join_team():
 @login_required
 def my_registration():
     """Handle editing existing team registration/preferences"""
-    stations = load_end_station_names()
-
     # Check if user has existing membership or captained team
     existing_captained_team = Team.query.filter_by(captain_id=current_user.id).first()
     existing_membership = TeamMembership.query.filter_by(user_id=current_user.id).first()
+
+    registering_for = existing_membership.team if existing_membership else existing_captained_team
+    stations = stations_for_team(registering_for)
 
     if not existing_membership and not existing_captained_team:
         # No existing registration, redirect to join team

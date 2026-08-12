@@ -34,6 +34,8 @@ class Config:
     REGISTRATION_CLOSES_AT = datetime.datetime.fromisoformat("2026-10-01-23:59:59-07:00")  # ISO 8601 format with timezone
 
     EVENT_START_TIME = datetime.datetime.fromisoformat("2026-10-03T08:30:00-07:00")  # ISO 8601 format with timezone
+
+    BATON_PRICE_USD = 16
     # For testing with old images
     #EVENT_START_TIME = datetime.datetime.fromisoformat("2024-09-28T08:30:00-07:00")  # ISO 8601 format with timezone
 

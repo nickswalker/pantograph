@@ -34,7 +34,12 @@ def admin_dashboard():
             'status': team.status,
             'comments': team.comments,
             'baton_serial': team.baton_serial,
+            'baton_serial_2': team.baton_serial_2,
             'previous_baton_serial': team.previous_baton_serial,
+            'previous_baton_serial_2': team.previous_baton_serial_2,
+            'lines': team.lines,
+            'batons_required': team.batons_required,
+            'batons_to_purchase': team.batons_to_purchase,
             'has_password': team.has_password
         })
 
@@ -166,9 +171,11 @@ def update_baton_serial(team_id):
             return jsonify({'error': 'Team not found'}), 404
 
         data = request.get_json()
-        new_serial = data.get('baton_serial')
-
-        team.baton_serial = new_serial
+        team.baton_serial = data.get('baton_serial') or None
+        # Only a Both Lines team is issued a second baton.
+        team.baton_serial_2 = (
+            data.get('baton_serial_2') or None if team.batons_required > 1 else None
+        )
         db.session.commit()
 
         return jsonify({

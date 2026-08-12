@@ -94,14 +94,23 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if team.baton_serial %}
-                                            {{ team.baton_serial }}
-                                        {% elif team.previous_baton_serial %}
-                                            <span class="text-muted">{{ team.previous_baton_serial }}</span>
+                                        {% set shown = team.baton_serial or team.previous_baton_serial %}
+                                        {% set shown_2 = team.baton_serial_2 or team.previous_baton_serial_2 %}
+                                        {% if shown %}
+                                            {% if team.baton_serial %}{{ team.baton_serial }}{% else %}<span class="text-muted">{{ team.previous_baton_serial }}</span>{% endif %}
+                                            {% if team.batons_required > 1 %}
+                                                /
+                                                {% if team.baton_serial_2 %}{{ team.baton_serial_2 }}
+                                                {% elif team.previous_baton_serial_2 %}<span class="text-muted">{{ team.previous_baton_serial_2 }}</span>
+                                                {% else %}<span class="text-danger">missing</span>{% endif %}
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">None</span>
                                         {% endif %}
-                                        <button class="btn btn-link" onclick="openEditBatonSerialModal('{{ team.id }}', '{{ team.name }}', '{{ team.baton_serial or '' }}', '{{ team.previous_baton_serial or '' }}')">
+                                        {% if team.batons_to_purchase %}
+                                            <span class="badge bg-warning text-dark">{{ team.batons_to_purchase }} to buy</span>
+                                        {% endif %}
+                                        <button class="btn btn-link" onclick="openEditBatonSerialModal('{{ team.id }}', '{{ team.name }}', '{{ team.baton_serial or '' }}', '{{ team.previous_baton_serial or '' }}', '{{ team.baton_serial_2 or '' }}', '{{ team.previous_baton_serial_2 or '' }}', {{ team.batons_required }})">
                                             <ion-icon name="create-outline"></ion-icon>
                                         </button>
                                     </td>
@@ -482,6 +491,11 @@
                         <label for="baton_serial_input" class="form-label">Baton Serial</label>
                         <input type="text" class="form-control" id="baton_serial_input" name="baton_serial" maxlength="12">
                     </div>
+                    <div class="mb-3" id="baton_serial_2_section" style="display: none;">
+                        <label for="baton_serial_2_input" class="form-label">Second Baton Serial</label>
+                        <input type="text" class="form-control" id="baton_serial_2_input" name="baton_serial_2" maxlength="12">
+                        <div class="form-text">Both Lines teams run two branches concurrently and carry a baton on each.</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -504,11 +518,13 @@ let currentTeamId = null;
 let currentCancelShortId = null;
 
 // Baton serial modal
-window.openEditBatonSerialModal = function(teamId, teamName, currentSerial, previousSerial) {
+window.openEditBatonSerialModal = function(teamId, teamName, currentSerial, previousSerial, currentSerial2, previousSerial2, batonsRequired) {
     currentTeamId = teamId;
     document.getElementById('editBatonSerialTeamName').textContent = teamName;
     // Use previous serial as default if current serial is empty
     document.getElementById('baton_serial_input').value = currentSerial || previousSerial || '';
+    document.getElementById('baton_serial_2_input').value = currentSerial2 || previousSerial2 || '';
+    document.getElementById('baton_serial_2_section').style.display = batonsRequired > 1 ? 'block' : 'none';
     api.clearModalAlert('editBatonSerialModal');
     const modal = new bootstrap.Modal(document.getElementById('editBatonSerialModal'));
     modal.show();
@@ -516,7 +532,8 @@ window.openEditBatonSerialModal = function(teamId, teamName, currentSerial, prev
 
 document.getElementById('saveBatonSerialBtn').addEventListener('click', async () => {
     const newSerial = document.getElementById('baton_serial_input').value;
-    const result = await teamAPI.updateBatonSerial(currentTeamId, newSerial);
+    const newSerial2 = document.getElementById('baton_serial_2_input').value;
+    const result = await teamAPI.updateBatonSerial(currentTeamId, newSerial, newSerial2);
     if (result.success) {
         const modal = bootstrap.Modal.getInstance(document.getElementById('editBatonSerialModal'));
         modal.hide();

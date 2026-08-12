@@ -102,6 +102,22 @@ LINE_2 = 'lrr_2line'
 ALL_LINES = (LINE_1, LINE_2)
 
 
+# TeamLines enum name -> course GeoJSON line keys. Keyed by name so this
+# module stays free of a models import.
+_COURSE_LINES_BY_TEAM_LINES = {
+    'ONE': (LINE_1,),
+    'TWO': (LINE_2,),
+    'BOTH': (LINE_1, LINE_2),
+}
+
+
+def course_lines_for(team_lines):
+    """Course line keys for a TeamLines value (None -> the whole course)."""
+    if team_lines is None:
+        return None
+    return _COURSE_LINES_BY_TEAM_LINES[team_lines.name]
+
+
 @lru_cache(maxsize=1)
 def _course_features():
     """Split the course GeoJSON into (stations, legs).
@@ -187,6 +203,11 @@ def _start_terminus_ids(lines=None):
     starts = {leg['start_exchange'] for leg in legs}
     ends = {leg['end_exchange'] for leg in legs}
     return starts - ends
+
+
+def course_distance_miles(lines=None):
+    """Total course distance in miles. Trunk legs count once for both lines."""
+    return round(sum(leg['distance_mi'] for leg in _legs_for_lines(lines)), 2)
 
 
 def load_station_names(lines=None):

@@ -16,7 +16,7 @@ from typing import Optional
 
 from app.models import db, Team, TeamMembership, User, TeamStatus, TeamFormat, TeamMembershipStatus
 from app.services.exceptions import ServiceError
-from app.utils import parse_mm_ss_to_seconds
+from app.utils import parse_mm_ss_to_seconds, load_end_station_names, course_lines_for
 
 
 # --- Membership lifecycle operations ---
@@ -192,6 +192,12 @@ def register(user, data: RegistrationInput, mode='join') -> RegistrationResult:
     user.email_opt_in = data.email_opt_in
 
     preferred_station = data.preferred_station if data.preferred_station else None
+    if preferred_station is not None:
+        valid_stations = load_end_station_names(course_lines_for(team.lines))
+        if preferred_station not in valid_stations:
+            raise ServiceError(
+                f'{preferred_station} is not a station on the {team.lines.value} course.'
+            )
     comments = data.comments if data.comments else None
 
     membership_to_log = None

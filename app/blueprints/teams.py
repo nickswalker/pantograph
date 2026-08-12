@@ -18,7 +18,7 @@ from app.permissions import (
     team_captain_or_member_required, team_upload_allowed, admin_required
 )
 from app.utils import is_allowed_image, validate_image_content, secure_filename_enhanced, find_team_by_id, \
-    find_team_by_gallery_hash, load_end_station_names, parse_hh_mm_to_seconds, convert_to_jpeg, is_heic_file, \
+    find_team_by_gallery_hash, load_end_station_names, course_lines_for, parse_hh_mm_to_seconds, convert_to_jpeg, is_heic_file, \
     format_mm_ss_from_seconds, load_exchange_points, thumbnail_basename, generate_thumbnail_from_image
 from app.config import Config
 from app.security import limiter
@@ -520,7 +520,7 @@ def view_member(team_id, team, user_id):
     if not membership:
         return redirect(url_for('admin.admin_dashboard'))
 
-    stations = load_end_station_names()
+    stations = load_end_station_names(course_lines_for(membership.team.lines))
 
     return render_template('participant_registration.html',
                          teams=[],
@@ -653,7 +653,8 @@ def update_team_details(team_id, team):
 
         estimated_duration_str = data.get('estimated_duration', '').strip()
         comments = data.get('comments', '').strip()
-        has_baton = data.get('has_baton') == True
+        previous_baton_serial = (data.get('previous_baton_serial') or '').strip()
+        previous_baton_serial_2 = (data.get('previous_baton_serial_2') or '').strip()
         if team.format == TeamFormat.SOLO:
             email_opt_in = data.get('email_opt_in') == True
             team.captain.email_opt_in = email_opt_in
@@ -669,7 +670,11 @@ def update_team_details(team_id, team):
         team.estimated_duration_seconds = parse_hh_mm_to_seconds(estimated_duration_str)
         team.comments = comments if comments else None
         if team.status == TeamStatus.PENDING:
-            team.has_baton = has_baton
+            team.previous_baton_serial = previous_baton_serial or None
+            # Only a Both Lines team has a second baton to declare.
+            team.previous_baton_serial_2 = (
+                previous_baton_serial_2 or None if team.batons_required > 1 else None
+            )
         db.session.commit()
 
         return jsonify({'success': True, 'message': 'Team details updated successfully'}), 200

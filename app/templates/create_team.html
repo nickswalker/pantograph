@@ -51,6 +51,19 @@
                             <div class="form-text">Choose whether this is a solo or team effort</div>
                         </div>
 
+                        <div class="mb-3">
+                            <label for="lines" class="form-label">
+                                <span id="lines-label-text">Line(s)</span> <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" id="lines" name="lines" required{% if not current_user.is_authenticated or deadline_info.is_closed %} disabled{% endif %}>
+                                <option value="">Select line(s)...</option>
+                                {% for option in line_options %}
+                                <option value="{{ option.value }}" {% if request.args.get('lines') == option.value %}selected{% endif %}>{{ option.value }} &mdash; {{ option.distance | round(1) }} miles</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text" id="lines-help">Both Lines requires your team to start in two locations and converge at Chinatown to run the shared trunk</div>
+                        </div>
+
                         <div class="mb-3" id="team-name-section">
                             <label for="team_name" class="form-label">
                                 Team Name <span class="text-danger">*</span>
@@ -97,10 +110,18 @@
                             <div class="form-text">If you have a baton from a previous year, enter its serial number here and run with it again!</div>
                         </div>
 
+                        <div class="mb-3" id="previous-baton-2-section" style="display: none;">
+                            <label for="previous_baton_serial_2" class="form-label">
+                                Second Previous Baton Serial
+                            </label>
+                            <input type="text" class="form-control" id="previous_baton_serial_2" name="previous_baton_serial_2" maxlength="12" placeholder=""{% if not current_user.is_authenticated or deadline_info.is_closed %} disabled{% endif %}>
+                            <div class="form-text">Both Lines needs two batons, one per branch. If you have a second baton from a previous year, enter its serial here too.</div>
+                        </div>
+
                         <div class="mb-3" id="baton-fee-warning" style="display: block;">
                             <div class="alert alert-info">
                                 <ion-icon name="cash-outline" class="me-2"></ion-icon>
-                                If you don't have a previous LRR baton, a $16 charge for a new baton will be required for team approval. See <a href="{{ url_for('main.payment') }}">payment details</a>.
+                                <span id="baton-fee-text">If you don't have a previous LRR baton, a ${{ baton_price }} charge for a new baton will be required for team approval.</span> See <a href="{{ url_for('main.payment') }}">payment details</a>.
                             </div>
                         </div>
 
@@ -209,13 +230,49 @@ function updateFormForFormat() {
     }
 }
 
+const BATON_PRICE = {{ baton_price }};
+
+function updateFormForLines() {
+    const linesSelect = document.getElementById('lines');
+    const bothOption = linesSelect.querySelector('option[value="Both Lines"]');
+    const linesHelp = document.getElementById('lines-help');
+
+    // Both Lines runs two branches concurrently, so a solo entry can't do it.
+    const isSolo = document.getElementById('format').value === 'Solo';
+    bothOption.disabled = isSolo;
+    bothOption.hidden = isSolo;
+    if (isSolo && linesSelect.value === 'Both Lines') linesSelect.value = '';
+    document.getElementById('lines-label-text').textContent = isSolo ? 'Line' : 'Line(s)';
+    linesSelect.querySelector('option[value=""]').textContent = isSolo ? 'Select line...' : 'Select line(s)...';
+    linesHelp.textContent = isSolo
+        ? ''
+        : 'Both Lines requires your team to start in two locations and converge at Chinatown to run the shared trunk';
+
+    const needsTwoBatons = linesSelect.value === 'Both Lines';
+    const secondBatonSection = document.getElementById('previous-baton-2-section');
+    const secondBatonInput = document.getElementById('previous_baton_serial_2');
+    const feeText = document.getElementById('baton-fee-text');
+
+    secondBatonSection.style.display = needsTwoBatons ? 'block' : 'none';
+    if (!needsTwoBatons) secondBatonInput.value = '';
+
+    feeText.textContent = needsTwoBatons
+        ? `Both Lines needs two batons. Each one you don't already own costs $${BATON_PRICE} (up to $${BATON_PRICE * 2}) and is required for team approval.`
+        : `If you don't have a previous LRR baton, a $${BATON_PRICE} charge for a new baton will be required for team approval.`;
+}
+
 // Run on page load to handle browser auto-fill/refresh state
 document.addEventListener('DOMContentLoaded', () => {
     updateFormForFormat();
+    updateFormForLines();
 });
 
 // Also run on change for user interaction
-document.getElementById('format').addEventListener('change', updateFormForFormat);
+document.getElementById('format').addEventListener('change', () => {
+    updateFormForFormat();
+    updateFormForLines();  // Solo restricts which lines are selectable
+});
+document.getElementById('lines').addEventListener('change', updateFormForLines);
 
 document.getElementById('create-team-form').addEventListener('submit', async function(e) {
     e.preventDefault();

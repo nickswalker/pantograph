@@ -311,11 +311,11 @@ export class TeamAPI extends ApiClient {
     }
 
     // Update baton serial (admin)
-    async updateBatonSerial(teamId, newSerial) {
+    async updateBatonSerial(teamId, newSerial, newSerial2 = '') {
         const url = this.buildUrl('updateBatonSerial', { team_id: teamId });
         return await this.request(url, {
             method: 'POST',
-            body: JSON.stringify({ baton_serial: newSerial })
+            body: JSON.stringify({ baton_serial: newSerial, baton_serial_2: newSerial2 })
         });
     }
 

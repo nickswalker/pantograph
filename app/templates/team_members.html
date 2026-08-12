@@ -393,6 +393,13 @@
                                             {% endif %}</div>
 
                                         </div>
+                                        {% if team.batons_required > 1 %}
+                                        <div class="mb-3">
+                                            <label for="previous_baton_serial_2_input" class="form-label">Second Previous Baton Serial</label>
+                                            <input type="text" class="form-control" id="previous_baton_serial_2_input" name="previous_baton_serial_2" value="{{ team.previous_baton_serial_2 or '' }}" maxlength="12" {% if team.status != TeamStatus.PENDING %}disabled{% endif %}>
+                                            <div class="form-text">{{ team.lines.value }} needs {{ team.batons_required }} batons, one per branch. {% if team.status != TeamStatus.PENDING %}You can't change this after you've paid and your team is approved.{% endif %}</div>
+                                        </div>
+                                        {% endif %}
                                         {% if team.format == TeamFormat.SOLO %}
                                         <div class="mb-4">
 
@@ -739,6 +746,8 @@
                 const comments = commentsInput.value.trim();
                 const previousBatonSerialInput = document.getElementById('previous_baton_serial_input');
                 const previousBatonSerial = previousBatonSerialInput.value.trim();
+                const previousBatonSerial2Input = document.getElementById('previous_baton_serial_2_input');
+                const previousBatonSerial2 = previousBatonSerial2Input ? previousBatonSerial2Input.value.trim() : '';
 
                 if (!estimatedDuration) {
                     api.showBanner('Please enter an estimated duration.', 'warning');
@@ -754,7 +763,8 @@
                 const result = await teamAPI.updateTeamDetails('{{ team.id }}', {
                     estimated_duration: estimatedDuration,
                     comments: comments,
-                    previous_baton_serial: previousBatonSerial
+                    previous_baton_serial: previousBatonSerial,
+                    previous_baton_serial_2: previousBatonSerial2
                 });
 
                 if (result.success) {
