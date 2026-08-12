@@ -68,3 +68,28 @@ html[data-bs-theme="dark"] .invert-when-dark {
 .sticky-banner-container .alert {
   border-radius: 0;
 }
+
+/* Link line identity badges. The brand colors are kept dark enough to clear
+   AA against white text at this size, so they hold up in either color mode;
+   dark mode only adds a hairline to separate them from the page. */
+.line-badge {
+  display: inline-block;
+  padding: 0.25em 0.7em;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #fff;
+}
+
+.line-badge-1 {
+  background-color: #00703c;
+}
+
+.line-badge-2 {
+  background-color: #005a9c;
+}
+
+html[data-bs-theme="dark"] .line-badge {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}

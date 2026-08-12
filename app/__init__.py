@@ -42,9 +42,10 @@ def create_app():
     )
 
     # Make model enums available globally in Jinja2 templates
-    from app.models import TeamMembershipStatus, TeamFormat, TeamStatus, OAuthProvider
+    from app.models import TeamMembershipStatus, TeamFormat, TeamLines, TeamStatus, OAuthProvider
     app.jinja_env.globals['TeamMembershipStatus'] = TeamMembershipStatus
     app.jinja_env.globals['TeamFormat'] = TeamFormat
+    app.jinja_env.globals['TeamLines'] = TeamLines
     app.jinja_env.globals['TeamStatus'] = TeamStatus
     app.jinja_env.globals['OAuthProvider'] = OAuthProvider
 

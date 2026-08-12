@@ -102,6 +102,16 @@ class Team(db.Model):
         return 2 if self.lines == TeamLines.BOTH else 1
 
     @property
+    def course_miles(self):
+        """Total distance of the line(s) this team runs."""
+        from app.utils import course_distance_miles, course_lines_for
+        return course_distance_miles(course_lines_for(self.lines))
+
+    def runs_line(self, line):
+        """Whether this team runs ``line`` (a TeamLines member)."""
+        return self.lines in (line, TeamLines.BOTH)
+
+    @property
     def previous_baton_serials(self):
         """Serials of batons the team already owns from a previous year."""
         return [s for s in (self.previous_baton_serial, self.previous_baton_serial_2) if s]

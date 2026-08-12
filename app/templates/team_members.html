@@ -8,6 +8,15 @@
     {% set captain_has_joined = active_members | selectattr('user_id', 'equalto', team.captain_id) | list | length > 0 %}
     <h1> {{team.name }}{% if team.format == TeamFormat.TEAM %} Members{% endif %}</h1>
 
+    <p class="mb-4">
+        {% if team.runs_line(TeamLines.ONE) %}<span class="line-badge line-badge-1">1 Line</span>{% endif %}
+        {% if team.runs_line(TeamLines.TWO) %}<span class="line-badge line-badge-2">2 Line</span>{% endif %}
+        <span class="text-muted small ms-1">
+            {{ team.course_miles | round(1) }} miles
+            {%- if team.lines == TeamLines.BOTH %}, sharing the Chinatown&ndash;Lynnwood trunk{% endif %}
+        </span>
+    </p>
+
     <div class="row">
         <div class="col-12">
             {% if team.format == TeamFormat.TEAM %}
