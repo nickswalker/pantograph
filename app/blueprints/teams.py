@@ -18,7 +18,7 @@ from app.permissions import (
     team_captain_or_member_required, team_upload_allowed, admin_required
 )
 from app.utils import is_allowed_image, validate_image_content, secure_filename_enhanced, find_team_by_id, \
-    find_team_by_gallery_hash, load_station_names, parse_hh_mm_to_seconds, convert_to_jpeg, is_heic_file, \
+    find_team_by_gallery_hash, load_end_station_names, parse_hh_mm_to_seconds, convert_to_jpeg, is_heic_file, \
     format_mm_ss_from_seconds, load_exchange_points, thumbnail_basename, generate_thumbnail_from_image
 from app.config import Config
 from app.security import limiter
@@ -520,7 +520,7 @@ def view_member(team_id, team, user_id):
     if not membership:
         return redirect(url_for('admin.admin_dashboard'))
 
-    stations = load_station_names()[1:]
+    stations = load_end_station_names()
 
     return render_template('participant_registration.html',
                          teams=[],

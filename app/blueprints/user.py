@@ -5,7 +5,7 @@ from datetime import datetime
 from flask import Blueprint, request, render_template, jsonify, redirect, url_for
 from flask_login import login_required, current_user
 from app.models import db, Team, TeamMembership, TeamStatus, TeamFormat, TeamMembershipStatus
-from app.utils import load_station_names, parse_hh_mm_to_seconds
+from app.utils import load_end_station_names, parse_hh_mm_to_seconds
 from app.config import Config
 from app.permissions import user_self_or_admin_required
 
@@ -170,7 +170,7 @@ def create_team():
 
 @user.route('/join-team', methods=['GET', 'POST'])
 def join_team():
-    stations = load_station_names()[1:]
+    stations = load_end_station_names()
 
     if request.method == 'GET':
         # Handle invite token if present in URL
@@ -240,7 +240,7 @@ def join_team():
 @login_required
 def my_registration():
     """Handle editing existing team registration/preferences"""
-    stations = load_station_names()[1:]
+    stations = load_end_station_names()
 
     # Check if user has existing membership or captained team
     existing_captained_team = Team.query.filter_by(captain_id=current_user.id).first()

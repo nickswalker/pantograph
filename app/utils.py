@@ -94,36 +94,143 @@ def parse_mm_ss_to_seconds(pace_str):
 
     return minutes * 60 + seconds
 
-def load_station_names():
-    """Load station names from lrr_1_line.geojson file"""
+COURSE_GEOJSON_PATH = 'data/lrr2026.geojson'
+
+# Line keys exactly as they appear in the course GeoJSON ``lines`` property.
+LINE_1 = 'lrr_1line'
+LINE_2 = 'lrr_2line'
+ALL_LINES = (LINE_1, LINE_2)
+
+
+@lru_cache(maxsize=1)
+def _course_features():
+    """Split the course GeoJSON into (stations, legs).
+
+    The file mixes three kinds of feature and only two of them matter here:
+
+    * station Points, identified by carrying ``stationInfo`` -- these are the
+      exchanges;
+    * point-of-interest Points (``feature_type == 'poi'``, e.g. "Dangerous
+      Crossings") -- map annotations that must never reach a station list;
+    * leg LineStrings, carrying ``start_exchange``/``end_exchange``, the
+      ``lines`` they belong to, and a ``sequence`` entry per line.
+
+    A missing or malformed course file is a deployment error rather than a
+    user-recoverable condition, so it raises instead of degrading to an empty
+    list -- silently returning ``[]`` here is what hid the station dropdown
+    going blank when the course data was reformatted.
+    """
     try:
-        with open('data/lrr_1_line.geojson', 'r') as f:
+        with open(COURSE_GEOJSON_PATH, 'r') as f:
             data = json.load(f)
-        sorted_features = sorted(data["features"], key=lambda item: item['properties']['id'], reverse=True)
-        station_names = [feature['properties']['name'] for feature in sorted_features]
-        return station_names
-    except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
-        print(f"Error loading station names: {e}")
-        return []
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        raise RuntimeError(
+            f"Course data {COURSE_GEOJSON_PATH} is missing or invalid ({e})"
+        ) from e
+
+    stations, legs = [], []
+    for feature in data.get('features', []):
+        props = feature.get('properties', {})
+        geometry = feature.get('geometry') or {}
+        if geometry.get('type') == 'Point' and 'stationInfo' in props:
+            stations.append((props, geometry.get('coordinates') or []))
+        elif geometry.get('type') == 'LineString':
+            legs.append(props)
+    return tuple(stations), tuple(legs)
+
+
+def _legs_for_lines(lines=None):
+    """Legs belonging to any of ``lines`` (all legs when ``lines`` is None)."""
+    _, legs = _course_features()
+    if lines is None:
+        return legs
+    wanted = set(lines)
+    return tuple(leg for leg in legs if wanted.intersection(leg.get('lines') or []))
+
+
+def _exchange_ids_in_running_order(lines=None):
+    """Exchange ids in running order for ``lines``, de-duplicated.
+
+    Each line is walked start-to-finish using its own ``sequence`` values (a
+    leg on the shared trunk carries one sequence number per line it belongs
+    to, positionally matched to its ``lines`` list). Lines are walked in
+    ``ALL_LINES`` order and stations already seen are skipped, so for a
+    both-lines course the shared trunk appears once, in the first line's
+    position, and the second line contributes only its own branch.
+    """
+    selected = list(lines) if lines is not None else list(ALL_LINES)
+    ordered = []
+    for line in ALL_LINES:
+        if line not in selected:
+            continue
+        line_legs = [leg for leg in _legs_for_lines((line,))]
+
+        def sequence_on_line(leg):
+            return leg['sequence'][leg['lines'].index(line)]
+
+        line_legs.sort(key=sequence_on_line)
+        if not line_legs:
+            continue
+        for exchange_id in [line_legs[0]['start_exchange']] + [leg['end_exchange'] for leg in line_legs]:
+            if exchange_id not in ordered:
+                ordered.append(exchange_id)
+    return ordered
+
+
+def _start_terminus_ids(lines=None):
+    """Exchanges a line starts from and never runs back through.
+
+    These are the only stations that cannot be anybody's *end* station. With
+    both lines selected there are two (the 1 Line and 2 Line branch starts).
+    """
+    legs = _legs_for_lines(lines)
+    starts = {leg['start_exchange'] for leg in legs}
+    ends = {leg['end_exchange'] for leg in legs}
+    return starts - ends
+
+
+def load_station_names(lines=None):
+    """Station names in running order, optionally restricted to ``lines``."""
+    names = {props['id']: props['name'] for props, _ in _course_features()[0]}
+    return [names[i] for i in _exchange_ids_in_running_order(lines) if i in names]
+
+
+def load_end_station_names(lines=None):
+    """Station names selectable as a member's preferred *end* station.
+
+    Replaces the old ``load_station_names()[1:]`` idiom, which dropped the
+    highest-id station on the assumption that ids descended in running order.
+    That assumption no longer holds: ids are now grouped by branch, so the
+    slice removed an arbitrary mid-course station instead of the start.
+    """
+    excluded = _start_terminus_ids(lines)
+    names = {props['id']: props['name'] for props, _ in _course_features()[0]}
+    return [
+        names[i] for i in _exchange_ids_in_running_order(lines)
+        if i in names and i not in excluded
+    ]
+
 
 @lru_cache(maxsize=1)
 def load_exchange_points() -> dict:
-    try:
-        with open('data/lrr_1_line.geojson', 'r') as f:
-            data = json.load(f)
-        sorted_features = sorted(data["features"], key=lambda item: item['properties']['id'], reverse=True)
-        exchange_points = {}
-        for feature in sorted_features:
-            props = feature['properties']
-            exchange_points[props['id']] = {
-                'name': props['name'],
-                'latitude': feature["geometry"]["coordinates"][1],
-                'longitude': feature["geometry"]["coordinates"][0],
-            }
-        return exchange_points
-    except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
-        print(f"Error loading exchange points: {e}")
-        return {}
+    """Exchange id -> name/latitude/longitude, in running order.
+
+    Stations only: point-of-interest features are excluded so they can never
+    be matched as the nearest exchange to an uploaded photo.
+    """
+    coordinates = {props['id']: coords for props, coords in _course_features()[0]}
+    names = {props['id']: props['name'] for props, _ in _course_features()[0]}
+    exchange_points = {}
+    for exchange_id in _exchange_ids_in_running_order():
+        coords = coordinates.get(exchange_id)
+        if not coords:
+            continue
+        exchange_points[exchange_id] = {
+            'name': names[exchange_id],
+            'latitude': coords[1],
+            'longitude': coords[0],
+        }
+    return exchange_points
 
 
 def get_exif_data(image: Image):
