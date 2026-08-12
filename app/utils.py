@@ -210,6 +210,21 @@ def course_distance_miles(lines=None):
     return round(sum(leg['distance_mi'] for leg in _legs_for_lines(lines)), 2)
 
 
+def longest_line_distance_miles(lines=None):
+    """Length of the longest single line in ``lines``.
+
+    The ceiling on what one runner can cover: a Both Lines team's branches run
+    concurrently, so nobody runs more than one line's worth.
+    """
+    selected = lines if lines is not None else ALL_LINES
+    return max(course_distance_miles((line,)) for line in selected)
+
+
+def max_preferred_miles(team_lines=None):
+    """Cap for a member's preferred distance, for a TeamLines value."""
+    return round(longest_line_distance_miles(course_lines_for(team_lines)), 1)
+
+
 def load_station_names(lines=None):
     """Station names in running order, optionally restricted to ``lines``."""
     names = {props['id']: props['name'] for props, _ in _course_features()[0]}

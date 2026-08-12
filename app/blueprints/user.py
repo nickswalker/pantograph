@@ -5,7 +5,8 @@ from datetime import datetime
 from flask import Blueprint, request, render_template, jsonify, redirect, url_for
 from flask_login import login_required, current_user
 from app.models import db, Team, TeamMembership, TeamStatus, TeamFormat, TeamLines, TeamMembershipStatus
-from app.utils import load_end_station_names, parse_hh_mm_to_seconds, course_lines_for, course_distance_miles
+from app.utils import load_end_station_names, parse_hh_mm_to_seconds, course_lines_for, course_distance_miles, \
+    max_preferred_miles
 from app.config import Config
 from app.permissions import user_self_or_admin_required
 
@@ -27,6 +28,11 @@ def stations_for_team(team):
     membership_service.register does the authoritative check on submit.
     """
     return load_end_station_names(course_lines_for(team.lines) if team else None)
+
+
+def max_miles_for_team(team):
+    """Longest distance one member could run for ``team``."""
+    return max_preferred_miles(team.lines if team else None)
 
 
 @user.route('/create-team', methods=['GET', 'POST'])
@@ -257,6 +263,8 @@ def join_team():
                              teams=open_teams,
                              stations=stations_for_team(
                                  invited_team or pending_captain_team or existing_team),
+                             max_preferred_miles=max_miles_for_team(
+                                 invited_team or pending_captain_team or existing_team),
                              user=current_user,
                              mode=mode,
                              existing_team=existing_team,
@@ -299,6 +307,7 @@ def my_registration():
             return render_template('participant_registration.html',
                                  teams=[],
                                  stations=stations,
+                                 max_preferred_miles=max_miles_for_team(registering_for),
                                  user=current_user,
                                  mode='edit',
                                  existing_team=team,
@@ -315,6 +324,7 @@ def my_registration():
                 return render_template('participant_registration.html',
                                      teams=[existing_captained_team],
                                      stations=stations,
+                                     max_preferred_miles=max_miles_for_team(registering_for),
                                      user=current_user,
                                      mode='join',
                                      existing_team=None,

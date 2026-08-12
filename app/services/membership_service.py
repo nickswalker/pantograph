@@ -16,7 +16,7 @@ from typing import Optional
 
 from app.models import db, Team, TeamMembership, User, TeamStatus, TeamFormat, TeamMembershipStatus
 from app.services.exceptions import ServiceError
-from app.utils import parse_mm_ss_to_seconds, load_end_station_names, course_lines_for
+from app.utils import parse_mm_ss_to_seconds, load_end_station_names, course_lines_for, max_preferred_miles
 
 
 # --- Membership lifecycle operations ---
@@ -142,12 +142,12 @@ def _authorize_join(user, team, data: RegistrationInput, is_editing_existing_mem
         raise ServiceError(f"Team '{team.name}' is not currently accepting new members.", status=403)
 
 
-def _validate_preferences(data: RegistrationInput):
+def _validate_preferences(data: RegistrationInput, max_miles):
     """Validate and normalize preferred miles / pace / waiver. Returns (miles, pace_seconds)."""
     try:
         preferred_miles_numeric = float(data.preferred_miles)
-        if not (0.1 <= preferred_miles_numeric <= 36):
-            raise ServiceError('Preferred miles must be a number between 0.1 and 36')
+        if not (0.1 <= preferred_miles_numeric <= max_miles):
+            raise ServiceError(f'Preferred miles must be a number between 0.1 and {max_miles:g}')
     except (TypeError, ValueError):
         raise ServiceError('Preferred miles must be a valid number')
 
@@ -186,7 +186,8 @@ def register(user, data: RegistrationInput, mode='join') -> RegistrationResult:
 
     is_switching_teams = existing_membership and existing_membership.team_id != team.id
 
-    preferred_miles_numeric, planned_pace_seconds = _validate_preferences(data)
+    preferred_miles_numeric, planned_pace_seconds = _validate_preferences(
+        data, max_preferred_miles(team.lines))
 
     # Update email opt-in for all paths.
     user.email_opt_in = data.email_opt_in
