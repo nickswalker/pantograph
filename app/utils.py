@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import json
 from functools import lru_cache
@@ -319,6 +320,10 @@ def get_gps_data(exif_data):
 
     lat = convert_to_degrees(exif_data['GPSLatitude'])
     lon = convert_to_degrees(exif_data['GPSLongitude'])
+
+    # Some devices do this...
+    if math.isnan(lat) or math.isnan(lon):
+        return None
 
     # Adjust for hemisphere
     if exif_data.get('GPSLatitudeRef') == 'S':
