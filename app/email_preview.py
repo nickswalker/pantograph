@@ -48,7 +48,7 @@ def get_sample_data_for_template(template_name):
 
     base_context = {
         'contact_email': 'support@example.com',
-        'event_name': 'Light Rail Relay 2025',
+        'event_name': 'Light Rail Relay 2026',
         'event_url': '#event-preview-link',
         'payment_url': '#payment-preview-link',
         'my_preferences_url': '#prefs-preview-link',
@@ -61,7 +61,7 @@ def get_sample_data_for_template(template_name):
             return {
                 **base_context,
                 'team': team,
-                'approval_message': 'Your team has been approved for the 2024 Light Rail Relay! We\'re excited to see you race.',
+                'approval_message': 'Your team has been approved for the 2026 Light Rail Relay! We\'re excited to see you race.',
                 'next_steps': [
                     'Check your team roster and invite additional members if needed',
                     'Review race day logistics and station assignments',
@@ -159,7 +159,7 @@ def get_sample_subject_for_template(template_name):
         NotificationType.MEMBER_JOINED.value: "Welcome to Team 'Lightning Runners'",
         NotificationType.CAPTAIN_TRANSFER.value: "You're Now Captain of Team 'Lightning Runners'",
         NotificationType.NEW_MEMBERS_DIGEST.value: "New Team Members - Lightning Runners",
-        NotificationType.REGISTRATION_REMINDER.value: "Reminder: Register for Light Rail Relay 2025",
-        NotificationType.PAYMENT_REMINDER.value: "Reminder: Complete Registration for Light Rail Relay 2025"
+        NotificationType.REGISTRATION_REMINDER.value: "Reminder: Register for Light Rail Relay 2026",
+        NotificationType.PAYMENT_REMINDER.value: "Reminder: Complete Registration for Light Rail Relay 2026"
     }
     return subjects.get(template_name, f"Email Preview: {template_name.replace('_', ' ').title()}")
