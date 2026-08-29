@@ -47,6 +47,17 @@ export class ApiClient {
 
         try {
             const response = await fetch(url, defaultOptions);
+
+            // In case server errors
+            const contentType = response.headers.get('Content-Type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(
+                    response.ok
+                        ? `Expected JSON from ${url} but got ${contentType || 'an unknown content type'}`
+                        : `Server error (HTTP ${response.status}) at ${url}`,
+                );
+            }
+
             const data = await response.json();
 
             if (!response.ok) {
@@ -411,6 +422,26 @@ export class AssignmentAPI extends ApiClient {
         return await this.request(url, {
             method: 'PUT',
             body: JSON.stringify({ assignments })
+        });
+    }
+
+    async saveOverrides(teamId, membershipId, overrides, note) {
+        const url = this.buildUrl('preferenceOverrides', {
+            team_id: teamId, membership_id: membershipId,
+        });
+        return await this.request(url, {
+            method: 'PUT',
+            body: JSON.stringify({ overrides, note })
+        });
+    }
+
+    // Revert a member to their own stated preferences
+    async clearOverrides(teamId, membershipId) {
+        const url = this.buildUrl('preferenceOverrides', {
+            team_id: teamId, membership_id: membershipId,
+        });
+        return await this.request(url, {
+            method: 'DELETE'
         });
     }
 }

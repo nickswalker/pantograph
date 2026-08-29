@@ -8,21 +8,11 @@
     {% set captain_has_joined = active_members | selectattr('user_id', 'equalto', team.captain_id) | list | length > 0 %}
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h1 class="mb-0"> {{team.name }}{% if team.format == TeamFormat.TEAM %} Members{% endif %}</h1>
-        {% if team.format == TeamFormat.TEAM %}
-        <a href="{{ url_for('teams.team_legs', team_id=team.id) }}" class="btn btn-outline-primary">
-            <ion-icon name="git-network-outline" class="me-1"></ion-icon>
-            {% if permissions.can_manage_team(current_user, team) %}Assign Legs{% else %}View Leg Assignments{% endif %}
-        </a>
-        {% endif %}
     </div>
 
     <p class="mb-4">
-        {% if team.runs_line(TeamLines.ONE) %}<span class="line-badge line-badge-1">1 Line</span>{% endif %}
-        {% if team.runs_line(TeamLines.TWO) %}<span class="line-badge line-badge-2">2 Line</span>{% endif %}
-        <span class="text-muted small ms-1">
-            {{ team.course_miles | round(1) }} miles
-            {%- if team.lines == TeamLines.BOTH %}, sharing the Chinatown&ndash;Lynnwood trunk{% endif %}
-        </span>
+        {% if team.runs_line(TeamLines.ONE) %}<span class="line-pill"><span class="line-name line-name-1">1</span>Line</span>{% endif %}
+        {% if team.runs_line(TeamLines.TWO) %}<span class="line-pill"><span class="line-name line-name-2">2</span>Line</span>{% endif %}
     </p>
 
     <div class="row">
@@ -103,6 +93,15 @@
                                             {% endif %}
                                             {% if membership.comments %}
                                                 <strong>Comments:</strong> {{ membership.comments }}
+                                            {% endif %}
+                                            {% if permissions.can_manage_team(current_user, team) %}
+                                                {% set adjusted = membership | describe_overrides %}
+                                                {% if adjusted %}
+                                                    <div class="text-warning-emphasis mt-1">
+                                                        <ion-icon name="create-outline"></ion-icon>
+                                                        <strong>Adjusted for leg assignments:</strong> {{ adjusted }}
+                                                    </div>
+                                                {% endif %}
                                             {% endif %}
                                             {% if current_user.is_authenticated and membership.user_id == current_user.id %}
                                                 <a href="{{ url_for('user.my_registration') }}" class="text-primary text-decoration-none">

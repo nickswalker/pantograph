@@ -10,21 +10,12 @@
  * tests/js/leg-solver.test.mjs) and a browser-only half (CDN loading,
  * driving the worker). Chip rendering lives in leg-solver-ui.js.
  *
- * ---- Solver is a progressive enhancement (design decision 4) ------------
- * Every function that touches the network/CDN is isolated behind
- * `loadClingo()` / `fetchAspSources()`, both lazy (only called on first
- * "Optimize" click) and both rejecting cleanly on failure -- the caller
- * (leg-solver-ui.js) is responsible for disabling the button and leaving
- * the rest of the board untouched when that happens.
- *
- * ---- Units ---------------------------------------------------------------
- * All numbers placed into facts are already integer-scaled per
- * data/legs_2026.json's `units` block (hundredths of a mile for distance,
- * feet for ascent/descent, seconds/mile for pace) -- see WP1/WP4. No
- * rescaling happens here; `preferred_miles` (a decimal number of miles) is
- * the only value that needs converting, via `Math.ceil(miles * 100)` to
- * match the `ceil(miles * 100)` convention already used for legs/commute.
+ * All numbers in facts are already integer-scaled per the course model's
+ * `units` block; `preferred_miles` is the exception, converted here with
+ * `Math.ceil(miles * 100)` to match the legs/commute convention.
  */
+
+import { legKey } from './leg-keys.js';
 
 // ---- clingo-wasm CDN wiring ------------------------------------------------
 
@@ -175,8 +166,8 @@ function quoteAtomString(value) {
     return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
-function pairKey(legIndex, membershipId) {
-    return `${legIndex}::${membershipId}`;
+function pairKey(legKey, membershipId) {
+    return `${legKey}::${membershipId}`;
 }
 
 /**
@@ -189,9 +180,12 @@ function pairKey(legIndex, membershipId) {
  * station that resolves to no course exchange is skipped, matching the
  * metrics layer's "no data" treatment.
  *
- * Returns `{ program, pinnedPairs }` where `pinnedPairs` is a Set of
- * `"<legIndex>::<membershipId>"` keys (see `pairKey`), used later to filter
- * the solver's own output down to genuinely new suggestions.
+ * Returns `{ program, pinnedPairs }`; `pinnedPairs` later filters the
+ * solver's output down to genuinely new suggestions.
+ *
+ * `leg/3`'s first argument is just the index in `course.legs` -- the domain
+ * needs a unique id, but identity comes back out of the start/end
+ * exchanges, so it never has to be mapped back.
  */
 export function generateFacts(state) {
     const { course, members, assignments } = state || {};
@@ -210,12 +204,12 @@ export function generateFacts(state) {
         lines.push(`participant(${quoteAtomString(member.membership_id)}).`);
     }
 
-    for (const leg of course.legs) {
-        lines.push(`leg(${leg.index},${leg.start.id},${leg.end.id}).`);
+    course.legs.forEach((leg, legId) => {
+        lines.push(`leg(${legId},${leg.start.id},${leg.end.id}).`);
         lines.push(`distance(${leg.start.id},${leg.end.id},${leg.distance}).`);
         lines.push(`ascent(${leg.start.id},${leg.end.id},${leg.ascent}).`);
         lines.push(`descent(${leg.start.id},${leg.end.id},${leg.descent}).`);
-    }
+    });
 
     const commuteExchangeIds = new Set(courseExchangeIds);
     for (const [a, b] of course.commute || []) {
@@ -256,13 +250,14 @@ export function generateFacts(state) {
     }
 
     const pinnedPairs = new Set();
-    for (const leg of course.legs) {
-        const membershipIds = (assignments && assignments[String(leg.index)]) || [];
+    course.legs.forEach((leg, legId) => {
+        const key = legKey(leg);
+        const membershipIds = (assignments && assignments[key]) || [];
         for (const membershipId of membershipIds) {
-            lines.push(`assignment(${quoteAtomString(membershipId)},leg(${leg.index},${leg.start.id},${leg.end.id})).`);
-            pinnedPairs.add(pairKey(leg.index, membershipId));
+            lines.push(`assignment(${quoteAtomString(membershipId)},leg(${legId},${leg.start.id},${leg.end.id})).`);
+            pinnedPairs.add(pairKey(key, membershipId));
         }
-    }
+    });
 
     return { program: `${lines.join('\n')}\n`, pinnedPairs };
 }
@@ -274,17 +269,16 @@ export function generateFacts(state) {
 // tolerates escaped ones defensively.
 const ASSIGNMENT_ATOM_RE = /^assignment\("((?:[^"\\]|\\.)*)",leg\((-?\d+),(-?\d+),(-?\d+)\)\)$/;
 
-/** Parse an array of atom strings (one clingo witness's `Value`) into
- * `{ membershipId, legIndex }` pairs, ignoring any atom that isn't an
- * `assignment/2` fact (the witness also contains echoed input facts like
- * `leg/3`, `participant/1`, etc). */
+/** Parse one witness's atom strings into `{ membershipId, legKey }` pairs,
+ * ignoring atoms that aren't `assignment/2` (the witness echoes input facts
+ * too). The key is rebuilt from the exchanges inside the atom. */
 export function parseAssignments(atomStrings) {
     const results = [];
     for (const atom of atomStrings || []) {
         const match = ASSIGNMENT_ATOM_RE.exec(atom);
         if (!match) continue;
         const membershipId = match[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-        results.push({ membershipId, legIndex: Number(match[2]) });
+        results.push({ membershipId, legKey: `${Number(match[3])}-${Number(match[4])}` });
     }
     return results;
 }
@@ -294,11 +288,11 @@ export function parseAssignments(atomStrings) {
 export function diffSuggestions(solvedAssignments, pinnedPairs) {
     const suggestions = [];
     const seen = new Set();
-    for (const { membershipId, legIndex } of solvedAssignments) {
-        const key = pairKey(legIndex, membershipId);
-        if (pinnedPairs.has(key) || seen.has(key)) continue;
-        seen.add(key);
-        suggestions.push({ legIndex, membershipId });
+    for (const { membershipId, legKey: key } of solvedAssignments) {
+        const pair = pairKey(key, membershipId);
+        if (pinnedPairs.has(pair) || seen.has(pair)) continue;
+        seen.add(pair);
+        suggestions.push({ legKey: key, membershipId });
     }
     return suggestions;
 }
@@ -317,7 +311,7 @@ export function bestWitness(clingoResult) {
 /**
  * Run "Optimize remaining" against the given board `state` using an
  * already-created solver handle (see `createSolverHandle`). Returns one of:
- *   { status: 'ok', suggestions: [{legIndex, membershipId}, ...] }
+ *   { status: 'ok', suggestions: [{legKey, membershipId}, ...] }
  *   { status: 'unsat', message }        -- no model at all (see team-assign.lp;
  *                                           should be rare given the
  *                                           at-least-1 relaxation -- e.g. a

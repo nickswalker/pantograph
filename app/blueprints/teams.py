@@ -23,7 +23,7 @@ from app.utils import is_allowed_image, validate_image_content, secure_filename_
     format_mm_ss_from_seconds, load_exchange_points, thumbnail_basename, generate_thumbnail_from_image
 from app.config import Config
 from app.security import limiter
-from app.services import team_service, membership_service, assignment_service
+from app.services import team_service, membership_service, assignment_service, preference_service
 from app.services.team_service import TeamStateError
 from app.services.exceptions import ServiceError
 
@@ -171,10 +171,27 @@ def team_legs(team_id, team):
 
     can_edit = PermissionChecker.can_manage_team(current_user, team)
 
+    # The viewer's own membership, so the schedule can lead with their legs.
+    # None for a site admin (or a captain) looking at a team they don't run
+    # on -- the schedule then just has nobody to single out.
+    viewer_membership = TeamMembership.query.filter_by(
+        team_id=team.id, user_id=current_user.id).first()
+
     return render_template('team_legs.html',
                          team=team,
                          team_id=team_id,
-                         can_edit=can_edit)
+                         can_edit=can_edit,
+                         current_membership_id=viewer_membership.id if viewer_membership else None,
+                         # Captains land on the schedule like everyone else;
+                         # ?edit=1 is what reopens the board (and what the
+                         # toggle writes back into the URL).
+                         initial_edit=can_edit and request.args.get('edit') == '1',
+                         event_start_display=Config.EVENT_START_TIME.strftime('%A, %B %-d at %-I:%M %p'),
+                         # For the captain's preference-override dialog: the
+                         # same choices the member had on the registration form,
+                         # so an override can't set a value they couldn't.
+                         stations=load_end_station_names(course_lines_for(team.lines)),
+                         max_preferred_miles=max_preferred_miles(team.lines))
 
 
 def _export_members_data(team, format_type='csv'):
@@ -189,7 +206,8 @@ def _export_members_data(team, format_type='csv'):
     output = io.StringIO()
     fieldnames = [
         'name', 'email', 'preferred_miles', 'planned_pace',
-        'preferred_station', 'willing_to_lead', 'comments', 'joined_date'
+        'preferred_station', 'willing_to_lead', 'comments', 'joined_date',
+        'captain_adjustments', 'adjustment_note'
     ]
 
     delimiter = '\t' if format_type == 'tsv' else ','
@@ -209,7 +227,11 @@ def _export_members_data(team, format_type='csv'):
             'preferred_station': membership.preferred_station or '',
             'willing_to_lead': 'Yes' if membership.willing_to_lead else 'No',
             'comments': membership.comments or '',
-            'joined_date': membership.joined_at.strftime('%Y-%m-%d %H:%M:%S') if membership.joined_at else ''
+            'joined_date': membership.joined_at.strftime('%Y-%m-%d %H:%M:%S') if membership.joined_at else '',
+            'captain_adjustments': preference_service.describe_overrides(membership),
+            'adjustment_note': (
+                membership.preference_override.note if membership.preference_override else ''
+            ) or '',
         })
 
     output.seek(0)
@@ -250,9 +272,69 @@ def get_assignments(team_id, team):
     """Board state: leg assignments plus members with their join preferences.
 
     Readable by any team member (captain, admin, or member) — same access
-    rule as the members page.
+    rule as the members page. Captains/admins get preferences with their own
+    overrides applied; everyone else gets the members' stated preferences,
+    since overrides are a captain-side planning aid.
     """
-    return jsonify(assignment_service.get_board(team)), 200
+    can_manage = PermissionChecker.can_manage_team(current_user, team)
+    return jsonify(assignment_service.get_board(team, include_private=can_manage)), 200
+
+
+@teams.route('/<team_id>/members/<membership_id>/preference-overrides', methods=['PUT'])
+@team_captain_required()
+def put_preference_overrides(team_id, team, membership_id):
+    """Set a captain's overrides of one member's stated preferences.
+
+    Body: ``{"overrides": {"preferred_miles": 5.0, "preferred_station": null},
+    "note": "..."}``. A field left out of ``overrides`` reverts to what the
+    member stated; a field set to ``null`` drops that preference entirely.
+    An empty ``overrides`` clears the record, note included.
+
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Request body must be a JSON object with an "overrides" object'}), 400
+
+    membership = TeamMembership.query.filter_by(id=membership_id, team_id=team.id).first()
+    if not membership:
+        return jsonify({'error': 'Membership is not part of this team'}), 404
+
+    try:
+        preference_service.set_overrides(
+            team, membership, data.get('overrides') or {}, data.get('note'), current_user
+        )
+        return jsonify({
+            'success': True,
+            'member': assignment_service.serialize_member(membership, include_private=True),
+        }), 200
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to save preference overrides for membership {membership_id}: {str(e)}")
+        return jsonify({'error': 'Failed to save preference overrides'}), 500
+
+
+@teams.route('/<team_id>/members/<membership_id>/preference-overrides', methods=['DELETE'])
+@team_captain_required()
+def delete_preference_overrides(team_id, team, membership_id):
+    """Drop every override for one member, reverting to their stated preferences."""
+    membership = TeamMembership.query.filter_by(id=membership_id, team_id=team.id).first()
+    if not membership:
+        return jsonify({'error': 'Membership is not part of this team'}), 404
+
+    try:
+        preference_service.clear_overrides(team, membership)
+        return jsonify({
+            'success': True,
+            'member': assignment_service.serialize_member(membership, include_private=True),
+        }), 200
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to clear preference overrides for membership {membership_id}: {str(e)}")
+        return jsonify({'error': 'Failed to clear preference overrides'}), 500
 
 
 @teams.route('/<team_id>/assignments', methods=['PUT'])
@@ -260,8 +342,8 @@ def get_assignments(team_id, team):
 def put_assignments(team_id, team):
     """Full replacement of the team's assignment set (captain or admin only).
 
-    Accepts either a bare list ``[{"leg_index": 1, "membership_id": "..."}]``
-    or ``{"assignments": [...]}``.
+    Accepts either a bare list ``[{"start_exchange": 168, "end_exchange": 167,
+    "membership_id": "..."}]`` or ``{"assignments": [...]}``.
     """
     data = request.get_json(silent=True)
     if isinstance(data, dict):

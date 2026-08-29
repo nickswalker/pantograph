@@ -6,7 +6,7 @@
 //      diffing) -- no clingo involved, fast, deterministic.
 //   2. A real smoke test that feeds the vendored app/static/asp/*.lp files
 //      + a realistic generated fact set (a slice of the real
-//      data/legs_2026.json course, ~4-6 members with varied preferences,
+//      data/lrr2026.geojson course, ~4-6 members with varied preferences,
 //      several pins including a two-runner leg) through the actual npm
 //      `clingo-wasm` package running in Node, and asserts on the solved
 //      model. This is what the plan calls "smoke-test the vendored domain
@@ -41,48 +41,93 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 const DOMAIN_SOURCE = readFileSync(path.join(REPO_ROOT, 'app/static/asp/scheduling-domain.lp'), 'utf8');
 const TEAM_SOURCE = readFileSync(path.join(REPO_ROOT, 'app/static/asp/team-assign.lp'), 'utf8');
-const COURSE_JSON = JSON.parse(readFileSync(path.join(REPO_ROOT, 'data/legs_2026.json'), 'utf8'));
+const COURSE_GEOJSON = JSON.parse(readFileSync(path.join(REPO_ROOT, 'data/lrr2026.geojson'), 'utf8'));
 
 // ---------------------------------------------------------------------------
-// Build a WP3/WP4-shaped `course` object from the raw data/legs_2026.json
-// build artifact, the same way app/services/assignment_service.py's
-// `_serialize_course` does server-side (id/name endpoints, commute matrix,
-// station_index combining real names + aliases + non-course stations).
+// Build a board-shaped `course` object from data/lrr2026.geojson, mirroring
+// app/services/course_service.py: stations are the Points carrying
+// stationInfo (the point-of-interest Points are not exchanges), legs are the
+// LineStrings, distances are scaled to integer hundredths of a mile, and the
+// commute matrix is straight-line between exchanges since the file has none.
 // ---------------------------------------------------------------------------
-function buildCourse(rawCourse, legSlice) {
-    const exchangesById = new Map(rawCourse.exchanges.map((e) => [e.id, e]));
-    const endpoint = (id) => ({ id, name: exchangesById.get(id) ? exchangesById.get(id).name : null });
+const LINE_1 = 'lrr_1line';
 
-    const stationIndex = {};
-    for (const exchange of rawCourse.exchanges) stationIndex[exchange.name] = exchange.id;
-    Object.assign(stationIndex, rawCourse.station_aliases || {});
-    Object.assign(stationIndex, rawCourse.non_course_stations || {});
+function scaleMiles(miles) {
+    return Math.ceil(Number(miles) * 100);
+}
 
-    const legs = (legSlice || rawCourse.legs).map((leg) => ({
-        index: leg.index,
-        start: endpoint(leg.start),
-        end: endpoint(leg.end),
-        distance: leg.distance,
-        ascent: leg.ascent,
-        descent: leg.descent,
+function haversineMiles([lonA, latA], [lonB, latB]) {
+    const toRad = (d) => (d * Math.PI) / 180;
+    const phiA = toRad(latA);
+    const phiB = toRad(latB);
+    const dPhi = phiB - phiA;
+    const dLambda = toRad(lonB - lonA);
+    const h = Math.sin(dPhi / 2) ** 2 + Math.cos(phiA) * Math.cos(phiB) * Math.sin(dLambda / 2) ** 2;
+    return 2 * 3958.7613 * Math.asin(Math.sqrt(h));
+}
+
+function courseFeatures() {
+    const stations = new Map();
+    const legs = [];
+    for (const feature of COURSE_GEOJSON.features) {
+        const props = feature.properties || {};
+        const geometry = feature.geometry || {};
+        if (geometry.type === 'Point' && 'stationInfo' in props) {
+            stations.set(props.id, { id: props.id, name: props.name, coordinates: geometry.coordinates });
+        } else if (geometry.type === 'LineString') {
+            legs.push(props);
+        }
+    }
+    return { stations, legs };
+}
+
+/** `line` defaults to the 1 Line; `legSlice` trims to the first N legs. */
+function buildCourse(line = LINE_1, legCount = null) {
+    const { stations, legs } = courseFeatures();
+    const endpoint = (id) => ({ id, name: stations.has(id) ? stations.get(id).name : null });
+
+    const onLine = legs
+        .filter((leg) => (leg.lines || []).includes(line))
+        .sort((a, b) => a.sequence[a.lines.indexOf(line)] - b.sequence[b.lines.indexOf(line)]);
+    const selected = legCount === null ? onLine : onLine.slice(0, legCount);
+
+    const serializedLegs = selected.map((leg) => ({
+        start: endpoint(leg.start_exchange),
+        end: endpoint(leg.end_exchange),
+        distance: scaleMiles(leg.distance_mi),
+        ascent: Math.trunc(leg.ascent_ft),
+        descent: Math.trunc(leg.descent_ft),
+        lines: leg.lines,
+        sequence: Object.fromEntries(leg.lines.map((l, i) => [l, leg.sequence[i]])),
     }));
 
+    const ids = [...new Set(serializedLegs.flatMap((leg) => [leg.start.id, leg.end.id]))].sort((a, b) => a - b);
+    const commute = [];
+    for (let i = 0; i < ids.length; i += 1) {
+        for (let j = i + 1; j < ids.length; j += 1) {
+            commute.push([ids[i], ids[j],
+                scaleMiles(haversineMiles(stations.get(ids[i]).coordinates, stations.get(ids[j]).coordinates))]);
+        }
+    }
+
+    const stationIndex = {};
+    for (const station of stations.values()) stationIndex[station.name] = station.id;
+
     return {
-        event: rawCourse.event,
-        units: rawCourse.units,
-        legs,
-        commute: rawCourse.commute,
+        event: 'lrr2026',
+        units: {},
+        legs: serializedLegs,
+        commute,
         station_index: stationIndex,
         estimated_duration_seconds: null,
     };
 }
 
-// A realistic ~6-leg slice (legs 0-5 in running order, so consecutive-leg
-// "exchange count" logic is exercised) rather than the full 22, to keep the
-// smoke test's solve fast while still real course data end to end.
-const SLICE_LEGS = COURSE_JSON.legs.slice(0, 6);
-const SMALL_COURSE = buildCourse(COURSE_JSON, SLICE_LEGS);
-const FULL_COURSE = buildCourse(COURSE_JSON, COURSE_JSON.legs);
+// A realistic ~6-leg slice (the first six in running order, so consecutive-leg
+// "exchange count" logic is exercised) rather than the full 1 Line, to keep
+// the smoke test's solve fast while still real course data end to end.
+const SMALL_COURSE = buildCourse(LINE_1, 6);
+const FULL_COURSE = buildCourse(LINE_1);
 
 function member(overrides) {
     return {
@@ -100,9 +145,9 @@ function member(overrides) {
 // 4 members with varied preferences.
 const MEMBERS = [
     member({ membership_id: 'm1', willing_to_lead: true, preferred_miles: 3.0, planned_pace_seconds: 600 }),
-    member({ membership_id: 'm2', preferred_miles: 5.0, planned_pace_seconds: 700, preferred_station: 'Boeing Access Road' }), // non-course -- should be skipped
+    member({ membership_id: 'm2', preferred_miles: 5.0, planned_pace_seconds: 700, preferred_station: 'Bellevue Downtown' }), // 2 Line only -- off this course, should be skipped
     member({ membership_id: 'm3', planned_pace_seconds: 550 }), // no distance/station preference at all
-    member({ membership_id: 'm4', willing_to_lead: true, preferred_station: 'U-District' }), // alias, resolves if on this slice
+    member({ membership_id: 'm4', willing_to_lead: true, preferred_station: 'U District' }), // 1 Line trunk, resolves only on the full course
 ];
 
 function buildState(course, members, assignments) {
@@ -145,9 +190,9 @@ test('generateFacts: preference facts only emitted for members who stated them',
     assert.match(program, /preferredPace\("m1",600\)\./);
     assert.match(program, /willingToLead\("m1"\)\./);
 
-    // m2: distance (5.0mi -> 500) + pace (700), but preferred_station is a
-    // non-course station (Boeing Access Road, id 162, no leg on this slice
-    // or any slice) -- must be skipped entirely, not emitted as a bogus fact.
+    // m2: distance (5.0mi -> 500) + pace (700), but preferred_station is on
+    // the 2 Line only (Bellevue Downtown), so it is not an exchange of this
+    // 1 Line course -- must be skipped entirely, not emitted as a bogus fact.
     assert.match(program, /preferredDistance\("m2",500\)\./);
     assert.match(program, /preferredPace\("m2",700\)\./);
     assert.doesNotMatch(program, /preferredEndExchange\("m2",/);
@@ -158,31 +203,33 @@ test('generateFacts: preference facts only emitted for members who stated them',
     assert.doesNotMatch(program, /preferredEndExchange\("m3",/);
     assert.doesNotMatch(program, /willingToLead\("m3"\)\./);
 
-    // m4: no distance/pace, willing to lead, and preferred_station is an
-    // alias ("U-District" -> id 147) -- only emitted if 147 is a course
-    // exchange on this slice (it isn't, in legs 0-5, since those are in the
-    // 160s); confirm it's correctly omitted here, then re-check against the
-    // full course below where 147 *is* a leg endpoint.
-    assert.doesNotMatch(program, /preferredEndExchange\("m4",147\)\./);
+    // m4: no distance/pace, willing to lead, and preferred_station is
+    // U District (1247), on the shared trunk. The 6-leg slice stops in the
+    // 160s, so it is not an exchange here; confirm it's omitted, then
+    // re-check against the full 1 Line where 1247 *is* a leg endpoint.
+    assert.doesNotMatch(program, /preferredEndExchange\("m4",1247\)\./);
 
     const { program: fullProgram } = generateFacts(buildState(FULL_COURSE, MEMBERS, {}));
-    assert.match(fullProgram, /preferredEndExchange\("m4",147\)\./);
-    assert.doesNotMatch(fullProgram, /preferredEndExchange\("m2",/); // still non-course
+    assert.match(fullProgram, /preferredEndExchange\("m4",1247\)\./);
+    assert.doesNotMatch(fullProgram, /preferredEndExchange\("m2",/); // still off this line
 });
 
 test('generateFacts: pins are emitted verbatim as assignment/2 facts and tracked in pinnedPairs', () => {
     const leg0 = SMALL_COURSE.legs[0];
     const leg1 = SMALL_COURSE.legs[1];
-    const assignments = { [leg0.index]: ['m1', 'm3'], [leg1.index]: ['m2'] };
+    const key0 = `${leg0.start.id}-${leg0.end.id}`;
+    const key1 = `${leg1.start.id}-${leg1.end.id}`;
+    const assignments = { [key0]: ['m1', 'm3'], [key1]: ['m2'] };
     const { program, pinnedPairs } = generateFacts(buildState(SMALL_COURSE, MEMBERS, assignments));
 
-    assert.match(program, new RegExp(`assignment\\("m1",leg\\(${leg0.index},${leg0.start.id},${leg0.end.id}\\)\\)\\.`));
-    assert.match(program, new RegExp(`assignment\\("m3",leg\\(${leg0.index},${leg0.start.id},${leg0.end.id}\\)\\)\\.`));
-    assert.match(program, new RegExp(`assignment\\("m2",leg\\(${leg1.index},${leg1.start.id},${leg1.end.id}\\)\\)\\.`));
+    // The leg/3 id is the leg's position in course.legs.
+    assert.match(program, new RegExp(`assignment\\("m1",leg\\(0,${leg0.start.id},${leg0.end.id}\\)\\)\\.`));
+    assert.match(program, new RegExp(`assignment\\("m3",leg\\(0,${leg0.start.id},${leg0.end.id}\\)\\)\\.`));
+    assert.match(program, new RegExp(`assignment\\("m2",leg\\(1,${leg1.start.id},${leg1.end.id}\\)\\)\\.`));
 
-    assert.ok(pinnedPairs.has(`${leg0.index}::m1`));
-    assert.ok(pinnedPairs.has(`${leg0.index}::m3`));
-    assert.ok(pinnedPairs.has(`${leg1.index}::m2`));
+    assert.ok(pinnedPairs.has(`${key0}::m1`));
+    assert.ok(pinnedPairs.has(`${key0}::m3`));
+    assert.ok(pinnedPairs.has(`${key1}::m2`));
     assert.equal(pinnedPairs.size, 3);
 });
 
@@ -191,7 +238,7 @@ test('generateFacts: no course/members -> empty program, not a crash', () => {
     assert.deepEqual(generateFacts(null), { program: '', pinnedPairs: new Set() });
 });
 
-test('parseAssignments: extracts membershipId + legIndex, ignores non-assignment atoms', () => {
+test('parseAssignments: extracts membershipId + legKey, ignores non-assignment atoms', () => {
     const values = [
         'participant("m1")',
         'leg(0,140,141)',
@@ -199,23 +246,24 @@ test('parseAssignments: extracts membershipId + legIndex, ignores non-assignment
         'assignment("m2",leg(1,141,142))',
         'legCoverage(0,1)',
     ];
+    // Identity comes from the exchanges in the atom, not the leg id.
     assert.deepEqual(parseAssignments(values), [
-        { membershipId: 'm1', legIndex: 0 },
-        { membershipId: 'm2', legIndex: 1 },
+        { membershipId: 'm1', legKey: '140-141' },
+        { membershipId: 'm2', legKey: '141-142' },
     ]);
 });
 
 test('diffSuggestions: drops pinned pairs and de-duplicates', () => {
     const solved = [
-        { membershipId: 'm1', legIndex: 0 }, // pinned, should be dropped
-        { membershipId: 'm2', legIndex: 1 }, // new suggestion
-        { membershipId: 'm2', legIndex: 1 }, // duplicate of the above
-        { membershipId: 'm3', legIndex: 2 }, // new suggestion
+        { membershipId: 'm1', legKey: '140-141' }, // pinned, should be dropped
+        { membershipId: 'm2', legKey: '141-142' }, // new suggestion
+        { membershipId: 'm2', legKey: '141-142' }, // duplicate of the above
+        { membershipId: 'm3', legKey: '142-143' }, // new suggestion
     ];
-    const pinnedPairs = new Set(['0::m1']);
+    const pinnedPairs = new Set(['140-141::m1']);
     assert.deepEqual(diffSuggestions(solved, pinnedPairs), [
-        { legIndex: 1, membershipId: 'm2' },
-        { legIndex: 2, membershipId: 'm3' },
+        { legKey: '141-142', membershipId: 'm2' },
+        { legKey: '142-143', membershipId: 'm3' },
     ]);
 });
 
@@ -288,9 +336,11 @@ test('smoke: vendored domain + generated facts solve SAT, cover all legs, preser
 
     const leg0 = SMALL_COURSE.legs[0]; // pin: m1 solo
     const leg1 = SMALL_COURSE.legs[1]; // pin: m2 + m3 together (two-runner leg)
+    const leg0Key = `${leg0.start.id}-${leg0.end.id}`;
+    const leg1Key = `${leg1.start.id}-${leg1.end.id}`;
     const assignments = {
-        [leg0.index]: ['m1'],
-        [leg1.index]: ['m2', 'm3'],
+        [leg0Key]: ['m1'],
+        [leg1Key]: ['m2', 'm3'],
     };
     const state = buildState(SMALL_COURSE, MEMBERS, assignments);
     const { program: factsProgram, pinnedPairs } = generateFacts(state);
@@ -317,50 +367,51 @@ test('smoke: vendored domain + generated facts solve SAT, cover all legs, preser
 
     // All legs covered (at least one runner each, including the pins).
     const runnersByLeg = new Map();
-    for (const { membershipId, legIndex } of solved) {
-        if (!runnersByLeg.has(legIndex)) runnersByLeg.set(legIndex, new Set());
-        runnersByLeg.get(legIndex).add(membershipId);
+    for (const { membershipId, legKey } of solved) {
+        if (!runnersByLeg.has(legKey)) runnersByLeg.set(legKey, new Set());
+        runnersByLeg.get(legKey).add(membershipId);
     }
     for (const leg of SMALL_COURSE.legs) {
-        const runners = runnersByLeg.get(leg.index);
-        assert.ok(runners && runners.size >= 1, `leg ${leg.index} has no runner assigned`);
+        const key = `${leg.start.id}-${leg.end.id}`;
+        const runners = runnersByLeg.get(key);
+        assert.ok(runners && runners.size >= 1, `leg ${key} has no runner assigned`);
     }
 
     // No duplicate member-on-same-leg (the choice rule is 0/1 per atom, but
     // assert on the actual parsed output to catch any parsing regressions).
-    for (const [legIndex, runners] of runnersByLeg) {
-        const count = solved.filter((s) => s.legIndex === legIndex && s.membershipId === [...runners][0]).length;
-        assert.ok(count <= runners.size, `leg ${legIndex} lists a member more than once`);
+    for (const [legKey, runners] of runnersByLeg) {
+        const count = solved.filter((s) => s.legKey === legKey && s.membershipId === [...runners][0]).length;
+        assert.ok(count <= runners.size, `leg ${legKey} lists a member more than once`);
     }
     const seenPairs = new Set();
-    for (const { membershipId, legIndex } of solved) {
-        const key = `${legIndex}::${membershipId}`;
+    for (const { membershipId, legKey } of solved) {
+        const key = `${legKey}::${membershipId}`;
         assert.ok(!seenPairs.has(key), `duplicate (leg, member) pair in solved model: ${key}`);
         seenPairs.add(key);
     }
 
     // Pins preserved verbatim.
     for (const key of pinnedPairs) {
-        const [legIndexStr, membershipId] = key.split('::');
+        const [legKeyStr, membershipId] = key.split('::');
         assert.ok(
-            solved.some((s) => s.legIndex === Number(legIndexStr) && s.membershipId === membershipId),
+            solved.some((s) => s.legKey === legKeyStr && s.membershipId === membershipId),
             `pin ${key} missing from solved model`,
         );
     }
 
     // The pinned two-runner leg (leg1) stays intact: both m2 and m3, still there.
-    const leg1Runners = runnersByLeg.get(leg1.index);
+    const leg1Runners = runnersByLeg.get(leg1Key);
     assert.ok(leg1Runners.has('m2') && leg1Runners.has('m3'), 'pinned two-runner leg lost a runner');
 
     // Suggestions (non-pinned atoms) only ever place someone on a leg that
     // had no pin, or add a runner alongside pins -- never remove a pin.
     const suggestions = diffSuggestions(solved, pinnedPairs);
     for (const s of suggestions) {
-        assert.ok(!pinnedPairs.has(`${s.legIndex}::${s.membershipId}`));
+        assert.ok(!pinnedPairs.has(`${s.legKey}::${s.membershipId}`));
     }
 });
 
-test('smoke: full 22-leg course also solves SAT with a realistic 4-member team', async (t) => {
+test('smoke: the full 1 Line also solves SAT with a realistic 4-member team', async (t) => {
     let clingoRun;
     try {
         ({ run: clingoRun } = (await import('clingo-wasm')).default);
@@ -381,9 +432,10 @@ test('smoke: full 22-leg course also solves SAT with a realistic 4-member team',
 
     const witness = bestWitness(result);
     const solved = parseAssignments(witness.Value);
-    const coveredLegs = new Set(solved.map((s) => s.legIndex));
+    const coveredLegs = new Set(solved.map((s) => s.legKey));
     for (const leg of FULL_COURSE.legs) {
-        assert.ok(coveredLegs.has(leg.index), `leg ${leg.index} uncovered on the full course`);
+        const key = `${leg.start.id}-${leg.end.id}`;
+        assert.ok(coveredLegs.has(key), `leg ${key} uncovered on the full course`);
     }
 });
 

@@ -20,7 +20,6 @@ RUN uv sync --frozen --no-dev --no-cache
 
 # Copy application code
 COPY app/ app/
-COPY scripts/ scripts/
 COPY wsgi.py ./
 
 # Create directories for uploads and data with proper permissions

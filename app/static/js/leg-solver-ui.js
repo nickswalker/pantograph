@@ -171,16 +171,16 @@ export class LegSolverUI {
 
     // ---- Suggestion mutation ----
 
-    acceptOne(legIndex, membershipId) {
+    acceptOne(legKey, membershipId) {
         this.suggestions = this.suggestions.filter(
-            (s) => !(s.legIndex === legIndex && s.membershipId === membershipId),
+            (s) => !(s.legKey === legKey && s.membershipId === membershipId),
         );
-        this.board.addAssignment(legIndex, membershipId); // triggers board re-render + our repaint via the chained hook
+        this.board.addAssignment(legKey, membershipId); // triggers board re-render + our repaint via the chained hook
     }
 
-    discardOne(legIndex, membershipId) {
+    discardOne(legKey, membershipId) {
         this.suggestions = this.suggestions.filter(
-            (s) => !(s.legIndex === legIndex && s.membershipId === membershipId),
+            (s) => !(s.legKey === legKey && s.membershipId === membershipId),
         );
         this._repaintSuggestions();
     }
@@ -189,7 +189,7 @@ export class LegSolverUI {
         const toAccept = [...this.suggestions];
         this.suggestions = [];
         for (const s of toAccept) {
-            this.board.addAssignment(s.legIndex, s.membershipId);
+            this.board.addAssignment(s.legKey, s.membershipId);
         }
     }
 
@@ -247,7 +247,7 @@ export class LegSolverUI {
         this.legsListEl.querySelectorAll('.leg-chip-suggested').forEach((el) => el.remove());
 
         for (const suggestion of this.suggestions) {
-            const zone = this.legsListEl.querySelector(`.leg-dropzone[data-leg-index="${suggestion.legIndex}"]`);
+            const zone = this.legsListEl.querySelector(`.leg-dropzone[data-leg-key="${suggestion.legKey}"]`);
             if (!zone) continue;
 
             const hint = zone.querySelector('.drop-hint');
@@ -259,7 +259,7 @@ export class LegSolverUI {
             const chip = document.createElement('div');
             chip.className = 'd-flex align-items-center gap-1 border border-dashed rounded-pill ps-2 pe-1 py-1 leg-chip leg-chip-suggested';
             chip.dataset.membershipId = suggestion.membershipId;
-            chip.dataset.legIndex = String(suggestion.legIndex);
+            chip.dataset.legKey = String(suggestion.legKey);
             chip.title = 'Suggested by Optimize remaining -- not saved until accepted';
             chip.innerHTML = `
                 <ion-icon name="sparkles-outline" class="text-primary flex-shrink-0"></ion-icon>
@@ -273,10 +273,10 @@ export class LegSolverUI {
                     <ion-icon name="close-outline"></ion-icon>
                 </button>`;
             chip.querySelector('[data-action="accept"]').addEventListener(
-                'click', () => this.acceptOne(suggestion.legIndex, suggestion.membershipId),
+                'click', () => this.acceptOne(suggestion.legKey, suggestion.membershipId),
             );
             chip.querySelector('[data-action="discard"]').addEventListener(
-                'click', () => this.discardOne(suggestion.legIndex, suggestion.membershipId),
+                'click', () => this.discardOne(suggestion.legKey, suggestion.membershipId),
             );
             zone.appendChild(chip);
         }
