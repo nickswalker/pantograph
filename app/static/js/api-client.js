@@ -47,6 +47,17 @@ export class ApiClient {
 
         try {
             const response = await fetch(url, defaultOptions);
+
+            // In case server errors
+            const contentType = response.headers.get('Content-Type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(
+                    response.ok
+                        ? `Expected JSON from ${url} but got ${contentType || 'an unknown content type'}`
+                        : `Server error (HTTP ${response.status}) at ${url}`,
+                );
+            }
+
             const data = await response.json();
 
             if (!response.ok) {
@@ -395,6 +406,46 @@ export class MembershipAPI extends ApiClient {
     }
 }
 
+// Leg Assignment Board API
+export class AssignmentAPI extends ApiClient {
+    // Board state: assignments + members + course summary
+    async getBoard(teamId) {
+        const url = this.buildUrl('assignments', { team_id: teamId });
+        return await this.request(url, {
+            method: 'GET'
+        });
+    }
+
+    // Full replacement of the team's assignment set (captain/admin only)
+    async saveAssignments(teamId, assignments) {
+        const url = this.buildUrl('assignments', { team_id: teamId });
+        return await this.request(url, {
+            method: 'PUT',
+            body: JSON.stringify({ assignments })
+        });
+    }
+
+    async saveOverrides(teamId, membershipId, overrides, note) {
+        const url = this.buildUrl('preferenceOverrides', {
+            team_id: teamId, membership_id: membershipId,
+        });
+        return await this.request(url, {
+            method: 'PUT',
+            body: JSON.stringify({ overrides, note })
+        });
+    }
+
+    // Revert a member to their own stated preferences
+    async clearOverrides(teamId, membershipId) {
+        const url = this.buildUrl('preferenceOverrides', {
+            team_id: teamId, membership_id: membershipId,
+        });
+        return await this.request(url, {
+            method: 'DELETE'
+        });
+    }
+}
+
 // User Management API
 export class UserAPI extends ApiClient {
     // Delete user account
@@ -482,6 +533,18 @@ export class ImageAPI extends ApiClient {
         } catch (error) {
             return { success: false, error: error.message };
         }
+    }
+
+    // Manually assign an image to an exchange station, overriding the
+    // automatic GPS match. Pass null (or '') to drop the override and go back
+    // to whatever GPS matched. Resolves with the station now displayed, so the
+    // caller can patch the badge in place.
+    async setImageExchange(teamId, imageId, exchangeId) {
+        const url = this.buildUrl('setImageExchange', { team_id: teamId, image_id: imageId });
+        return await this.request(url, {
+            method: 'POST',
+            body: JSON.stringify({ exchange_id: exchangeId || null })
+        });
     }
 
     // Delete image by ID
@@ -584,6 +647,7 @@ export const membershipAPI = new MembershipAPI();
 export const userAPI = new UserAPI();
 export const adminAPI = new AdminAPI();
 export const imageAPI = new ImageAPI();
+export const assignmentAPI = new AssignmentAPI();
 
 // Make utilities available globally
 window.Utils = Utils;
@@ -595,10 +659,12 @@ export default {
     MembershipAPI,
     UserAPI,
     ImageAPI,
+    AssignmentAPI,
     Utils,
     api,
     teamAPI,
     membershipAPI,
     userAPI,
-    imageAPI
+    imageAPI,
+    assignmentAPI
 };

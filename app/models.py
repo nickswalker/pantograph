@@ -223,6 +223,96 @@ class Image(db.Model):
         return f'<Image {self.filename} by {self.uploader.name}>'
 
 
+class LegAssignment(db.Model):
+    """A team member assigned to run one leg of the relay.
+
+    Keyed by membership (not user) so that a member's withdrawal naturally
+    flags their legs. Several members may share a leg and a member may be
+    assigned multiple legs, but the same member cannot be assigned to the
+    same leg twice. Legs may be left unassigned while drafting.
+
+    A leg is identified by its exchange pair rather than a running index,
+    because index is per-line: leg 20 is Roosevelt->Northgate on the 1 Line
+    but Northgate->Pinehurst on the 2 Line. The pair is stable across lines,
+    so a shared trunk leg is one leg no matter which line a team registered
+    for, and a Both Lines team cannot double-assign it.
+    """
+
+    id = db.Column(db.String(8), primary_key=True, default=lambda: secrets.token_urlsafe(6))
+    team_id = db.Column(db.String(8), db.ForeignKey('team.id'), nullable=False)
+    membership_id = db.Column(db.String(8), db.ForeignKey('team_membership.id'), nullable=False)
+    start_exchange = db.Column(db.Integer, nullable=False)
+    end_exchange = db.Column(db.Integer, nullable=False)
+
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    team = db.relationship('Team', backref='leg_assignments')
+    membership = db.relationship('TeamMembership', backref='leg_assignments')
+
+    # A member may appear on a leg at most once (but legs may be shared)
+    __table_args__ = (
+        db.UniqueConstraint('team_id', 'start_exchange', 'end_exchange', 'membership_id',
+                            name='unique_team_leg_membership'),
+    )
+
+    @property
+    def leg_key(self):
+        return (self.start_exchange, self.end_exchange)
+
+    def __repr__(self):
+        return f'<LegAssignment leg {self.start_exchange}->{self.end_exchange} of team {self.team_id}>'
+
+
+class MembershipPreferenceOverride(db.Model):
+    """A captain's adjustment of a member's stated join preferences.
+
+    The member's own answers on :class:`TeamMembership` are their testimony
+    about themselves and are never rewritten; this is a separate, attributed
+    layer that the leg-assignment board (and only the board -- badges,
+    metrics, and the solver) reads on top of them.
+
+    ``overrides`` is a sparse JSON object keyed by preference field name:
+
+    * key absent  -> use what the member stated
+    * key present -> use this value instead
+    * key present with a ``null`` value -> treat the member as having stated
+      no preference at all (drop the constraint, rather than substituting a
+      different one)
+
+    That three-way distinction is why this is JSON rather than a row of
+    nullable columns: a nullable column cannot tell "no override" apart from
+    "override to no preference", and the second case is a real one (a stated
+    end station that cannot be made to work with the rest of the board).
+
+    ``stated_snapshot`` records what the member had stated for the overridden
+    fields at the moment the override was written, so the board can flag an
+    override that a later edit by the member has silently outvoted.
+    """
+
+    id = db.Column(db.String(8), primary_key=True, default=lambda: secrets.token_urlsafe(6))
+    membership_id = db.Column(db.String(8), db.ForeignKey('team_membership.id'),
+                              nullable=False, unique=True)
+    overrides = db.Column(db.Text, nullable=False, default='{}')       # JSON object
+    stated_snapshot = db.Column(db.Text, nullable=True)                # JSON object
+    note = db.Column(db.Text, nullable=True)                           # captain-visible rationale
+    created_by = db.Column(db.String(8), db.ForeignKey('user.id'), nullable=False)
+
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    membership = db.relationship(
+        'TeamMembership',
+        backref=db.backref('preference_override', uselist=False,
+                           cascade='all, delete-orphan'),
+    )
+    author = db.relationship('User', foreign_keys=[created_by])
+
+    def __repr__(self):
+        return f'<MembershipPreferenceOverride for membership {self.membership_id}>'
+
+
 def _naive_utcnow():
     """Current UTC time as a naive datetime, for consistent SQLite comparisons."""
     return datetime.now(timezone.utc).replace(tzinfo=None)

@@ -103,8 +103,9 @@ def results():
         }
         images = Image.query.filter_by(team_id=team.id).order_by(Image.capture_time).all()
         for img in images:
-            if img.associated_exchange_id is not None:
-                img_exchange_id = img.associated_exchange_id if img.associated_exchange_id else img.manual_exchange_id
+            # A manual correction wins over the automatic GPS association,
+            img_exchange_id = img.manual_exchange_id or img.associated_exchange_id
+            if img_exchange_id is not None:
                 if img_exchange_id in team_data['exchangeTimes']:
                     # Check if this image is later than the last one for this exchange. We take the latest image
                     last_img_capture_time = team_data['exchangeTimes'][img_exchange_id]

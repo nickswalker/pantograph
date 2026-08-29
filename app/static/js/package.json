@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Not a build system: this file only tells Node's module loader that .js files under app/static/js/ use ES module syntax, so tests/js/leg-metrics.test.mjs can `import` leg-metrics.js directly with plain `node`. Browsers ignore this file entirely; the app is served by Flask as static files, unaffected."
+}

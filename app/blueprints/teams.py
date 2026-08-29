@@ -15,14 +15,15 @@ from werkzeug.utils import secure_filename
 from app.models import db, Team, TeamMembership, TeamStatus, TeamMembershipStatus, TeamFormat
 from app.permissions import (
     team_access_required, team_captain_required,
-    team_captain_or_member_required, team_upload_allowed, admin_required
+    team_captain_or_member_required, team_upload_allowed, admin_required,
+    PermissionChecker
 )
 from app.utils import is_allowed_image, validate_image_content, secure_filename_enhanced, find_team_by_id, \
     find_team_by_gallery_hash, load_end_station_names, course_lines_for, max_preferred_miles, parse_hh_mm_to_seconds, convert_to_jpeg, is_heic_file, \
     format_mm_ss_from_seconds, load_exchange_points, thumbnail_basename, generate_thumbnail_from_image
 from app.config import Config
 from app.security import limiter
-from app.services import team_service, membership_service
+from app.services import team_service, membership_service, assignment_service, preference_service
 from app.services.team_service import TeamStateError
 from app.services.exceptions import ServiceError
 
@@ -37,6 +38,73 @@ def _send_cached_image(directory, filename):
     response = send_from_directory(directory, filename, max_age=Config.IMAGE_CACHE_MAX_AGE)
     response.headers['Cache-Control'] = f'public, max-age={Config.IMAGE_CACHE_MAX_AGE}, immutable'
     return response
+
+
+def _exchange_names():
+    """Exchange id -> station name for the current course, keyed as stored.
+
+    Image.associated_exchange_id is a string column, so key by string:
+    load_exchange_points() keys are ints and would never match.
+    """
+    return {str(exchange_id): exchange_data['name']
+            for exchange_id, exchange_data in load_exchange_points().items()}
+
+
+def _exchange_map_points():
+    """Every course exchange with what the gallery map draws for it.
+    """
+    from app.services.course_service import line_codes, station_code
+
+    return [
+        {
+            'id': str(exchange_id),
+            'name': data['name'],
+            'station_code': station_code(exchange_id),
+            'line_codes': line_codes(exchange_id),
+            'lat': data['latitude'],
+            'lng': data['longitude'],
+        }
+        for exchange_id, data in load_exchange_points().items()
+    ]
+
+
+def _image_exchange(image):
+    """The station an image is shown at, and where that came from.
+
+    ``gps_exchange_id`` is exposed alongside the resolved ``exchange_id`` (not
+    just folded into it) so the gallery's station picker can label whichever
+    option is the GPS match even when a manual override points elsewhere.
+    """
+    exchange_id = image.manual_exchange_id or image.associated_exchange_id
+    return {
+        'exchange_id': exchange_id,
+        'manual_exchange_id': image.manual_exchange_id,
+        'gps_exchange_id': image.associated_exchange_id,
+        'exchange_source': ('manual' if image.manual_exchange_id
+                            else 'gps' if exchange_id else None),
+    }
+
+
+def _serialize_image_exchange(image):
+    """An image's resolved station in the shape the gallery badge renders.
+
+    ``None`` when the image has no station at all. An id that is not a station
+    on the current course (e.g. carried over from a previous year) keeps its
+    id but gets no name or line badges, matching the template.
+    """
+    from app.services.course_service import line_codes, station_code
+
+    exchange_id = image.manual_exchange_id or image.associated_exchange_id
+    if not exchange_id:
+        return None
+    name = _exchange_names().get(exchange_id)
+    return {
+        'id': exchange_id,
+        'name': name,
+        'station_code': station_code(exchange_id) if name else None,
+        'line_codes': line_codes(exchange_id) if name else [],
+        'source': 'manual' if image.manual_exchange_id else 'gps',
+    }
 
 
 @teams.route('/<team_id>/gallery')
@@ -55,7 +123,7 @@ def gallery(team_id, team):
     images = Image.query.options(joinedload(Image.uploader)).filter_by(team_id=team.id).order_by(
         Image.capture_time.asc(), Image.upload_time.asc()
     ).all()
-    exchange_names = {exchange_id: exchange_data['name'] for exchange_id, exchange_data in load_exchange_points().items()}
+    exchange_names = _exchange_names()
     # Format image data for template
     image_data = []
     for image in images:
@@ -70,10 +138,11 @@ def gallery(team_id, team):
             'upload_time': image.upload_time,
             'file_size': image.file_size,
             'mime_type': image.mime_type,
-            'exchange_id': image.manual_exchange_id if image.manual_exchange_id else image.associated_exchange_id
+            **_image_exchange(image),
         })
 
-    return render_template('gallery.html', team=team, images=image_data, team_id=team_id, exchange_names=exchange_names)
+    return render_template('gallery.html', team=team, images=image_data, team_id=team_id,
+                           exchange_names=exchange_names, exchange_points=_exchange_map_points())
 
 
 @teams_public.route('/gallery/<gallery_hash>')
@@ -83,7 +152,7 @@ def public_gallery(gallery_hash):
     # Find team in database by gallery_hash
     team = find_team_by_gallery_hash(gallery_hash)
 
-    exchange_names = {exchange_id: exchange_data['name'] for exchange_id, exchange_data in load_exchange_points().items()}
+    exchange_names = _exchange_names()
     if not team:
         return "Invalid gallery URL.", 404
 
@@ -107,10 +176,11 @@ def public_gallery(gallery_hash):
             'upload_time': image.upload_time,
             'file_size': image.file_size,
             'mime_type': image.mime_type,
-            'exchange_id': image.manual_exchange_id if image.manual_exchange_id else image.associated_exchange_id
+            **_image_exchange(image),
         })
 
-    return render_template('gallery.html', team=team, images=image_data, gallery_hash=gallery_hash, exchange_names=exchange_names)
+    return render_template('gallery.html', team=team, images=image_data, gallery_hash=gallery_hash,
+                           exchange_names=exchange_names, exchange_points=_exchange_map_points())
 
 
 @teams.route('/<team_id>/members')
@@ -146,6 +216,53 @@ def team_members(team_id, team):
                          avg_preferred_miles=avg_preferred_miles)
 
 
+@teams.route('/<team_id>/legs')
+@team_access_required()
+def team_legs(team_id, team):
+    """Leg-assignment board: one row per relay leg with drag-and-drop member
+    chips, plus a bench of every team member.
+
+    Any non-removed member can view; only the captain/site-admin get the
+    editing affordances (enforced both here for rendering and by the PUT
+    endpoint for the actual save).
+    """
+    # If the current user is the captain and hasn't completed their registration for this team,
+    # redirect them to their registration page.
+    if current_user.is_authenticated and current_user.id == team.captain_id:
+        captain_membership = TeamMembership.query.filter_by(team_id=team.id, user_id=current_user.id).first()
+        if not captain_membership:
+            return redirect(url_for('user.my_registration'))
+
+    # The board only makes sense for TEAM-format entries (solo entries have
+    # nobody to assign but themselves).
+    if team.format != TeamFormat.TEAM:
+        return redirect(url_for('teams.team_members', team_id=team.id))
+
+    can_edit = PermissionChecker.can_manage_team(current_user, team)
+
+    # The viewer's own membership, so the schedule can lead with their legs.
+    # None for a site admin (or a captain) looking at a team they don't run
+    # on -- the schedule then just has nobody to single out.
+    viewer_membership = TeamMembership.query.filter_by(
+        team_id=team.id, user_id=current_user.id).first()
+
+    return render_template('team_legs.html',
+                         team=team,
+                         team_id=team_id,
+                         can_edit=can_edit,
+                         current_membership_id=viewer_membership.id if viewer_membership else None,
+                         # Captains land on the schedule like everyone else;
+                         # ?edit=1 is what reopens the board (and what the
+                         # toggle writes back into the URL).
+                         initial_edit=can_edit and request.args.get('edit') == '1',
+                         event_start_display=Config.EVENT_START_TIME.strftime('%A, %B %-d at %-I:%M %p'),
+                         # For the captain's preference-override dialog: the
+                         # same choices the member had on the registration form,
+                         # so an override can't set a value they couldn't.
+                         stations=load_end_station_names(course_lines_for(team.lines)),
+                         max_preferred_miles=max_preferred_miles(team.lines))
+
+
 def _export_members_data(team, format_type='csv'):
     """Helper function to export team member data in CSV or TSV format"""
     # Get active team memberships
@@ -158,7 +275,8 @@ def _export_members_data(team, format_type='csv'):
     output = io.StringIO()
     fieldnames = [
         'name', 'email', 'preferred_miles', 'planned_pace',
-        'preferred_station', 'willing_to_lead', 'comments', 'joined_date'
+        'preferred_station', 'willing_to_lead', 'comments', 'joined_date',
+        'captain_adjustments', 'adjustment_note'
     ]
 
     delimiter = '\t' if format_type == 'tsv' else ','
@@ -178,7 +296,11 @@ def _export_members_data(team, format_type='csv'):
             'preferred_station': membership.preferred_station or '',
             'willing_to_lead': 'Yes' if membership.willing_to_lead else 'No',
             'comments': membership.comments or '',
-            'joined_date': membership.joined_at.strftime('%Y-%m-%d %H:%M:%S') if membership.joined_at else ''
+            'joined_date': membership.joined_at.strftime('%Y-%m-%d %H:%M:%S') if membership.joined_at else '',
+            'captain_adjustments': preference_service.describe_overrides(membership),
+            'adjustment_note': (
+                membership.preference_override.note if membership.preference_override else ''
+            ) or '',
         })
 
     output.seek(0)
@@ -211,6 +333,105 @@ def export_members_tsv(team_id, team):
         mimetype='text/tab-separated-values',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'}
     )
+
+
+@teams.route('/<team_id>/assignments', methods=['GET'])
+@team_access_required()
+def get_assignments(team_id, team):
+    """Board state: leg assignments plus members with their join preferences.
+
+    Readable by any team member (captain, admin, or member) — same access
+    rule as the members page. Captains/admins get preferences with their own
+    overrides applied; everyone else gets the members' stated preferences,
+    since overrides are a captain-side planning aid.
+    """
+    can_manage = PermissionChecker.can_manage_team(current_user, team)
+    return jsonify(assignment_service.get_board(team, include_private=can_manage)), 200
+
+
+@teams.route('/<team_id>/members/<membership_id>/preference-overrides', methods=['PUT'])
+@team_captain_required()
+def put_preference_overrides(team_id, team, membership_id):
+    """Set a captain's overrides of one member's stated preferences.
+
+    Body: ``{"overrides": {"preferred_miles": 5.0, "preferred_station": null},
+    "note": "..."}``. A field left out of ``overrides`` reverts to what the
+    member stated; a field set to ``null`` drops that preference entirely.
+    An empty ``overrides`` clears the record, note included.
+
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Request body must be a JSON object with an "overrides" object'}), 400
+
+    membership = TeamMembership.query.filter_by(id=membership_id, team_id=team.id).first()
+    if not membership:
+        return jsonify({'error': 'Membership is not part of this team'}), 404
+
+    try:
+        preference_service.set_overrides(
+            team, membership, data.get('overrides') or {}, data.get('note'), current_user
+        )
+        return jsonify({
+            'success': True,
+            'member': assignment_service.serialize_member(membership, include_private=True),
+        }), 200
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to save preference overrides for membership {membership_id}: {str(e)}")
+        return jsonify({'error': 'Failed to save preference overrides'}), 500
+
+
+@teams.route('/<team_id>/members/<membership_id>/preference-overrides', methods=['DELETE'])
+@team_captain_required()
+def delete_preference_overrides(team_id, team, membership_id):
+    """Drop every override for one member, reverting to their stated preferences."""
+    membership = TeamMembership.query.filter_by(id=membership_id, team_id=team.id).first()
+    if not membership:
+        return jsonify({'error': 'Membership is not part of this team'}), 404
+
+    try:
+        preference_service.clear_overrides(team, membership)
+        return jsonify({
+            'success': True,
+            'member': assignment_service.serialize_member(membership, include_private=True),
+        }), 200
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to clear preference overrides for membership {membership_id}: {str(e)}")
+        return jsonify({'error': 'Failed to clear preference overrides'}), 500
+
+
+@teams.route('/<team_id>/assignments', methods=['PUT'])
+@team_captain_required()
+def put_assignments(team_id, team):
+    """Full replacement of the team's assignment set (captain or admin only).
+
+    Accepts either a bare list ``[{"start_exchange": 168, "end_exchange": 167,
+    "membership_id": "..."}]`` or ``{"assignments": [...]}``.
+    """
+    data = request.get_json(silent=True)
+    if isinstance(data, dict):
+        payload = data.get('assignments')
+    else:
+        payload = data
+    if not isinstance(payload, list):
+        return jsonify({'error': 'Request body must be a JSON list of assignments '
+                                 '(or an object with an "assignments" list)'}), 400
+
+    try:
+        saved = assignment_service.replace_assignments(team, payload)
+        return jsonify({'success': True, 'assignments': saved}), 200
+    except ServiceError as e:
+        return jsonify({'error': e.message}), e.status
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to save assignments for team {team_id}: {str(e)}")
+        return jsonify({'error': 'Failed to save assignments'}), 500
 
 
 @teams.route('/<team_id>/images/<image_id>', methods=['DELETE'])
@@ -251,6 +472,52 @@ def delete_image(team_id, image_id, team):
         "success": True,
         "message": f"Image '{image.filename}' deleted successfully"
     })
+
+
+@teams.route('/<team_id>/images/<image_id>/exchange', methods=['POST'])
+@team_upload_allowed()
+def set_image_exchange(team_id, image_id, team):
+    """Manually assign an image to an exchange, or clear that assignment.
+
+    Body: ``{"exchange_id": "168"}`` to override the automatic GPS-derived
+    association, or ``{"exchange_id": null}`` (an empty string works too) to
+    drop the override and fall back to whatever GPS matched -- which may be
+    nothing.
+
+    """
+    from app.models import Image
+
+    image = Image.query.filter_by(id=image_id, team_id=team.id).first()
+    if not image:
+        return jsonify({'error': 'Image not found'}), 404
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or 'exchange_id' not in data:
+        return jsonify({'error': 'Request body must be a JSON object with an "exchange_id"'}), 400
+
+    raw_exchange_id = data['exchange_id']
+    if raw_exchange_id is None or (isinstance(raw_exchange_id, str) and not raw_exchange_id.strip()):
+        exchange_id = None
+    elif isinstance(raw_exchange_id, bool) or not isinstance(raw_exchange_id, (str, int)):
+        return jsonify({'error': 'Exchange id must be a station id, or null to clear it'}), 400
+    else:
+        exchange_id = str(raw_exchange_id).strip()
+        if exchange_id not in _exchange_names():
+            return jsonify({'error': f'{exchange_id} is not an exchange on this course'}), 400
+
+    try:
+        image.manual_exchange_id = exchange_id
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to set exchange for image {image_id} of team {team_id}: {str(e)}")
+        return jsonify({'error': 'Failed to save the station for this photo'}), 500
+
+    return jsonify({
+        'success': True,
+        'image_id': image.id,
+        'exchange': _serialize_image_exchange(image),
+    }), 200
 
 
 @teams.route('/<team_id>/images', methods=['POST'])

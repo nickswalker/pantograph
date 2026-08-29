@@ -69,27 +69,212 @@ html[data-bs-theme="dark"] .invert-when-dark {
   border-radius: 0;
 }
 
-/* Link line identity badges. The brand colors are kept dark enough to clear
-   AA against white text at this size, so they hold up in either color mode;
-   dark mode only adds a hairline to separate them from the page. */
-.line-badge {
-  display: inline-block;
-  padding: 0.25em 0.7em;
-  border-radius: 999px;
-  font-size: 0.8125rem;
-  font-weight: 600;
+/* ---- Link station labels -------------------------------------------------
+*/
+:root {
+  --lrr-1-line-color: #3DAE2B;
+  --lrr-2-line-color: #00B8F4;
+}
+
+.link-station-label {
+  display: inline-flex;
+  border-radius: .825rem;
+  height: 1.75rem;
+  font-weight: 500;
   line-height: 1.5;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  color: #fff;
+  background-color: rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  vertical-align: middle;
+}
+
+.link-station-label .line-name {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-weight: 700;
+  border-radius: .625rem;
+  line-height: 1.25rem;
+  margin-right: 3px;
+  text-align: center;
   color: #fff;
 }
 
-.line-badge-1 {
-  background-color: #00703c;
+.link-station-label .line-name.line-name-1 {
+  background-color: var(--lrr-1-line-color);
 }
 
-.line-badge-2 {
-  background-color: #005a9c;
+.link-station-label .line-name.line-name-2 {
+  background-color: var(--lrr-2-line-color);
 }
 
-html[data-bs-theme="dark"] .line-badge {
-  border: 1px solid rgba(255, 255, 255, 0.25);
+.link-station-label .link-station-code {
+  padding-right: 3px;
+  font-stretch: condensed;
+  font-variant-numeric: tabular-nums;
+}
+
+.line-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 1.75rem;
+  padding: 0 .6rem 0 3px;
+  border-radius: .875rem;
+  font-weight: 500;
+  font-size: .9375rem;
+  color: var(--bs-body-color);
+  background-color: var(--bs-secondary-bg);
+  border: 1px solid var(--bs-border-color);
+  vertical-align: middle;
+}
+
+.line-pill .line-name {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-weight: 700;
+  border-radius: .625rem;
+  line-height: 1.25rem;
+  text-align: center;
+  color: #fff;
+}
+
+.line-pill .line-name.line-name-1 {
+  background-color: var(--lrr-1-line-color);
+}
+
+.line-pill .line-name.line-name-2 {
+  background-color: var(--lrr-2-line-color);
+}
+
+/* Used by the leg assignment board (app/static/js/leg-board.js)'s dropzones
+   and, more importantly, by the "Optimize remaining" suggested chips
+   (app/static/js/leg-solver-ui.js) -- a suggestion must read as visually
+   distinct ("dashed/outlined") from a real, saved assignment. */
+.border-dashed {
+  border-style: dashed !important;
+}
+
+.leg-number {
+  min-width: 1.75rem;
+  padding: 0 .35rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  text-align: right;
+}
+
+/* Bench chip's wants/current table: tight grid, no header row, and no
+   striping/background of its own -- it should read as part of the chip,
+   not as a separate boxed widget. */
+.metrics-table {
+  --bs-table-bg: transparent;
+  font-size: .8125rem;
+}
+
+.metrics-table th,
+.metrics-table td {
+  padding: .05rem .4rem .05rem 0;
+  background-color: transparent;
+}
+
+.metrics-table th:first-child {
+  padding-left: 0;
+}
+
+@media (min-width: 992px) {
+  .roster-sticky {
+    position: sticky;
+    top: 1rem;
+    /* Leave room for the offset above and a little breathing space below, so
+       a long roster scrolls internally instead of running off the viewport. */
+    max-height: calc(100vh - 2rem);
+  }
+
+  .roster-sticky .roster-scroll {
+    overflow-y: auto;
+    /* The header is out of flow for scrolling purposes; cap the body so the
+       card as a whole honours max-height. */
+    min-height: 0;
+  }
+}
+
+.leg-dropzone {
+  min-height: 3rem;
+}
+
+.leg-dropzone .drop-hint {
+  font-size: 1.5rem;
+  color: var(--bs-secondary-color);
+}
+
+
+.leg-dropzone {
+  transition: border-color .15s ease-in-out, background-color .15s ease-in-out, opacity .15s ease-in-out;
+}
+
+.leg-dropzone-open {
+  border-color: var(--bs-primary) !important;
+  background-color: var(--bs-primary-bg-subtle);
+}
+
+.leg-dropzone-blocked {
+  border-color: var(--bs-border-color) !important;
+  background-color: var(--bs-secondary-bg);
+  cursor: not-allowed;
+}
+
+.leg-dropzone-blocked .drop-hint {
+  visibility: hidden;
+}
+
+.leg-chip-duplicate {
+  outline: 2px dashed var(--bs-warning);
+  outline-offset: 2px;
+}
+
+.leg-chip-suggested {
+  background-color: transparent;
+  border-color: var(--bs-primary) !important;
+  opacity: 0.85;
+}
+
+
+/* Schedule view (leg-schedule.js). Rows are handoffs down the course, so the
+   viewer's own legs are marked with an accent rail rather than a filled row:
+   Bootstrap's .table-* variants are fixed light colors and read as a warning
+   against the dark theme. */
+.schedule-row-mine > td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--bs-primary);
+}
+
+.schedule-row-mine > td {
+  background-color: var(--bs-primary-bg-subtle);
+}
+
+/* The exchange that closes out a chain of legs -- the finish, or the transfer
+   between lines on a Both Lines course. It has no leg departing from it, so
+   it reads as an endpoint rather than another handoff. */
+.schedule-row-terminus > td {
+  background-color: var(--bs-tertiary-bg);
+}
+
+/* Section header inside the schedule: one per branch on a Both Lines course
+   (a single-line team gets no sections at all). */
+.schedule-row-section > th {
+  background-color: var(--bs-tertiary-bg);
+  border-top: 2px solid var(--bs-border-color);
+  padding-top: .6rem;
+}
+
+/* The shared .leg-number sits in a flex row on the board; in the schedule
+   table it needs to hold its own column width so exchange names line up
+   under each other, including on the un-numbered terminus rows. */
+#legs-schedule .leg-number {
+  display: inline-block;
+  margin-right: .25rem;
 }

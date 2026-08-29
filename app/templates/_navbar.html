@@ -40,6 +40,15 @@
                                     class="me-1"></ion-icon>
                             {% if user_team.format == TeamFormat.SOLO %}Entry{% else %}Members{% endif %}
                         </a>
+                        {% if user_team.format == TeamFormat.TEAM %}
+                        <a class="nav-link d-flex align-items-center {% if request.endpoint == 'teams.team_legs' %}active fw-bold{% endif %} px-1"
+                           href="{{ url_for('teams.team_legs', team_id=user_team.id) }}">
+                            <ion-icon
+                                    name="{% if request.endpoint == 'teams.team_legs' %}git-network{% else %}git-network-outline{% endif %}"
+                                    class="me-1"></ion-icon>
+                            Legs
+                        </a>
+                        {% endif %}
                         <a class="nav-link d-flex align-items-center {% if request.endpoint == 'teams.gallery' %}active fw-bold{% endif %} px-1"
                            href="{{ url_for('teams.gallery', team_id=user_team.id) }}">
                             <ion-icon

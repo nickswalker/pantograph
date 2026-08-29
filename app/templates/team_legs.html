@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}{{ team.name }} - Leg Assignments - {{ super() }}{% endblock %}
+
+{% block content %}
+    {# Solver chip states. `border-dashed` is not a Bootstrap utility -- the
+       suggested chips have always asked for it, so define it here rather than
+       leave them indistinguishable from placed ones. `.leg-chip-provisional`
+       is a plan the solver streamed mid-search and may still replace, so it
+       reads as clearly unfinished and carries no buttons (see
+       leg-solver-ui.js's _provisionalChip). #}
+    <style>
+        .leg-chip-suggested { border-style: dashed !important; }
+        .leg-chip-provisional {
+            border-color: var(--bs-secondary-border-subtle) !important;
+            background-color: var(--bs-secondary-bg-subtle);
+            animation: leg-chip-breathe 1.8s ease-in-out infinite;
+        }
+        @keyframes leg-chip-breathe {
+            0%, 100% { opacity: 0.55; }
+            50%      { opacity: 0.9; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .leg-chip-provisional { animation: none; }
+        }
+    </style>
+
+    {% include '_team_status_alerts.html' %}
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="mb-0">{{ team.name }} Leg Assignments</h1>
+        </div>
+        {% if can_edit %}
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" id="legs-mode-edit" class="btn btn-outline-primary">
+                <ion-icon name="create-outline" class="me-1"></ion-icon>Edit assignments
+            </button>
+            <button type="button" id="legs-mode-view" class="btn btn-outline-secondary d-none">
+                <ion-icon name="list-outline" class="me-1"></ion-icon>Done editing
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="legs-loading" class="text-center text-muted py-5 d-none">
+        <ion-icon name="hourglass-outline" style="font-size: 2rem;"></ion-icon>
+        <p class="mt-2 mb-0">Loading&hellip;</p>
+    </div>
+
+    {# ---- View mode: the schedule, what everyone lands on ---- #}
+    <div id="legs-view">
+        <div id="legs-my-assignment" data-membership-id="{{ current_membership_id or '' }}"></div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="card-title mb-0">Schedule</h5>
+                <span class="text-muted small">
+                    Estimated from stated paces, starting {{ event_start_display }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div id="legs-schedule" data-membership-id="{{ current_membership_id or '' }}"></div>
+            </div>
+        </div>
+    </div>
+
+    {# ---- Edit mode: the assignment board (captains and site admins only) ---- #}
+    {% if can_edit %}
+    <div id="legs-edit" class="d-none">
+        <div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mb-3">
+            <span id="legs-suggestion-count" class="badge text-bg-primary d-none"></span>
+            <span id="legs-dirty-indicator" class="badge text-bg-warning d-none">Unsaved changes</span>
+            <span id="legs-saved-indicator" class="badge text-bg-success d-none">All changes saved</span>
+            <button type="button" id="legs-optimize-btn" class="btn btn-outline-primary"
+                    title="Fill every leg that still has nobody assigned, using each member's preferences">
+               Optimize remaining
+            </button>
+            <button type="button" id="legs-optimize-cancel-btn" class="btn btn-outline-danger d-none">
+                <ion-icon name="stop-circle-outline" class="me-1"></ion-icon>Cancel
+            </button>
+            <button type="button" id="legs-accept-all-btn" class="btn btn-success d-none">
+                <ion-icon name="checkmark-done-outline" class="me-1"></ion-icon>Accept all
+            </button>
+            <button type="button" id="legs-clear-suggestions-btn" class="btn btn-outline-secondary d-none">
+                <ion-icon name="close-outline" class="me-1"></ion-icon>Clear suggestions
+            </button>
+            <button type="button" id="legs-save-btn" class="btn btn-primary" disabled>
+                <ion-icon name="save-outline" class="me-1"></ion-icon>Save Assignments
+            </button>
+        </div>
+
+        <p class="text-muted small">
+            Drag a member from the roster onto a leg to assign them, or use their <ion-icon name="add-outline"></ion-icon>
+            menu. Each placed chip has its own remove button. A member can be assigned to multiple legs, and a leg can
+            have multiple members.
+            <br>
+            Use the <ion-icon name="create-outline"></ion-icon> beside a member to adjust the preferences the board
+            scores and solves against &mdash; their own answers are kept and shown underneath.
+            <br>
+            <strong>Optimize remaining</strong> fills any leg nobody has claimed yet, based on those preferences --
+            it never moves or removes an assignment you've already made. Suggestions show up as dashed chips; accept
+            them individually or all at once before saving, or clear them and keep assigning manually.
+            <br>
+            While it searches you'll see a greyed-out draft plan that keeps changing as it finds better ones --
+            that's normal, and it isn't yours to accept until the search stops. Let it finish for the best plan it
+            can prove, or hit <strong>Stop &amp; keep best</strong> any time to take the draft as it stands.
+        </p>
+
+        <div id="legs-team-summary" class="d-flex flex-wrap gap-2 mb-3"></div>
+
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Legs</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="legs-list" class="list-group list-group-flush"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card roster-sticky">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Roster</h5>
+                    </div>
+                    <div class="card-body roster-scroll">
+                        <div id="legs-bench" class="d-flex flex-column gap-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="override-modal" tabindex="-1" aria-labelledby="override-modal-title" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="override-modal-title">
+                        Adjust preferences for <span data-override-member-name></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">
+                        These values are what the board scores and what <strong>Optimize remaining</strong> solves
+                        against. They are visible only to captains and site admins.
+                    </p>
+
+                    <div class="mb-3">
+                        <label for="override-miles" class="form-label">Preferred miles</label>
+                        <input type="number" class="form-control" id="override-miles" data-override-field="preferred_miles"
+                               min="0.1" max="{{ max_preferred_miles }}" step="0.1">
+                        <div class="form-text" data-override-stated="preferred_miles"></div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="override-miles-clear"
+                                   data-override-clear="preferred_miles">
+                            <label class="form-check-label small" for="override-miles-clear">
+                                No distance preference (stop scoring this)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="override-pace" class="form-label">Planned pace (MM:SS per mile)</label>
+                        <input type="text" class="form-control" id="override-pace" data-override-field="planned_pace_seconds"
+                               inputmode="numeric" placeholder="9:30">
+                        <div class="form-text" data-override-stated="planned_pace_seconds"></div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="override-pace-clear"
+                                   data-override-clear="planned_pace_seconds">
+                            <label class="form-check-label small" for="override-pace-clear">
+                                No pace estimate (leg times can't be estimated from this runner)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="override-station" class="form-label">Preferred end station</label>
+                        <select class="form-select" id="override-station" data-override-field="preferred_station">
+                            <option value="">&mdash;</option>
+                            {% for station in stations %}
+                            <option value="{{ station }}">{{ station }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text" data-override-stated="preferred_station"></div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="override-station-clear"
+                                   data-override-clear="preferred_station">
+                            <label class="form-check-label small" for="override-station-clear">
+                                No end-station preference (stop scoring this)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input class="form-check-input" type="checkbox" id="override-alone" data-override-field="willing_to_lead">
+                        <label class="form-check-label" for="override-alone">Okay being on a leg alone</label>
+                        <div class="form-text" data-override-stated="willing_to_lead"></div>
+                    </div>
+
+                    <div class="mb-1">
+                        <label for="override-note" class="form-label">Note (captains and site admins only)</label>
+                        <textarea class="form-control" id="override-note" rows="2" data-override-note
+                                  placeholder="Why the adjustment -- e.g. agreed at the group run on 3/12"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-outline-danger" data-override-reset>
+                        Use their stated preferences
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" data-override-submit>Save adjustment</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+    <script type="module">
+        import { initLegBoard } from '{{ url_for("static", filename="js/leg-board.js") }}';
+        import { initLegBadges } from '{{ url_for("static", filename="js/leg-badges.js") }}';
+        import { initLegSchedule } from '{{ url_for("static", filename="js/leg-schedule.js") }}';
+
+        // Both install themselves on window.onAssignmentsChanged (chaining,
+        // not clobbering) and must be in place before the board's first load
+        // fires it.
+        initLegBadges();
+        initLegSchedule();
+
+        window.legBoard = initLegBoard({
+            teamId: '{{ team.id }}',
+            canEdit: {{ 'true' if can_edit else 'false' }},
+            legsListEl: document.getElementById('legs-list'),
+            benchEl: document.getElementById('legs-bench'),
+            saveButtonEl: document.getElementById('legs-save-btn'),
+            dirtyIndicatorEl: document.getElementById('legs-dirty-indicator'),
+            savedIndicatorEl: document.getElementById('legs-saved-indicator'),
+            loadingEl: document.getElementById('legs-loading'),
+            overrideModalEl: document.getElementById('override-modal'),
+        });
+
+        {% if can_edit %}
+        import { initLegSolverUI } from '{{ url_for("static", filename="js/leg-solver-ui.js") }}';
+
+        window.legSolverUI = initLegSolverUI({
+            board: window.legBoard,
+            legsListEl: document.getElementById('legs-list'),
+            optimizeButtonEl: document.getElementById('legs-optimize-btn'),
+            cancelButtonEl: document.getElementById('legs-optimize-cancel-btn'),
+            acceptAllButtonEl: document.getElementById('legs-accept-all-btn'),
+            clearButtonEl: document.getElementById('legs-clear-suggestions-btn'),
+            suggestionCountEl: document.getElementById('legs-suggestion-count'),
+        });
+
+        // ---- View / edit mode -------------------------------------------
+        // One page, two renderings of the same in-memory board state, so
+        // switching is a show/hide rather than a navigation: entering edit
+        // mode never refetches, and unsaved assignments survive a toggle.
+        // `?edit=1` is kept in the URL so a refresh or a bookmarked link
+        // comes back to the board rather than the schedule.
+        const viewEl = document.getElementById('legs-view');
+        const editEl = document.getElementById('legs-edit');
+        const toEditBtn = document.getElementById('legs-mode-edit');
+        const toViewBtn = document.getElementById('legs-mode-view');
+
+        function setMode(mode) {
+            const editing = mode === 'edit';
+            viewEl.classList.toggle('d-none', editing);
+            editEl.classList.toggle('d-none', !editing);
+            toEditBtn.classList.toggle('d-none', editing);
+            toViewBtn.classList.toggle('d-none', !editing);
+
+            const url = new URL(window.location);
+            if (editing) {
+                url.searchParams.set('edit', '1');
+            } else {
+                url.searchParams.delete('edit');
+            }
+            window.history.replaceState({}, '', url);
+        }
+
+        toEditBtn.addEventListener('click', () => setMode('edit'));
+        toViewBtn.addEventListener('click', () => {
+            // The board's own beforeunload guard doesn't fire here -- leaving
+            // edit mode isn't leaving the page -- so ask directly rather than
+            // letting unsaved assignments slide out of sight.
+            if (window.legBoard.dirty
+                && !window.confirm('You have unsaved assignment changes. Leave edit mode without saving?')) {
+                return;
+            }
+            setMode('view');
+        });
+
+        {% if initial_edit %}setMode('edit');{% endif %}
+        {% endif %}
+    </script>
+{% endblock %}

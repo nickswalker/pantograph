@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import json
 from functools import lru_cache
@@ -164,30 +165,58 @@ def _legs_for_lines(lines=None):
     return tuple(leg for leg in legs if wanted.intersection(leg.get('lines') or []))
 
 
-def _exchange_ids_in_running_order(lines=None):
-    """Exchange ids in running order for ``lines``, de-duplicated.
+def _legs_in_running_order(lines=None):
+    """Legs for ``lines`` in the order the race is run, de-duplicated.
 
-    Each line is walked start-to-finish using its own ``sequence`` values (a
-    leg on the shared trunk carries one sequence number per line it belongs
-    to, positionally matched to its ``lines`` list). Lines are walked in
-    ``ALL_LINES`` order and stations already seen are skipped, so for a
-    both-lines course the shared trunk appears once, in the first line's
-    position, and the second line contributes only its own branch.
+    The course is a Y: each line has a branch from its own terminus to
+    International District/Chinatown, and from there they share a trunk to
+    Lynnwood City Center. Every selected line's branch comes first (in
+    ``ALL_LINES`` order, each walked start-to-finish by its own ``sequence``
+    values), then the shared trunk once -- so a both-lines course reads as two
+    simultaneous starts feeding one common stretch, rather than one line
+    interrupted by the other.
+
+    A leg on the trunk carries one sequence number per line it belongs to,
+    positionally matched to its ``lines`` list. With a single line selected
+    nothing is shared, so this is just that line's own sequence.
+
+    This is the one definition of course order;
+    :func:`app.services.course_service.legs_for` is a thin wrapper over it.
     """
     selected = list(lines) if lines is not None else list(ALL_LINES)
-    ordered = []
+    selected_set = set(selected)
+
+    def sequence_on_line(leg, line):
+        return leg['sequence'][leg['lines'].index(line)]
+
+    branches, trunk, seen = [], [], set()
     for line in ALL_LINES:
         if line not in selected:
             continue
-        line_legs = [leg for leg in _legs_for_lines((line,))]
+        line_legs = sorted(_legs_for_lines((line,)), key=lambda leg: sequence_on_line(leg, line))
+        for leg in line_legs:
+            key = (leg['start_exchange'], leg['end_exchange'])
+            if key in seen:
+                continue
+            seen.add(key)
+            # Shared *relative to the selection*: a trunk leg only counts as
+            # shared for a team that actually runs both lines carrying it.
+            is_shared = len(selected_set.intersection(leg.get('lines') or [])) > 1
+            (trunk if is_shared else branches).append(leg)
 
-        def sequence_on_line(leg):
-            return leg['sequence'][leg['lines'].index(line)]
+    return branches + trunk
 
-        line_legs.sort(key=sequence_on_line)
-        if not line_legs:
-            continue
-        for exchange_id in [line_legs[0]['start_exchange']] + [leg['end_exchange'] for leg in line_legs]:
+
+def _exchange_ids_in_running_order(lines=None):
+    """Exchange ids in running order for ``lines``, de-duplicated.
+
+    Walks :func:`_legs_in_running_order`, so the station list a member picks
+    their preferred stop from is ordered the same way the schedule and the
+    assignment board read: each branch from its terminus, then the trunk.
+    """
+    ordered = []
+    for leg in _legs_in_running_order(lines):
+        for exchange_id in (leg['start_exchange'], leg['end_exchange']):
             if exchange_id not in ordered:
                 ordered.append(exchange_id)
     return ordered
@@ -319,6 +348,10 @@ def get_gps_data(exif_data):
 
     lat = convert_to_degrees(exif_data['GPSLatitude'])
     lon = convert_to_degrees(exif_data['GPSLongitude'])
+
+    # Some devices do this...
+    if math.isnan(lat) or math.isnan(lon):
+        return None
 
     # Adjust for hemisphere
     if exif_data.get('GPSLatitudeRef') == 'S':

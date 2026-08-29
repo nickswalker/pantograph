@@ -1,7 +1,12 @@
 uploads/**/*
+simulation/
 pantograph.db
+pantograph.db-shm
+pantograph.db-wal
+*.db.bak-*
 .env
 .env.dev
 .venv
 __pycache__/
 *.pyc
+node_modules/

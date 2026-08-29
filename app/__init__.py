@@ -49,10 +49,22 @@ def create_app():
     app.jinja_env.globals['TeamStatus'] = TeamStatus
     app.jinja_env.globals['OAuthProvider'] = OAuthProvider
 
+    # Station/line codes for the Link-style station labels (see style.css).
+    from app.services.course_service import station_code, line_code, line_codes
+    app.jinja_env.globals['station_code'] = station_code
+    app.jinja_env.globals['line_code'] = line_code
+    app.jinja_env.globals['line_codes'] = line_codes
+
     # Register custom Jinja2 filters
     from app.utils import format_hh_mm_from_seconds, format_mm_ss_from_seconds
     app.jinja_env.filters['format_hh_mm_from_seconds'] = format_hh_mm_from_seconds
     app.jinja_env.filters['format_mm_ss_from_seconds'] = format_mm_ss_from_seconds
+
+    # Captain adjustments to a member's stated preferences (leg board). The
+    # members page keeps showing what the member actually said, and uses this
+    # to say plainly where the board is using something else.
+    from app.services.preference_service import describe_overrides
+    app.jinja_env.filters['describe_overrides'] = describe_overrides
 
     # Ensure upload directory exists
     os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)

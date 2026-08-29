@@ -6,7 +6,6 @@ services:
     volumes:
       - "./wsgi.py:/app/wsgi.py"
       - "./app:/app/app"
-      - "./scripts:/app/scripts"
       - "./requirements.txt:/app/requirements.txt"
     ports:
       - "5001:5001"
