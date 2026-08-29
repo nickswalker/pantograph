@@ -10,6 +10,9 @@
  * tests/js/leg-solver.test.mjs) and a browser-only half (CDN loading,
  * driving the worker). Chip rendering lives in leg-solver-ui.js.
  *
+ * Models stream in via the `onModel` option as clasp finds them, so the UI
+ * can show a provisional plan and keep the best one on cancel/timeout.
+ *
  * All numbers in facts are already integer-scaled per the course model's
  * `units` block; `preferred_miles` is the exception, converted here with
  * `Math.ceil(miles * 100)` to match the legs/commute convention.
@@ -20,10 +23,10 @@ import { legKey } from './leg-keys.js';
 // ---- clingo-wasm CDN wiring ------------------------------------------------
 
 // Pinned to the version smoke-tested in tests/js/leg-solver.test.mjs. Bump
-// both together.
-export const CLINGO_VERSION = '0.3.2';
-export const CLINGO_SCRIPT_URL = `https://cdn.jsdelivr.net/npm/clingo-wasm@${CLINGO_VERSION}`;
-export const CLINGO_WASM_URL = `https://cdn.jsdelivr.net/npm/clingo-wasm@${CLINGO_VERSION}/dist/clingo.wasm`;
+// both together. The wasm binary is deliberately not pinned: 0.5.0+ ships
+// single- and multi-threaded builds and picks between them at load time.
+export const CLINGO_VERSION = '0.6.0';
+export const CLINGO_MODULE_URL = `https://cdn.jsdelivr.net/npm/clingo-wasm@${CLINGO_VERSION}/dist/index.web.js`;
 
 /** Thrown (via Promise.race) when a solve is cancelled, by the captain or
  * by the timeout -- as distinct from a real clingo error or UNSAT. */
@@ -37,38 +40,25 @@ export class SolverCancelledError extends Error {
 let clingoLoadPromise = null;
 
 /**
- * Lazily inject the clingo-wasm UMD bundle (jsDelivr's `jsdelivr` package.json
- * field points at `dist/clingo.web.js`, a browser bundle that runs Clingo in
- * a Worker and exposes a global `window.clingo` -- see the clingo-wasm
- * README's "In the Browser" section). Cached after the first successful
- * load; a failed load is NOT cached, so a later retry (e.g. after the
- * network recovers) can succeed.
+ * Lazily import clingo-wasm from the CDN. The module spawns its own worker
+ * internally. Cached after a successful load; a failed load is not, so a
+ * retry can succeed.
  */
-export function loadClingo(scriptUrl = CLINGO_SCRIPT_URL) {
+export function loadClingo(moduleUrl = CLINGO_MODULE_URL) {
     if (clingoLoadPromise) return clingoLoadPromise;
 
-    clingoLoadPromise = new Promise((resolve, reject) => {
-        if (typeof window === 'undefined' || typeof document === 'undefined') {
-            reject(new Error('loadClingo() requires a browser environment'));
-            return;
-        }
-        if (window.clingo) {
-            resolve(window.clingo);
-            return;
-        }
-        const script = document.createElement('script');
-        script.src = scriptUrl;
-        script.async = true;
-        script.onload = () => {
-            if (window.clingo) resolve(window.clingo);
-            else reject(new Error('clingo-wasm script loaded but window.clingo was not defined'));
-        };
-        script.onerror = () => reject(new Error(`Failed to load clingo-wasm from ${scriptUrl}`));
-        document.head.appendChild(script);
-    }).catch((err) => {
-        clingoLoadPromise = null; // allow retry
-        throw err;
-    });
+    clingoLoadPromise = import(/* webpackIgnore: true */ moduleUrl)
+        .then((mod) => {
+            const clingo = mod.default || mod;
+            if (!clingo || typeof clingo.run !== 'function') {
+                throw new Error(`clingo-wasm loaded from ${moduleUrl} but exposed no run()`);
+            }
+            return clingo;
+        })
+        .catch((err) => {
+            clingoLoadPromise = null; // allow retry
+            throw new Error(`Failed to load clingo-wasm from ${moduleUrl}: ${err.message || err}`);
+        });
 
     return clingoLoadPromise;
 }
@@ -100,51 +90,71 @@ export function buildProgram(domainSource, teamSource, factsProgram) {
     return [domainSource, teamSource, factsProgram].join('\n');
 }
 
+/** What clingo-wasm >= 0.6.0 resolves an in-flight `run()` with when
+ * `restart()` interrupts it -- a cancel, not a solver error. */
+const ABORTED_BY_RESTART = 'Aborted by restart().';
+
 /**
- * One clingo-wasm worker "handle": wraps `run()` in a manual cancellation
- * race (clingo-wasm's own worker.terminate() during `restart()` just lets
- * the in-flight `run()` promise hang forever -- see src/index.web.ts in the
- * clingo-wasm package -- so we race it against our own rejecting promise)
- * and exposes `cancel()`, which both unblocks the caller immediately and
- * restarts the underlying worker (per the clingo-wasm README's guidance
- * for interrupting a long solve) so the next `run()` starts clean.
+ * Cap on clasp's parallel search threads.
  *
- * IMPORTANT: `run()` defaults `models` to 0, not 1. clingo-wasm's `run()`
- * forwards `models` straight to clasp's `-n` (models-to-compute) argument,
- * and clasp's branch-and-bound optimization keeps searching for a *better*
- * model regardless of `-n` -- EXCEPT that `-n <k>` for a finite k>0 also
- * caps the total number of models printed, so `-n1` stops at the very
- * FIRST feasible model found and reports plain `SATISFIABLE`, never proving
- * it's actually optimal (verified empirically: a trivial 3-choice
- * `#minimize` program returns `SATISFIABLE` with `models=1` and
- * `OPTIMUM FOUND` with `models=0` -- this is also why clingo-wasm's own
- * `test/test.ts` always calls `run(program, 0)` for its optimization
- * cases). `0` does NOT mean "enumerate every tied-optimal answer set" --
- * branch-and-bound only ever prints strictly *improving* models (a handful
- * of them, not all ties) before declaring the last one optimal, so this is
- * both correct and fast in practice (~1s for a 6-leg slice, ~15s for the
- * full 22-leg/6-member course in this repo's own testing).
+ * Threads need SharedArrayBuffer, so in a browser the page must be
+ * cross-origin isolated -- which this app deliberately is not: measured on
+ * the full course, `--parallel-mode=4` cut a solve from ~4.3s to ~3.5s,
+ * which does not justify putting COEP on the board page. We still ask for
+ * parallel search where it is already available (the Node test path), since
+ * there it costs nothing. 4 rather than `hardwareConcurrency` because 8
+ * measured *slower* than 4 -- clasp's portfolio oversubscribes here.
  */
-export function createSolverHandle({ wasmUrl = CLINGO_WASM_URL, scriptUrl = CLINGO_SCRIPT_URL } = {}) {
+const MAX_SOLVER_THREADS = 4;
+
+/** clingo CLI options for a solve, given what the runtime actually supports. */
+export function solverOptions(clingo) {
+    if (typeof clingo?.supportsThreads !== 'function' || !clingo.supportsThreads()) return [];
+    const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || MAX_SOLVER_THREADS;
+    return [`--parallel-mode=${Math.max(1, Math.min(MAX_SOLVER_THREADS, cores))}`];
+}
+
+/**
+ * One clingo-wasm worker handle: wraps `run()` in a cancellation race and
+ * exposes `cancel()`, which unblocks the caller immediately and restarts the
+ * worker so the next `run()` starts clean. The race also turns a cancel into
+ * a typed SolverCancelledError rather than something to string-match.
+ *
+ * IMPORTANT: pass `models = 0`, not 1. `models` is clasp's `-n`, which caps
+ * models *printed*, so `-n1` stops at the first merely-feasible model and
+ * reports SATISFIABLE, never proving optimality. 0 does not mean "enumerate
+ * everything" -- branch-and-bound only prints strictly improving models.
+ * An easy regression to reintroduce.
+ *
+ * Improving models are numerous (~105 on the full course) and each is a
+ * different assignment set, not a polish of the last, so any UI painting
+ * them must throttle. That is leg-solver-ui.js's job.
+ *
+ * `loader` is injectable so tests can drive this without a real CDN.
+ */
+export function createSolverHandle({ moduleUrl = CLINGO_MODULE_URL, loader = loadClingo } = {}) {
     let cancelReject = null;
     let initialized = false;
 
     async function ensureReady() {
-        const clingo = await loadClingo(scriptUrl);
+        const clingo = await loader(moduleUrl);
         if (!initialized) {
-            await clingo.init(wasmUrl);
+            // No wasm url: let clingo-wasm pick its single- or multi-threaded
+            // binary itself (see CLINGO_MODULE_URL's comment).
+            await clingo.init();
             initialized = true;
         }
         return clingo;
     }
 
-    async function run(program, models = 0) {
+    async function run(program, models = 0, { onModel = undefined } = {}) {
         const clingo = await ensureReady();
         const cancelPromise = new Promise((_resolve, reject) => {
             cancelReject = reject;
         });
         try {
-            return await Promise.race([clingo.run(program, models), cancelPromise]);
+            const solve = clingo.run(program, models, solverOptions(clingo), onModel);
+            return await Promise.race([solve, cancelPromise]);
         } finally {
             cancelReject = null;
         }
@@ -152,12 +162,17 @@ export function createSolverHandle({ wasmUrl = CLINGO_WASM_URL, scriptUrl = CLIN
 
     async function cancel(reason) {
         if (cancelReject) cancelReject(new SolverCancelledError(reason));
-        const clingo = await loadClingo(scriptUrl);
-        await clingo.restart(wasmUrl);
+        const clingo = await loader(moduleUrl);
+        await clingo.restart();
         initialized = true; // restart() already re-initializes
     }
 
     return { run, cancel };
+}
+
+/** True if a resolved result is really "we interrupted it". */
+export function isAbortedResult(result) {
+    return Boolean(result && result.Result === 'ERROR' && result.Error === ABORTED_BY_RESTART);
 }
 
 // ---- Fact generation (pure) ------------------------------------------------
@@ -306,39 +321,33 @@ export function bestWitness(clingoResult) {
     return witnesses[witnesses.length - 1] || null;
 }
 
+/** One witness -> the new placements it implies. Streamed and final
+ * witnesses share a shape, so both paths use this. */
+export function witnessToSuggestions(witness, pinnedPairs) {
+    return diffSuggestions(parseAssignments(witness && witness.Value), pinnedPairs);
+}
+
 // ---- Top-level orchestration -----------------------------------------------
 
 /**
- * Run "Optimize remaining" against the given board `state` using an
- * already-created solver handle (see `createSolverHandle`). Returns one of:
- *   { status: 'ok', suggestions: [{legKey, membershipId}, ...] }
- *   { status: 'unsat', message }        -- no model at all (see team-assign.lp;
- *                                           should be rare given the
- *                                           at-least-1 relaxation -- e.g. a
- *                                           team with legs but zero members)
- *   { status: 'cancelled' }             -- captain hit Cancel, or the caller's
- *                                           own timeout fired and called
- *                                           handle.cancel()
- *   { status: 'unavailable', message }  -- couldn't load/init clingo-wasm
- *                                           (CDN/network failure) or fetch
- *                                           the vendored ASP sources. This is
- *                                           the "progressive enhancement
- *                                           failed" case -- the caller should
- *                                           disable the Optimize button
- *                                           rather than let the captain keep
- *                                           retrying a hopeless load.
- *   { status: 'error', message }        -- clingo loaded and ran fine but the
- *                                           *program* itself errored (a bug
- *                                           in the vendored/generated ASP,
- *                                           not a CDN problem) -- worth
- *                                           surfacing distinctly since
- *                                           retrying won't help but the
- *                                           solver itself isn't "unavailable"
+ * Run "Optimize remaining" against `state` using a handle from
+ * `createSolverHandle`. Returns `{ status, ... }` where status is:
+ *   ok          -- ran to completion; `optimal` says whether clingo proved
+ *                  it (OPTIMUM FOUND) rather than just SATISFIABLE
+ *   unsat       -- no model at all; rare given the at-least-1 relaxation
+ *   cancelled   -- Cancel or timeout; `suggestions` is the best plan
+ *                  streamed before the stop, usable but not proven optimal,
+ *                  and empty if the stop landed during grounding
+ *   unavailable -- couldn't load clingo-wasm or fetch the ASP sources, so
+ *                  the caller should disable the button rather than let the
+ *                  captain retry a hopeless load
+ *   error       -- clingo ran but the program itself errored; retrying
+ *                  won't help, but the solver isn't "unavailable" either
  *
  * Does not touch the DOM or the board's real state -- leg-solver-ui.js owns
  * turning `suggestions` into chips and `board.addAssignment()` calls.
  */
-export async function optimizeRemaining(state, handle, { fetchSources = fetchAspSources } = {}) {
+export async function optimizeRemaining(state, handle, { fetchSources = fetchAspSources, onModel = null } = {}) {
     const { program: factsProgram, pinnedPairs } = generateFacts(state);
     if (!factsProgram) {
         return { status: 'error', message: 'No course data is loaded yet.' };
@@ -354,21 +363,38 @@ export async function optimizeRemaining(state, handle, { fetchSources = fetchAsp
 
     const program = buildProgram(domainSource, teamSource, factsProgram);
 
+    // Best model streamed so far. Kept outside the try so a cancellation --
+    // which unwinds through the catch below -- can still hand it back rather
+    // than throwing away however many seconds of solving already happened.
+    let bestSoFar = null;
+    let modelCount = 0;
+    const collect = (witness) => {
+        modelCount += 1;
+        bestSoFar = witnessToSuggestions(witness, pinnedPairs);
+        if (onModel) onModel({ index: modelCount, suggestions: bestSoFar });
+    };
+
     let result;
     try {
-        result = await handle.run(program, 0); // 0 = search to a proven optimum, see createSolverHandle's docstring
+        // 0 = search to a proven optimum, see createSolverHandle's docstring
+        result = await handle.run(program, 0, { onModel: collect });
     } catch (err) {
         if (err instanceof SolverCancelledError) {
-            return { status: 'cancelled' };
+            return { status: 'cancelled', suggestions: bestSoFar || [], modelCount, optimal: false };
         }
         // handle.run() only throws (other than our own cancellation) if
-        // ensureReady() couldn't load the CDN script or init the wasm
+        // ensureReady() couldn't import the CDN module or init the wasm
         // module -- clingo's own worker protocol otherwise always resolves
         // (even a program error comes back as a normal `{Result: 'ERROR'}`
         // payload, handled below).
         return { status: 'unavailable', message: err.message || String(err) };
     }
 
+    // A restart() that beat our own cancellation race to the punch: still a
+    // cancel, not a solver bug (clingo-wasm >= 0.6.0, see isAbortedResult).
+    if (isAbortedResult(result)) {
+        return { status: 'cancelled', suggestions: bestSoFar || [], modelCount, optimal: false };
+    }
     if (!result || result.Result === 'ERROR') {
         return { status: 'error', message: (result && result.Error) || 'clingo reported an error.' };
     }
@@ -380,12 +406,18 @@ export async function optimizeRemaining(state, handle, { fetchSources = fetchAsp
         };
     }
 
+    // Prefer the final result's own witness (authoritative), falling back to
+    // the last streamed one if a build ever stops echoing witnesses.
     const witness = bestWitness(result);
-    if (!witness) {
+    const suggestions = witness ? witnessToSuggestions(witness, pinnedPairs) : bestSoFar;
+    if (!suggestions) {
         return { status: 'error', message: `clingo returned no model (Result: ${result.Result}).` };
     }
 
-    const solved = parseAssignments(witness.Value);
-    const suggestions = diffSuggestions(solved, pinnedPairs);
-    return { status: 'ok', suggestions };
+    return {
+        status: 'ok',
+        suggestions,
+        modelCount,
+        optimal: result.Result === 'OPTIMUM FOUND',
+    };
 }

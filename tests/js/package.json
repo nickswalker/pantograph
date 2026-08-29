@@ -2,6 +2,6 @@
   "private": true,
   "description": "Test-only dependency manifest. leg-solver.test.mjs needs the real npm `clingo-wasm` package (a WASM build of clingo) to smoke-test the vendored ASP domain against a realistic generated fact set -- the app itself stays build-free and loads clingo-wasm from jsDelivr at runtime (see app/static/js/leg-solver.js). Run `npm install` in this directory once before running the tests with plain `node`.",
   "devDependencies": {
-    "clingo-wasm": "0.3.2"
+    "clingo-wasm": "0.6.0"
   }
 }

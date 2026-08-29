@@ -3,6 +3,28 @@
 {% block title %}{{ team.name }} - Leg Assignments - {{ super() }}{% endblock %}
 
 {% block content %}
+    {# Solver chip states. `border-dashed` is not a Bootstrap utility -- the
+       suggested chips have always asked for it, so define it here rather than
+       leave them indistinguishable from placed ones. `.leg-chip-provisional`
+       is a plan the solver streamed mid-search and may still replace, so it
+       reads as clearly unfinished and carries no buttons (see
+       leg-solver-ui.js's _provisionalChip). #}
+    <style>
+        .leg-chip-suggested { border-style: dashed !important; }
+        .leg-chip-provisional {
+            border-color: var(--bs-secondary-border-subtle) !important;
+            background-color: var(--bs-secondary-bg-subtle);
+            animation: leg-chip-breathe 1.8s ease-in-out infinite;
+        }
+        @keyframes leg-chip-breathe {
+            0%, 100% { opacity: 0.55; }
+            50%      { opacity: 0.9; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .leg-chip-provisional { animation: none; }
+        }
+    </style>
+
     {% include '_team_status_alerts.html' %}
 
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -79,6 +101,10 @@
             <strong>Optimize remaining</strong> fills any leg nobody has claimed yet, based on those preferences --
             it never moves or removes an assignment you've already made. Suggestions show up as dashed chips; accept
             them individually or all at once before saving, or clear them and keep assigning manually.
+            <br>
+            While it searches you'll see a greyed-out draft plan that keeps changing as it finds better ones --
+            that's normal, and it isn't yours to accept until the search stops. Let it finish for the best plan it
+            can prove, or hit <strong>Stop &amp; keep best</strong> any time to take the draft as it stands.
         </p>
 
         <div id="legs-team-summary" class="d-flex flex-wrap gap-2 mb-3"></div>

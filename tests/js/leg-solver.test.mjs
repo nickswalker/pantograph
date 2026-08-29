@@ -32,7 +32,11 @@ import {
     diffSuggestions,
     buildProgram,
     bestWitness,
+    witnessToSuggestions,
     createSolverHandle,
+    optimizeRemaining,
+    solverOptions,
+    isAbortedResult,
     SolverCancelledError,
 } from '../../app/static/js/leg-solver.js';
 
@@ -284,41 +288,187 @@ test('bestWitness: returns the last witness of the last call, or null', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Cancellation plumbing (stubbed clingo -- no real wasm needed) --
-//    verifies createSolverHandle's Promise.race actually rejects promptly
-//    with SolverCancelledError, since clingo-wasm's own worker.terminate()
-//    would otherwise just leave the caller hanging forever (see the
-//    comment in leg-solver.js above createSolverHandle).
+// 2. Cancellation + streaming plumbing (fake clingo -- no real wasm needed).
+//
+//    createSolverHandle takes an injectable `loader`, so these drive the
+//    handle with a stub instead of the old approach of faking `window` and
+//    `document` to satisfy a <script>-injection loader -- clingo-wasm 0.6.0
+//    is an ES module with no `window.clingo` global, so that stub no longer
+//    corresponds to anything real.
 // ---------------------------------------------------------------------------
 
-test('createSolverHandle: cancel() rejects an in-flight run with SolverCancelledError', async () => {
-    let restarted = false;
-    const fakeClingo = {
+/** A fake clingo whose run() never settles on its own, so a test can cancel it. */
+function stuckClingo() {
+    const calls = { restarted: 0, options: null, onModel: null };
+    const clingo = {
         async init() {},
-        async restart() { restarted = true; },
-        run() {
-            // Never resolves on its own -- simulates a long/stuck solve.
+        async restart() { calls.restarted += 1; },
+        run(_program, _models, options, onModel) {
+            calls.options = options;
+            calls.onModel = onModel;
             return new Promise(() => {});
         },
     };
+    return { clingo, calls, loader: async () => clingo };
+}
 
-    global.window = { clingo: fakeClingo };
-    global.document = {
-        createElement: () => ({}),
-        head: { appendChild() {} },
+test('createSolverHandle: cancel() rejects an in-flight run with SolverCancelledError', async () => {
+    const { calls, loader } = stuckClingo();
+    const handle = createSolverHandle({ loader });
+
+    const runPromise = handle.run('a.', 1);
+    // Give run() a tick to reach clingo.run() before cancelling.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await handle.cancel('test cancel');
+
+    await assert.rejects(runPromise, SolverCancelledError);
+    assert.equal(calls.restarted, 1);
+});
+
+test('createSolverHandle: forwards onModel through to clingo.run', async () => {
+    const { calls, loader } = stuckClingo();
+    const handle = createSolverHandle({ loader });
+    const onModel = () => {};
+
+    handle.run('a.', 0, { onModel });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    assert.equal(calls.onModel, onModel);
+});
+
+test('solverOptions: asks for parallel search only when threads are available', () => {
+    assert.deepEqual(solverOptions({ supportsThreads: () => false }), []);
+    assert.deepEqual(solverOptions({}), []);
+    // Capped at 4 regardless of core count -- 8 measured slower than 4.
+    assert.deepEqual(solverOptions({ supportsThreads: () => true }), ['--parallel-mode=4']);
+});
+
+test('isAbortedResult: tells a restart-interrupted run apart from a real error', () => {
+    assert.equal(isAbortedResult({ Result: 'ERROR', Error: 'Aborted by restart().' }), true);
+    assert.equal(isAbortedResult({ Result: 'ERROR', Error: 'syntax error' }), false);
+    assert.equal(isAbortedResult({ Result: 'SATISFIABLE' }), false);
+    assert.equal(isAbortedResult(null), false);
+});
+
+test('witnessToSuggestions: parses a streamed witness and drops pins', () => {
+    const witness = { Value: ['leg(0,1,2)', 'assignment("m1",leg(0,1,2))', 'assignment("m2",leg(1,2,3))'] };
+    assert.deepEqual(
+        witnessToSuggestions(witness, new Set(['1-2::m1'])),
+        [{ legKey: '2-3', membershipId: 'm2' }],
+    );
+});
+
+// ---------------------------------------------------------------------------
+// 2b. Streaming through optimizeRemaining: the UI depends on getting parsed
+//     suggestions per model, and -- the whole point of "Stop & keep best" --
+//     on a cancelled solve still handing back the last model it saw.
+// ---------------------------------------------------------------------------
+
+/** Minimal state whose facts mention two legs, enough to parse against. */
+function tinyState() {
+    return buildState(buildCourse(LINE_1, 2), MEMBERS.slice(0, 2), {});
+}
+
+function fakeSources() {
+    return { domainSource: '', teamSource: '' };
+}
+
+test('optimizeRemaining: streams each model to onModel as parsed suggestions', async () => {
+    const state = tinyState();
+    const legs = state.course.legs;
+    const witnessFor = (memberId, leg) => ({
+        Value: [`assignment("${memberId}",leg(0,${leg.start.id},${leg.end.id}))`],
+    });
+
+    const seen = [];
+    const handle = {
+        async run(_program, _models, { onModel }) {
+            onModel(witnessFor('m1', legs[0]));
+            onModel(witnessFor('m2', legs[1]));
+            return { Result: 'OPTIMUM FOUND', Call: [{ Witnesses: [witnessFor('m2', legs[1])] }] };
+        },
     };
-    try {
-        const handle = createSolverHandle();
-        const runPromise = handle.run('a.', 1);
-        // Give run() a tick to reach clingo.run() before cancelling.
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        await handle.cancel('test cancel');
-        await assert.rejects(runPromise, SolverCancelledError);
-        assert.equal(restarted, true);
-    } finally {
-        delete global.window;
-        delete global.document;
-    }
+
+    const result = await optimizeRemaining(state, handle, {
+        fetchSources: fakeSources,
+        onModel: (m) => seen.push(m),
+    });
+
+    assert.equal(seen.length, 2);
+    assert.equal(seen[0].index, 1);
+    assert.deepEqual(seen[0].suggestions, [{ legKey: `${legs[0].start.id}-${legs[0].end.id}`, membershipId: 'm1' }]);
+    assert.deepEqual(seen[1].suggestions, [{ legKey: `${legs[1].start.id}-${legs[1].end.id}`, membershipId: 'm2' }]);
+    assert.equal(result.status, 'ok');
+    assert.equal(result.optimal, true);
+    assert.equal(result.modelCount, 2);
+});
+
+test('optimizeRemaining: reports optimal:false when clingo only got to SATISFIABLE', async () => {
+    const state = tinyState();
+    const leg = state.course.legs[0];
+    const witness = { Value: [`assignment("m1",leg(0,${leg.start.id},${leg.end.id}))`] };
+    const handle = {
+        async run() { return { Result: 'SATISFIABLE', Call: [{ Witnesses: [witness] }] }; },
+    };
+
+    const result = await optimizeRemaining(state, handle, { fetchSources: fakeSources });
+    assert.equal(result.status, 'ok');
+    assert.equal(result.optimal, false);
+});
+
+test('optimizeRemaining: a cancelled solve keeps the best model streamed so far', async () => {
+    const state = tinyState();
+    const leg = state.course.legs[0];
+    const handle = {
+        async run(_program, _models, { onModel }) {
+            onModel({ Value: [`assignment("m1",leg(0,${leg.start.id},${leg.end.id}))`] });
+            onModel({ Value: [`assignment("m2",leg(0,${leg.start.id},${leg.end.id}))`] });
+            throw new SolverCancelledError('stopped');
+        },
+    };
+
+    const result = await optimizeRemaining(state, handle, { fetchSources: fakeSources });
+    assert.equal(result.status, 'cancelled');
+    assert.equal(result.optimal, false);
+    assert.equal(result.modelCount, 2);
+    // The LAST streamed model, not the first -- clasp only emits improvements.
+    assert.deepEqual(result.suggestions, [
+        { legKey: `${leg.start.id}-${leg.end.id}`, membershipId: 'm2' },
+    ]);
+});
+
+test('optimizeRemaining: cancelling during grounding yields no suggestions, not a crash', async () => {
+    const handle = {
+        async run() { throw new SolverCancelledError('stopped'); },
+    };
+    const result = await optimizeRemaining(tinyState(), handle, { fetchSources: fakeSources });
+    assert.equal(result.status, 'cancelled');
+    assert.deepEqual(result.suggestions, []);
+    assert.equal(result.modelCount, 0);
+});
+
+test('optimizeRemaining: a restart-interrupted result is a cancel, not an error', async () => {
+    const state = tinyState();
+    const leg = state.course.legs[0];
+    const handle = {
+        async run(_program, _models, { onModel }) {
+            onModel({ Value: [`assignment("m1",leg(0,${leg.start.id},${leg.end.id}))`] });
+            return { Result: 'ERROR', Error: 'Aborted by restart().' };
+        },
+    };
+
+    const result = await optimizeRemaining(state, handle, { fetchSources: fakeSources });
+    assert.equal(result.status, 'cancelled');
+    assert.equal(result.suggestions.length, 1);
+});
+
+test('optimizeRemaining: a genuine program error is still an error', async () => {
+    const handle = {
+        async run() { return { Result: 'ERROR', Error: 'syntax error in line 3' }; },
+    };
+    const result = await optimizeRemaining(tinyState(), handle, { fetchSources: fakeSources });
+    assert.equal(result.status, 'error');
+    assert.match(result.message, /syntax error/);
 });
 
 // ---------------------------------------------------------------------------
@@ -457,4 +607,49 @@ test('smoke: zero active members reports UNSAT cleanly (contrived, given the at-
 
     const result = await clingoRun(program, 0);
     assert.equal(result.Result, 'UNSATISFIABLE');
+});
+
+test('smoke: the real solver streams improving models, and the last one is the optimum', async (t) => {
+    let clingo;
+    try {
+        clingo = (await import('clingo-wasm')).default;
+    } catch (err) {
+        t.skip(`clingo-wasm not installed: ${err.message}`);
+        return;
+    }
+
+    const state = buildState(FULL_COURSE, MEMBERS, {});
+    const { program: factsProgram, pinnedPairs } = generateFacts(state);
+    const program = buildProgram(DOMAIN_SOURCE, TEAM_SOURCE, factsProgram);
+
+    const streamed = [];
+    const result = await clingo.run(program, 0, [], (witness) => {
+        streamed.push(witnessToSuggestions(witness, pinnedPairs));
+    });
+
+    assert.equal(result.Result, 'OPTIMUM FOUND');
+
+    // The premise of the whole live-preview feature: models actually arrive
+    // during the solve, not just at the end.
+    assert.ok(streamed.length > 1, `expected several streamed models, got ${streamed.length}`);
+
+    // Every streamed model is a complete, leg-covering plan in its own right
+    // -- this is what makes "Stop & keep best" safe to offer at any moment,
+    // and it is why leg-solver-ui.js throttles instead of trying to diff
+    // successive models into stable chips.
+    for (const [i, suggestions] of streamed.entries()) {
+        const covered = new Set(suggestions.map((s) => s.legKey));
+        for (const leg of FULL_COURSE.legs) {
+            const key = `${leg.start.id}-${leg.end.id}`;
+            assert.ok(covered.has(key), `streamed model ${i} left leg ${key} uncovered`);
+        }
+    }
+
+    // The final streamed model matches what the finished result reports, so
+    // a captain who stops one model short of the end loses nothing but the
+    // proof.
+    assert.deepEqual(
+        streamed[streamed.length - 1],
+        witnessToSuggestions(bestWitness(result), pinnedPairs),
+    );
 });
