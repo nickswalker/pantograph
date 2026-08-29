@@ -7,6 +7,7 @@
 <style>
     :root {
          --line-1-primary-color: #3DAE2B;
+         --line-2-primary-color: #00B8F4;
     }
           .link-station-label {
           display: flex;
@@ -40,11 +41,68 @@
           background-color: var(--line-1-primary-color);
           color: white;
       }
+      .link-station-label .line-name.line-name-2 {
+          background-color: var(--line-2-primary-color);
+          color: white;
+      }
       .link-station-label .link-station-code {
           padding-right: 4px;
           font-stretch: condensed;
       }
+      .link-station-label .link-station-name {
+          padding: 0 6px 0 2px;
+          white-space: nowrap;
+      }
 
+      .exchange-marker {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: default;
+      }
+      .exchange-marker .exchange-dot {
+          display: block;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background-color: #343a40;
+          border: 2px solid white;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+      }
+      .exchange-marker .exchange-label {
+          display: none;
+      }
+      #map.exchange-labels-visible .exchange-marker .exchange-dot {
+          display: none;
+      }
+      #map.exchange-labels-visible .exchange-marker .exchange-label {
+          display: flex;
+      }
+      /* The inline station picker: a native <select> made to read as plain
+         title text, with only the browser's built-in arrow marking it as
+         interactive -- no separate edit button or panel. */
+      .js-station-select-inline {
+          font: inherit;
+          font-weight: 500;
+          color: inherit;
+          background-color: transparent;
+          border: none;
+          border-radius: .25rem;
+          padding: 0;
+          margin: 0;
+          max-width: 100%;
+          cursor: pointer;
+      }
+      .js-station-select-inline:hover,
+      .js-station-select-inline:focus {
+          text-decoration: underline;
+          outline: none;
+      }
+      .js-station-select-inline:disabled {
+          cursor: wait;
+          text-decoration: none;
+          opacity: .6;
+      }
       .maplibregl-popup-content {
           padding: 0;
 
@@ -157,7 +215,62 @@ a:target span.cssbox_full {
 </style>
 {% endblock %}
 
+{# Editing is for the team's own gallery only: the public gallery renders this
+   same template but is read-only, so gate on the private view's team_id as
+   well as the permission -- otherwise a signed-in member who opens their
+   team's public link would see upload/delete/station controls on what's
+   supposed to be a read-only page.
+
+   These are set at the template's top level, outside any {% block %}, on
+   purpose: a {% set %} made inside one block (e.g. content) is invisible in
+   another block (e.g. scripts) in Jinja2, so both the markup and the script
+   block below need this computed out here to see the same value. #}
+{% set can_manage_photos = team_id is defined and permissions.can_upload_to_team(current_user, team) %}
+{% set can_assign_stations = can_manage_photos %}
+
 {% block content %}
+{% macro station_badge(exchange_id, source) %}
+  {%- if exchange_id -%}
+    {%- set station_name = exchange_names.get(exchange_id) -%}
+    <span tabindex="0" title="{{ station_name or 'Unknown station ' ~ exchange_id }}"{% if source == 'manual' %} class="fst-italic"{% endif %}>{{ station_name or exchange_id }}</span>
+  {%- endif -%}
+{% endmacro %}
+
+{# The editable counterpart to station_badge: the name IS the control, so
+   there's no separate pencil-to-reveal step and nothing about the current
+   station or its source is shown twice. There's no standalone "Automatic"
+   entry either -- whichever real station is the GPS match doubles as the
+   revert action, by giving that one option an empty value (a manual pick
+   sends its own id; this one sends "" and the backend treats that as
+   clearing the override back to the GPS match).
+   Only when a photo has no GPS match at all does a genuine placeholder
+   option appear, since then there's no in-list row to carry that value.
+   That option's text starts as the bare station name -- matching every
+   other option, and matching what the closed control should show once it's
+   selected -- with the "(GPS Match)" wording tucked into a data attribute
+   that the JS below swaps in only while the dropdown is actually open.
+   A manual override's only marking is italic text on the control itself
+   (fst-italic), rather than a separate icon. #}
+{% macro station_select(image) %}
+  {%- set current_value = image.exchange_id if (image.exchange_id and image.exchange_id != image.gps_exchange_id) else '' -%}
+  <span class="js-station-picker">
+    <select class="js-station-select-inline{% if image.exchange_source == 'manual' %} fst-italic{% endif %}" id="station-select-{{ image.id }}"
+            data-image-id="{{ image.id }}" data-previous="{{ current_value }}"
+            aria-label="Exchange station">
+      {% if not image.gps_exchange_id %}
+      <option value=""{% if not current_value %} selected{% endif %}>No station match</option>
+      {% endif %}
+      {% for exchange_id, station_name in exchange_names.items() %}
+        {% if exchange_id == image.gps_exchange_id %}
+      <option value="" data-plain-label="{{ station_name }}" data-open-label="{{ station_name }} (GPS Match)"{% if not current_value %} selected{% endif %}>{{ station_name }}</option>
+        {% else %}
+      <option value="{{ exchange_id }}"{% if current_value == exchange_id %} selected{% endif %}>{{ station_name }}</option>
+        {% endif %}
+      {% endfor %}
+    </select>
+  </span>
+{% endmacro %}
+
 {% include '_team_status_alerts.html' %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1>{{ team.name }}{% if team.format == TeamFormat.SOLO %}'s{% endif %} Photos</h1>
@@ -184,7 +297,7 @@ a:target span.cssbox_full {
   {% endif %}
 </div>
 
-{% if permissions.can_upload_to_team(current_user, team) %}
+{% if can_manage_photos %}
 <form id="uploadForm" action="{{ url_for('teams.upload_images', team_id=team.id) }}" method="POST" enctype="multipart/form-data" class="mb-4">
   <div id="initialDropZone" class="row mt-3 mb-3 align-items-center p-3 border-2 border-dashed rounded transition-colors" style="transition: all 0.2s ease;">
     <label for="fileInput" class="col-sm-2 col-form-label d-none">Upload Photos:</label>
@@ -220,7 +333,7 @@ a:target span.cssbox_full {
     <div class="col-md-3 mb-3">
       <div class="cssbox">
         <div class="card position-relative">
-          {% if permissions.can_upload_to_team(current_user, team) %}
+          {% if can_manage_photos %}
           <button type="button" class="btn-close position-absolute top-0 end-0 m-2 bg-white rounded-circle p-1 delete-button"
                   style="z-index: 10; width: 24px; height: 24px; opacity: 0.7; transition: all 0.2s ease;"
                   data-image-id="{{ image.id }}"
@@ -236,20 +349,20 @@ a:target span.cssbox_full {
           </div>
 
           <a id="image{{ image.id }}" href="#image{{ image.id }}">
-            <img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename, size='thumb') }}" class="cssbox_thumb card-img-top bg-secondary-subtle" style="height: 200px; object-fit: contain; object-position: center;" loading="lazy">
+            <img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename, size='thumb') }}" class="cssbox_thumb card-img-top bg-secondary-subtle" style="height: 200px; object-fit: contain; object-position: center;" loading="lazy" title="{{ image.original_filename }} uploaded by {{ image.uploader.name }} on {{ image.upload_time.strftime('%B %-d, %Y at %I:%M %p') }}">
             <span class="cssbox_full"><img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename) }}"></span>
           </a>
           <div class="card-body">
-            <h5 class="card-title">{% if image.exchange_id %}
-            <span class="link-station-label link-station-label-dark d-inline-block" tabindex="0" title="{{ exchange_names[image.exchange_id] }}"><span class="line-name line-name-{{ image.exchange_id[0] }}">{{ image.exchange_id[0] }}</span><span class="link-station-code">{{ image.exchange_id[1:] }}</span> </span>
-            {% endif %}
-                  <time datetime="{{ image.capture_time.isoformat() }}Z" title="{{ image.capture_time.strftime('%B %-d, %Y at %I:%M %p') }}" class="format-datetime-tooltip format-as-time-with-seconds">{{ image.capture_time.strftime('%I:%M %p') }} ({{image.capture_time.strftime('%B %-d, %Y')  }})</time>
+            <h5 class="card-title">
+                  {% if can_assign_stations %}
+                  {{ station_select(image) }}
+                  {% else %}
+                  <span class="js-station-badge">{{ station_badge(image.exchange_id, image.exchange_source) }}</span>
+                  {% endif %}
             </h5>
             <p class="card-text">
                 {% if not image.gps_coordinates %}<span class="badge text-bg-warning" title="No geolocation data is included in the file. Check the troubleshooting section below.">No GPS coordinates</span><br/>{% endif %}
-                <span class="small text-muted">{{ image.original_filename }} uploaded by {{ image.uploader.name }} on <time datetime="{{ image.upload_time.isoformat() }}Z" title="{{ image.upload_time.strftime('%B %-d, %Y at %I:%M %p') }}" class="format-datetime-tooltip format-as-date">
-                                            {{ image.upload_time.strftime('%b %-d, %Y') }}
-                                        </time></span>
+                <time datetime="{{ image.capture_time.isoformat() }}Z" title="{{ image.capture_time.strftime('%B %-d, %Y at %I:%M %p') }}" class="format-datetime-tooltip format-as-time-with-seconds">{{ image.capture_time.strftime('%I:%M %p') }} ({{image.capture_time.strftime('%B %-d, %Y')  }})</time>
             </p>
           </div>
         </div>
@@ -264,7 +377,7 @@ a:target span.cssbox_full {
       <div class="text-center text-muted p-5 border rounded mb-4">
           <ion-icon name="images-outline" style="font-size: 3rem;"></ion-icon>
           <p class="mt-2 mb-0">No photos have been uploaded yet.</p>
-          {% if permissions.can_upload_to_team(current_user, team) %}
+          {% if can_manage_photos %}
           <p class="small">Use the form above to add the first one.</p>
           {% endif %}
       </div>
@@ -276,7 +389,7 @@ a:target span.cssbox_full {
   <div id="map" class="w-100 mb-4" style=" height: 500px;"></div>
 
 
-{% if permissions.can_upload_to_team(current_user, team) %}
+{% if can_manage_photos %}
 <!-- Troubleshooting Accordion -->
 <div class="accordion mb-4" id="troubleshootingAccordion">
   <div class="accordion-item">
@@ -452,6 +565,53 @@ map.on('zoom', () => {
     updateThumbnailSizes(map.getZoom());
 });
 
+// Every station on the course (not just this team's photos), so the map can
+// label exchanges regardless of whether anyone has uploaded a photo there.
+const exchangeStations = [
+  {% for exchange in exchange_points %}
+    {
+      id: {{ exchange.id|tojson }},
+      name: {{ exchange.name|tojson }},
+      stationCode: {{ exchange.station_code|tojson }},
+      lineCodes: {{ exchange.line_codes|tojson }},
+      lat: {{ exchange.lat | float }},
+      lng: {{ exchange.lng | float }}
+    },
+  {% endfor %}
+];
+
+// Below this zoom, an exchange is just a dot; at or above it, the dot swaps
+// for a station-code badge (see the #map.exchange-labels-visible rules).
+const EXCHANGE_LABEL_MIN_ZOOM = 13;
+
+function buildExchangeMarkerElement(exchange) {
+    const lineBadges = (exchange.lineCodes || [])
+        .map(line => `<span class="line-name line-name-${line}">${line}</span>`)
+        .join('');
+    const el = document.createElement('div');
+    el.className = 'exchange-marker';
+    el.title = exchange.name || exchange.id;
+    el.innerHTML = `
+        <span class="exchange-dot"></span>
+        <span class="link-station-label link-station-label-dark exchange-label">${lineBadges}<span class="link-station-code">${exchange.stationCode || ''}</span></span>
+    `;
+    return el;
+}
+
+// Exchange markers are stationary map furniture (unlike photo popups), so
+// they're added once and never removed or replaced.
+exchangeStations.forEach(exchange => {
+    new maplibregl.Marker({ element: buildExchangeMarkerElement(exchange), anchor: 'center' })
+        .setLngLat([exchange.lng, exchange.lat])
+        .addTo(map);
+});
+
+function updateExchangeLabelVisibility(zoom) {
+    map.getContainer().classList.toggle('exchange-labels-visible', zoom >= EXCHANGE_LABEL_MIN_ZOOM);
+}
+updateExchangeLabelVisibility(map.getZoom());
+map.on('zoom', () => updateExchangeLabelVisibility(map.getZoom()));
+
 // Array to store images with GPS coordinates from the backend
 const imagesWithCoordinates = [
   {% for image in images %}
@@ -614,6 +774,52 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async func
     currentDeleteButton = null;
   }
 });
+
+{% if can_assign_stations %}
+
+// The GPS-matched option reads as a plain station name normally -- matching
+// every other option, and matching what the closed control shows once it's
+// selected -- and only picks up its "(GPS Match)" wording while the
+// dropdown is actually open, so someone browsing the list can still tell
+// which station that is without it cluttering the picker the rest of the
+// time. There's no native "list opened" event for <select>, so focus (fires
+// on click or keyboard entry, before the list paints) and blur stand in.
+document.querySelectorAll('.js-station-select-inline').forEach(select => {
+  const gpsOption = select.querySelector('option[data-open-label]');
+  if (gpsOption) {
+    select.addEventListener('focus', () => { gpsOption.text = gpsOption.dataset.openLabel; });
+    select.addEventListener('blur', () => { gpsOption.text = gpsOption.dataset.plainLabel; });
+  }
+});
+
+document.querySelectorAll('.js-station-select-inline').forEach(select => {
+  select.addEventListener('change', async () => {
+    const chosen = select.value;
+    const previous = select.dataset.previous || '';
+    select.disabled = true;
+
+    const result = await imageAPI.setImageExchange('{{ team.id }}', select.dataset.imageId, chosen);
+
+    select.disabled = false;
+    if (result.success) {
+      // The option the user just picked is already the right one to leave
+      // selected -- whichever station is the GPS match carries value="", so
+      // picking "Automatic" and picking that station's own row are the same
+      // click and need no reconciling afterward. The selected name updating
+      // (and the italics below, marking a manual override) is confirmation
+      // enough; a save doesn't need its own banner too.
+      select.dataset.previous = chosen;
+      select.classList.toggle('fst-italic', result.data.exchange?.source === 'manual');
+    } else {
+      // Put the picker back to what's actually stored, so it never shows a
+      // station the server didn't accept. This one *is* worth a persistent
+      // banner -- unlike a save landing, a failure isn't otherwise visible.
+      select.value = previous;
+      api.showBanner(result.error || 'Failed to save the station for this photo', 'danger');
+    }
+  });
+});
+{% endif %}
 
 // Store current selected files (we need this to enable removal)
 let currentFiles = [];

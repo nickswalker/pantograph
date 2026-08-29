@@ -140,7 +140,8 @@ def user_self_or_admin_required(param_name='user_id'):
 
 
 def team_upload_allowed(param_name='team_id'):
-    """Check if team allows uploads (status and membership)"""
+    """Check if team allows uploads (status and membership); admins bypass both,
+    so they can always fix up any team's photos and station assignments."""
     def decorator(f):
         @wraps(f)
         @login_required
@@ -152,6 +153,10 @@ def team_upload_allowed(param_name='team_id'):
             team = Team.query.filter_by(id=team_id).first()
             if not team:
                 abort(404, description="Team not found")
+
+            if current_user.is_admin:
+                kwargs['team'] = team
+                return f(*args, **kwargs)
 
             # Check if team status allows uploads
             if not PermissionChecker.team_allows_uploads(team):
@@ -204,9 +209,12 @@ class PermissionChecker:
 
     @staticmethod
     def can_upload_to_team(user, team):
-        """Check if user can upload photos to team"""
+        """Check if user can upload photos to team (admins can always fix up any team's photos)"""
         if not user or not user.is_authenticated:
             return False
+
+        if user.is_admin:
+            return True
 
         if not PermissionChecker.team_allows_uploads(team):
             return False

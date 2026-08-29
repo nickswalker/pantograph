@@ -82,6 +82,7 @@ configureUrls({
 {% if team %}
     uploadImages: '{{ url_for("teams.upload_images", team_id="__TEAM_ID__") }}',
         deleteImage: '{{ url_for("teams.delete_image", team_id="__TEAM_ID__", image_id="__IMAGE_ID__") }}',
+    setImageExchange: '{{ url_for("teams.set_image_exchange", team_id="__TEAM_ID__", image_id="__IMAGE_ID__") }}',
     // Leg assignment board: GET is open to any team member, PUT (save) is
     // captain/admin-only but shares the same URL (different HTTP method).
     assignments: '{{ url_for("teams.get_assignments", team_id="__TEAM_ID__") }}',

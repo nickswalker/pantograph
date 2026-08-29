@@ -40,6 +40,73 @@ def _send_cached_image(directory, filename):
     return response
 
 
+def _exchange_names():
+    """Exchange id -> station name for the current course, keyed as stored.
+
+    Image.associated_exchange_id is a string column, so key by string:
+    load_exchange_points() keys are ints and would never match.
+    """
+    return {str(exchange_id): exchange_data['name']
+            for exchange_id, exchange_data in load_exchange_points().items()}
+
+
+def _exchange_map_points():
+    """Every course exchange with what the gallery map draws for it.
+    """
+    from app.services.course_service import line_codes, station_code
+
+    return [
+        {
+            'id': str(exchange_id),
+            'name': data['name'],
+            'station_code': station_code(exchange_id),
+            'line_codes': line_codes(exchange_id),
+            'lat': data['latitude'],
+            'lng': data['longitude'],
+        }
+        for exchange_id, data in load_exchange_points().items()
+    ]
+
+
+def _image_exchange(image):
+    """The station an image is shown at, and where that came from.
+
+    ``gps_exchange_id`` is exposed alongside the resolved ``exchange_id`` (not
+    just folded into it) so the gallery's station picker can label whichever
+    option is the GPS match even when a manual override points elsewhere.
+    """
+    exchange_id = image.manual_exchange_id or image.associated_exchange_id
+    return {
+        'exchange_id': exchange_id,
+        'manual_exchange_id': image.manual_exchange_id,
+        'gps_exchange_id': image.associated_exchange_id,
+        'exchange_source': ('manual' if image.manual_exchange_id
+                            else 'gps' if exchange_id else None),
+    }
+
+
+def _serialize_image_exchange(image):
+    """An image's resolved station in the shape the gallery badge renders.
+
+    ``None`` when the image has no station at all. An id that is not a station
+    on the current course (e.g. carried over from a previous year) keeps its
+    id but gets no name or line badges, matching the template.
+    """
+    from app.services.course_service import line_codes, station_code
+
+    exchange_id = image.manual_exchange_id or image.associated_exchange_id
+    if not exchange_id:
+        return None
+    name = _exchange_names().get(exchange_id)
+    return {
+        'id': exchange_id,
+        'name': name,
+        'station_code': station_code(exchange_id) if name else None,
+        'line_codes': line_codes(exchange_id) if name else [],
+        'source': 'manual' if image.manual_exchange_id else 'gps',
+    }
+
+
 @teams.route('/<team_id>/gallery')
 @team_access_required()
 def gallery(team_id, team):
@@ -56,7 +123,7 @@ def gallery(team_id, team):
     images = Image.query.options(joinedload(Image.uploader)).filter_by(team_id=team.id).order_by(
         Image.capture_time.asc(), Image.upload_time.asc()
     ).all()
-    exchange_names = {exchange_id: exchange_data['name'] for exchange_id, exchange_data in load_exchange_points().items()}
+    exchange_names = _exchange_names()
     # Format image data for template
     image_data = []
     for image in images:
@@ -71,10 +138,11 @@ def gallery(team_id, team):
             'upload_time': image.upload_time,
             'file_size': image.file_size,
             'mime_type': image.mime_type,
-            'exchange_id': image.manual_exchange_id if image.manual_exchange_id else image.associated_exchange_id
+            **_image_exchange(image),
         })
 
-    return render_template('gallery.html', team=team, images=image_data, team_id=team_id, exchange_names=exchange_names)
+    return render_template('gallery.html', team=team, images=image_data, team_id=team_id,
+                           exchange_names=exchange_names, exchange_points=_exchange_map_points())
 
 
 @teams_public.route('/gallery/<gallery_hash>')
@@ -84,7 +152,7 @@ def public_gallery(gallery_hash):
     # Find team in database by gallery_hash
     team = find_team_by_gallery_hash(gallery_hash)
 
-    exchange_names = {exchange_id: exchange_data['name'] for exchange_id, exchange_data in load_exchange_points().items()}
+    exchange_names = _exchange_names()
     if not team:
         return "Invalid gallery URL.", 404
 
@@ -108,10 +176,11 @@ def public_gallery(gallery_hash):
             'upload_time': image.upload_time,
             'file_size': image.file_size,
             'mime_type': image.mime_type,
-            'exchange_id': image.manual_exchange_id if image.manual_exchange_id else image.associated_exchange_id
+            **_image_exchange(image),
         })
 
-    return render_template('gallery.html', team=team, images=image_data, gallery_hash=gallery_hash, exchange_names=exchange_names)
+    return render_template('gallery.html', team=team, images=image_data, gallery_hash=gallery_hash,
+                           exchange_names=exchange_names, exchange_points=_exchange_map_points())
 
 
 @teams.route('/<team_id>/members')
@@ -403,6 +472,52 @@ def delete_image(team_id, image_id, team):
         "success": True,
         "message": f"Image '{image.filename}' deleted successfully"
     })
+
+
+@teams.route('/<team_id>/images/<image_id>/exchange', methods=['POST'])
+@team_upload_allowed()
+def set_image_exchange(team_id, image_id, team):
+    """Manually assign an image to an exchange, or clear that assignment.
+
+    Body: ``{"exchange_id": "168"}`` to override the automatic GPS-derived
+    association, or ``{"exchange_id": null}`` (an empty string works too) to
+    drop the override and fall back to whatever GPS matched -- which may be
+    nothing.
+
+    """
+    from app.models import Image
+
+    image = Image.query.filter_by(id=image_id, team_id=team.id).first()
+    if not image:
+        return jsonify({'error': 'Image not found'}), 404
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or 'exchange_id' not in data:
+        return jsonify({'error': 'Request body must be a JSON object with an "exchange_id"'}), 400
+
+    raw_exchange_id = data['exchange_id']
+    if raw_exchange_id is None or (isinstance(raw_exchange_id, str) and not raw_exchange_id.strip()):
+        exchange_id = None
+    elif isinstance(raw_exchange_id, bool) or not isinstance(raw_exchange_id, (str, int)):
+        return jsonify({'error': 'Exchange id must be a station id, or null to clear it'}), 400
+    else:
+        exchange_id = str(raw_exchange_id).strip()
+        if exchange_id not in _exchange_names():
+            return jsonify({'error': f'{exchange_id} is not an exchange on this course'}), 400
+
+    try:
+        image.manual_exchange_id = exchange_id
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to set exchange for image {image_id} of team {team_id}: {str(e)}")
+        return jsonify({'error': 'Failed to save the station for this photo'}), 500
+
+    return jsonify({
+        'success': True,
+        'image_id': image.id,
+        'exchange': _serialize_image_exchange(image),
+    }), 200
 
 
 @teams.route('/<team_id>/images', methods=['POST'])

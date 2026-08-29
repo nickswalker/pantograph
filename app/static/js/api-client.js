@@ -535,6 +535,18 @@ export class ImageAPI extends ApiClient {
         }
     }
 
+    // Manually assign an image to an exchange station, overriding the
+    // automatic GPS match. Pass null (or '') to drop the override and go back
+    // to whatever GPS matched. Resolves with the station now displayed, so the
+    // caller can patch the badge in place.
+    async setImageExchange(teamId, imageId, exchangeId) {
+        const url = this.buildUrl('setImageExchange', { team_id: teamId, image_id: imageId });
+        return await this.request(url, {
+            method: 'POST',
+            body: JSON.stringify({ exchange_id: exchangeId || null })
+        });
+    }
+
     // Delete image by ID
     async deleteImage(teamId, imageId) {
         const url = this.buildUrl('deleteImage', { team_id: teamId, image_id: imageId });
