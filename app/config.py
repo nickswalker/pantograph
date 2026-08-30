@@ -64,6 +64,13 @@ class Config:
 
     # Admin configuration
     ADMIN_EMAIL = get_secret('ADMIN_EMAIL')
+    # Manager role: a lower privilege tier than admin (see app/permissions.py
+    # for what it can/can't do). Optional and plural, unlike ADMIN_EMAIL --
+    # comma-separated addresses, granted the same way admin is: checked
+    # against a user's email the moment their account is first created, so
+    # adding/removing an address here has no effect on an existing account
+    # (consistent with how ADMIN_EMAIL already behaves).
+    MANAGER_EMAILS = {e.strip() for e in os.getenv('MANAGER_EMAILS', '').split(',') if e.strip()}
     CONTACT_EMAIL = get_secret('CONTACT_EMAIL')
     NOTIFICATION_EMAIL = get_secret('NOTIFICATION_EMAIL')
 

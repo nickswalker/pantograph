@@ -327,7 +327,7 @@ def main():
     Config.RATELIMIT_ENABLED = False
 
     from app import create_app
-    from app.models import db, User, Team, TeamLines, OAuthProvider
+    from app.models import db, User, Team, TeamLines, OAuthProvider, UserRole
     from app.services import course_service
     from app.utils import course_lines_for, max_preferred_miles, load_end_station_names, course_distance_miles
 
@@ -379,7 +379,7 @@ def main():
 
         admin_user = User(
             email=os.environ['ADMIN_EMAIL'], name="Race Admin",
-            provider=OAuthProvider.GOOGLE, provider_id='sim-admin', is_admin=True,
+            provider=OAuthProvider.GOOGLE, provider_id='sim-admin', role=UserRole.ADMIN,
         )
         db.session.add(admin_user)
         db.session.commit()

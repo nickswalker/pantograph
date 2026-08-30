@@ -38,6 +38,17 @@ class OAuthProvider(enum.Enum):
     GITHUB = 'github'
     MICROSOFT = 'microsoft'
 
+class UserRole(enum.Enum):
+    """A user's privilege tier, PARTICIPANT < MANAGER < ADMIN. See
+    PermissionChecker in app/permissions.py for what each can actually do --
+    in short, MANAGER can run the event (approve/manage teams, roster, legs)
+    event-wide but never sees a team's photos; ADMIN can do that plus every
+    destructive/system-level action (hard delete, baton serials, email
+    templates/bulk sends, photos)."""
+    PARTICIPANT = 'participant'
+    MANAGER = 'manager'
+    ADMIN = 'admin'
+
 class NotificationType(enum.Enum):
     TEAM_APPROVAL = 'team_approved'
     NEW_MEMBERS_DIGEST = 'new_members_digest'
@@ -169,7 +180,7 @@ class User(db.Model, UserMixin):
     provider_id = db.Column(db.String(255), nullable=False)  # OAuth provider user ID
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_login = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    is_admin = db.Column(db.Boolean, default=False)
+    role = db.Column(db.Enum(UserRole), nullable=False, default=UserRole.PARTICIPANT)
     email_opt_in = db.Column(db.Boolean, default=False)
     captain_notifications_enabled = db.Column(db.Boolean, default=True)
 
@@ -177,6 +188,17 @@ class User(db.Model, UserMixin):
     def teams(self):
         """Get all teams this user is a member of"""
         return [membership.team for membership in self.memberships]
+
+    @property
+    def is_admin(self):
+        return self.role == UserRole.ADMIN
+
+    @property
+    def is_manager(self):
+        """Manager-*or-above* -- true for admins too, since admin is a
+        strict superset of manager privileges. See PermissionChecker in
+        app/permissions.py for what each tier can actually do."""
+        return self.role in (UserRole.MANAGER, UserRole.ADMIN)
 
     # Unique constraint on provider + provider_id
     __table_args__ = (db.UniqueConstraint('provider', 'provider_id', name='provider_user_uc'),)

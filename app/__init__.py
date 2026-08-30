@@ -44,12 +44,13 @@ def create_app():
     app.jinja_env.globals['legs_enabled'] = app.config['LEGS_ENABLED']
 
     # Make model enums available globally in Jinja2 templates
-    from app.models import TeamMembershipStatus, TeamFormat, TeamLines, TeamStatus, OAuthProvider
+    from app.models import TeamMembershipStatus, TeamFormat, TeamLines, TeamStatus, OAuthProvider, UserRole
     app.jinja_env.globals['TeamMembershipStatus'] = TeamMembershipStatus
     app.jinja_env.globals['TeamFormat'] = TeamFormat
     app.jinja_env.globals['TeamLines'] = TeamLines
     app.jinja_env.globals['TeamStatus'] = TeamStatus
     app.jinja_env.globals['OAuthProvider'] = OAuthProvider
+    app.jinja_env.globals['UserRole'] = UserRole
 
     # Station/line codes for the Link-style station labels (see style.css).
     from app.services.course_service import station_code, line_code, line_codes

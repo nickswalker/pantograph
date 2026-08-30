@@ -34,8 +34,29 @@ def admin_required(f):
     return decorated_function
 
 
+def manager_or_admin_required(f):
+    """Require manager or admin privileges (User.is_manager is true for
+    admins too -- see its docstring). For the scoped bits of the admin
+    surface managers get (the dashboard, approving teams) -- anything more
+    sensitive (hard-delete, baton serials, email templates/bulk sends,
+    photos) stays behind plain admin_required."""
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_manager:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 def team_access_required(param_name='team_id'):
-    """Require access to a team (member, captain, or admin)"""
+    """Require access to a team (member, captain, or admin).
+
+    Deliberately does NOT admit managers -- this gates the gallery among
+    other things, and a manager can manage a team without ever seeing its
+    photos. Use team_management_access_required for member/legs-board pages
+    a manager should reach despite not being on the roster.
+    """
     def decorator(f):
         @wraps(f)
         @login_required
@@ -52,6 +73,32 @@ def team_access_required(param_name='team_id'):
                 abort(403, description="Access denied to team")
 
             # Add team to kwargs for convenience
+            kwargs['team'] = team
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+def team_management_access_required(param_name='team_id'):
+    """Like team_access_required, but also admits managers -- for pages
+    (member roster, legs board) a manager can view/run without being a
+    member of the team. Gallery/photo routes must keep using
+    team_access_required instead."""
+    def decorator(f):
+        @wraps(f)
+        @login_required
+        def decorated_function(*args, **kwargs):
+            team_id = kwargs.get(param_name) or request.view_args.get(param_name)
+            if not team_id:
+                abort(400, description="Team ID required")
+
+            team = Team.query.filter_by(id=team_id).first()
+            if not team:
+                abort(404, description="Team not found")
+
+            if not PermissionChecker.can_view_team_management(current_user, team):
+                abort(403, description="Access denied to team")
+
             kwargs['team'] = team
             return f(*args, **kwargs)
         return decorated_function
@@ -210,11 +257,24 @@ class PermissionChecker:
         return membership is not None and membership.status != TeamMembershipStatus.REMOVED
 
     @staticmethod
+    def can_view_team_management(user, team):
+        """Check if user can view a team's roster/legs-board even without
+        being on it (admin, manager, captain, or non-removed member).
+
+        Managers get this but NOT can_access_team's gallery use -- they can
+        run a team's roster and leg board without ever seeing its photos.
+        """
+        if user and user.is_authenticated and user.is_manager:
+            return True
+        return PermissionChecker.can_access_team(user, team)
+
+    @staticmethod
     def can_manage_team(user, team):
-        """Check if user can manage team (captain or admin)"""
+        """Check if user can manage team (captain, manager, or admin --
+        is_manager is true for admins too)"""
         if not user or not user.is_authenticated:
             return False
-        return user.is_admin or team.captain_id == user.id
+        return user.is_manager or team.captain_id == user.id
 
     @staticmethod
     def team_allows_uploads(team):
@@ -250,7 +310,7 @@ class PermissionChecker:
         if not user or not user.is_authenticated:
             return False
 
-        if user.is_admin:
+        if user.is_manager:  # true for admins too
             return True
 
         # Team captain can manage memberships

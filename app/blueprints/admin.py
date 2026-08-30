@@ -3,7 +3,7 @@ import shutil
 from flask import Blueprint, render_template, jsonify, url_for, request
 from flask_login import current_user
 from app.models import db, User, Team, TeamMembership, TeamMembershipStatus, Image
-from app.permissions import admin_required
+from app.permissions import admin_required, manager_or_admin_required
 from app.utils import is_allowed_image, format_mm_ss_from_seconds, get_registration_deadline_info
 from app.config import Config
 
@@ -11,7 +11,7 @@ admin = Blueprint('admin', __name__, url_prefix='/admin')
 
 
 @admin.route('/')
-@admin_required
+@manager_or_admin_required
 def admin_dashboard():
     # Get all teams from database
     db_teams = Team.query.all()
@@ -58,6 +58,7 @@ def admin_dashboard():
             'provider': user.provider,
             'avatar_url': user.avatar_url,
             'is_admin': user.is_admin,
+            'is_manager': user.is_manager,
             'created_at': user.created_at,
             'active_memberships': active_memberships
         })
@@ -113,7 +114,7 @@ def delete_team(team_id):
 
 
 @admin.route('/team/<team_id>/approve', methods=['POST'])
-@admin_required
+@manager_or_admin_required
 def approve_team(team_id):
     try:
         from app.utils import find_team_by_id

@@ -3,7 +3,7 @@ import logging
 import hashlib
 from flask import Blueprint, request, redirect, render_template, abort, session, url_for
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import db, User, OAuthProvider
+from app.models import db, User, OAuthProvider, UserRole
 from app.config import Config, OAUTH_PROVIDERS
 from app.security import limiter
 
@@ -266,14 +266,23 @@ def create_account():
         session['pending_user'] = pending_user
         return redirect(url_for('auth.confirm_account_creation') + '?error=terms_required')
 
-    # Create new user
+    # Create new user. Role is decided once, at creation -- ADMIN_EMAIL takes
+    # precedence over MANAGER_EMAILS (moot in practice, but an address
+    # listed in both should end up ADMIN, the higher tier).
+    if pending_user['email'] == Config.ADMIN_EMAIL:
+        role = UserRole.ADMIN
+    elif pending_user['email'] in Config.MANAGER_EMAILS:
+        role = UserRole.MANAGER
+    else:
+        role = UserRole.PARTICIPANT
+
     user = User(
         email=pending_user['email'],
         name=pending_user['name'],
         avatar_url=pending_user['avatar_url'],
         provider=OAuthProvider(pending_user['provider']),
         provider_id=pending_user['provider_id'],
-        is_admin=(pending_user['email'] == Config.ADMIN_EMAIL)
+        role=role
     )
     db.session.add(user)
     db.session.commit()

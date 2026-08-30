@@ -14,9 +14,9 @@ from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
 from app.models import db, Team, TeamMembership, TeamStatus, TeamMembershipStatus, TeamFormat
 from app.permissions import (
-    team_access_required, team_captain_required,
+    team_access_required, team_management_access_required, team_captain_required,
     team_captain_or_member_required, team_upload_allowed, admin_required,
-    legs_feature_required, PermissionChecker
+    manager_or_admin_required, legs_feature_required, PermissionChecker
 )
 from app.utils import is_allowed_image, validate_image_content, secure_filename_enhanced, find_team_by_id, \
     find_team_by_gallery_hash, load_end_station_names, course_lines_for, max_preferred_miles, parse_hh_mm_to_seconds, convert_to_jpeg, is_heic_file, \
@@ -184,7 +184,7 @@ def public_gallery(gallery_hash):
 
 
 @teams.route('/<team_id>/members')
-@team_access_required()
+@team_management_access_required()
 def team_members(team_id, team):
     # If the current user is the captain and hasn't completed their registration for this team,
     # redirect them to their registration page.
@@ -218,7 +218,7 @@ def team_members(team_id, team):
 
 @teams.route('/<team_id>/legs')
 @legs_feature_required
-@team_access_required()
+@team_management_access_required()
 def team_legs(team_id, team):
     """Leg-assignment board: one row per relay leg with drag-and-drop member
     chips, plus a bench of every team member.
@@ -338,7 +338,7 @@ def export_members_tsv(team_id, team):
 
 @teams.route('/<team_id>/assignments', methods=['GET'])
 @legs_feature_required
-@team_access_required()
+@team_management_access_required()
 def get_assignments(team_id, team):
     """Board state: leg assignments plus members with their join preferences.
 
@@ -1016,7 +1016,7 @@ def generate_invite_link(team_id, team):
 
 
 @teams.route('/<team_id>/payment-reminder', methods=['POST'])
-@admin_required
+@manager_or_admin_required
 def send_payment_reminder(team_id):
     try:
         # Find team by ID

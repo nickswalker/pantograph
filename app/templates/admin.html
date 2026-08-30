@@ -5,6 +5,7 @@
 {% block content %}
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Admin</h1>
+        {% if current_user.is_admin %}
         <div>
             <a href="{{ url_for('admin.email_templates') }}" class="btn btn-outline-primary">
                 <ion-icon name="mail-outline" class="me-1"></ion-icon>
@@ -15,6 +16,7 @@
                 Delete All Images
             </button>
         </div>
+        {% endif %}
     </div>
 
     <div class="row">
@@ -84,9 +86,13 @@
                                         </a>
                                     </td>
                                     <td>
+                                        {% if current_user.is_admin %}
                                         <a href="{{ team.url }}" target="_blank" class="text-decoration-none">
                                             {{ team.image_count }}
                                         </a>
+                                        {% else %}
+                                        {{ team.image_count }}
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {{ team.estimated_duration_seconds | format_hh_mm_from_seconds }}
@@ -113,11 +119,13 @@
                                             <span class="text-muted">None</span>
                                         {% endif %}
                                         {% if team.batons_to_purchase %}
-                                            <span class="badge bg-warning text-dark">{{ team.batons_to_purchase }} to buy</span>
+                                            <span class="text-secondary">{{ team.batons_to_purchase }} to buy</span>
                                         {% endif %}
+                                        {% if current_user.is_admin %}
                                         <button class="btn btn-link" onclick="openEditBatonSerialModal('{{ team.id }}', '{{ team.name }}', '{{ team.baton_serial or '' }}', '{{ team.previous_baton_serial or '' }}', '{{ team.baton_serial_2 or '' }}', '{{ team.previous_baton_serial_2 or '' }}', {{ team.batons_required }})">
                                             <ion-icon name="create-outline"></ion-icon>
                                         </button>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         <time datetime="{{ team.created_at.isoformat() }}Z" title="{{ team.created_at.strftime('%B %-d, %Y at %I:%M %p') }}" class="small text-muted format-datetime-tooltip format-as-date">
@@ -146,10 +154,12 @@
                                                     <ion-icon name="close-outline" class="me-2"></ion-icon>Withdraw
                                                 </a></li>
                                                 {% endif %}
+                                                {% if current_user.is_admin %}
                                                 <li><hr class="dropdown-divider"></li>
                                                 <li><a class="dropdown-item text-danger" href="#" onclick="confirmDeleteTeam('{{ team.name }}', '{{ team.id }}')">
                                                     <ion-icon name="trash-outline" class="me-2"></ion-icon>Delete
                                                 </a></li>
+                                                {% endif %}
                                             </ul>
                                         </div>
                                     </td>
@@ -176,10 +186,12 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <h3 class="card-title mb-0">Users</h3>
                         <div class="btn-group" role="group">
+                            {% if current_user.is_admin %}
                             <button class="btn btn-outline-primary btn-sm" onclick="sendRegistrationReminder()">
                                 <ion-icon name="mail-outline" class="me-1"></ion-icon>
                                 Send Registration Reminder...
                             </button>
+                            {% endif %}
                             <a href="mailto:'Undisclosed Recipients'<{{ config.CONTACT_EMAIL }}>?bcc={{ captain_emails | join(',') }}" class="btn btn-outline-primary btn-sm">
                                 <ion-icon name="people-outline" class="me-1"></ion-icon>
                                 Email Captains...
@@ -213,6 +225,8 @@
                                                 <strong>{{ user.name }}</strong>
                                                 {% if user.is_admin %}
                                                     <span class="badge bg-secondary ms-2 rounded-pill">Admin</span>
+                                                {% elif user.is_manager %}
+                                                    <span class="badge bg-info ms-2 rounded-pill">Manager</span>
                                                 {% endif %}
                                                 <a href="mailto:{{ user.email }}" class="link-secondary text-decoration-none d-block">
                                                     <small>{{ user.email }} <span class="text-secondary">· {{ user.provider.value }}</span></small>
@@ -246,6 +260,7 @@
                                         </time>
                                     </td>
                                     <td>
+                                        {% if current_user.is_admin %}
                                         <div class="dropdown">
                                             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                                 <ion-icon name="ellipsis-horizontal-outline"></ion-icon>
@@ -256,6 +271,7 @@
                                                 </a></li>
                                             </ul>
                                         </div>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}

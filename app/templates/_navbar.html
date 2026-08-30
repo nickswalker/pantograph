@@ -93,8 +93,8 @@
                 </div>
                 {% endif %}  {# CLOSES: Show Create/Join Team links OR My Registration #}
 
-                <!-- Admin link (authenticated admins only) -->
-                {% if current_user.is_authenticated and current_user.is_admin %}  {# OPENS: Show Admin link for admin users #}
+                <!-- Admin link (authenticated admins and managers only) -->
+                {% if current_user.is_authenticated and (current_user.is_admin or current_user.is_manager) %}  {# OPENS: Show Admin link for admin/manager users #}
                 <div class="nav-item">
                     <a class="nav-link d-flex align-items-center {% if request.endpoint == 'admin.admin_dashboard' %}active{% endif %}"
                        href="{{ url_for('admin.admin_dashboard') }}">

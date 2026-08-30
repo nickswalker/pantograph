@@ -27,12 +27,13 @@ def _station_ids():
 
 
 def _make_user(db, User, OAuthProvider, email, name, is_admin=False):
+    from app.models import UserRole
     user = User(
         email=email,
         name=name,
         provider=OAuthProvider.GOOGLE,
         provider_id=email,
-        is_admin=is_admin,
+        role=UserRole.ADMIN if is_admin else UserRole.PARTICIPANT,
     )
     db.session.add(user)
     return user
