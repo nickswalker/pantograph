@@ -102,20 +102,20 @@
                             <div class="form-text">Optional: Anything you want the admin to know about your entry.</div>
                         </div>
 
-                        <div class="mb-3">
+                        <div class="mb-3" id="previous-baton-1-section" style="display: none;">
                             <label for="previous_baton_serial" class="form-label">
-                                Previous Baton Serial
+                                Previous 1 Line Baton Serial
                             </label>
                             <input type="text" class="form-control" id="previous_baton_serial" name="previous_baton_serial" maxlength="12" placeholder=""{% if not current_user.is_authenticated or deadline_info.is_closed %} disabled{% endif %}>
-                            <div class="form-text">If you have a baton from a previous year, enter its serial number here and run with it again!</div>
+                            <div class="form-text">If you have a 1 Line baton from a previous year, enter its serial number here and run with it again!</div>
                         </div>
 
                         <div class="mb-3" id="previous-baton-2-section" style="display: none;">
                             <label for="previous_baton_serial_2" class="form-label">
-                                Second Previous Baton Serial
+                                Previous 2 Line Baton Serial
                             </label>
                             <input type="text" class="form-control" id="previous_baton_serial_2" name="previous_baton_serial_2" maxlength="12" placeholder=""{% if not current_user.is_authenticated or deadline_info.is_closed %} disabled{% endif %}>
-                            <div class="form-text">Both Lines needs two batons, one per branch. If you have a second baton from a previous year, enter its serial here too.</div>
+                            <div class="form-text">If you have a 2 Line baton from a previous year, enter its serial number here and run with it again!</div>
                         </div>
 
                         <div class="mb-3" id="baton-fee-warning" style="display: block;">
@@ -248,14 +248,23 @@ function updateFormForLines() {
         ? ''
         : 'Both Lines requires your team to start in two locations and converge at Chinatown to run the shared trunk';
 
-    const needsTwoBatons = linesSelect.value === 'Both Lines';
-    const secondBatonSection = document.getElementById('previous-baton-2-section');
-    const secondBatonInput = document.getElementById('previous_baton_serial_2');
+    // Each previous-baton field only makes sense for a team running that
+    // line -- ask about the 1 Line baton iff they're running the 1 Line
+    // (alone or as part of Both Lines), and likewise for the 2 Line baton.
+    const runsLine1 = linesSelect.value === '1 Line' || linesSelect.value === 'Both Lines';
+    const runsLine2 = linesSelect.value === '2 Line' || linesSelect.value === 'Both Lines';
+    const baton1Section = document.getElementById('previous-baton-1-section');
+    const baton1Input = document.getElementById('previous_baton_serial');
+    const baton2Section = document.getElementById('previous-baton-2-section');
+    const baton2Input = document.getElementById('previous_baton_serial_2');
     const feeText = document.getElementById('baton-fee-text');
 
-    secondBatonSection.style.display = needsTwoBatons ? 'block' : 'none';
-    if (!needsTwoBatons) secondBatonInput.value = '';
+    baton1Section.style.display = runsLine1 ? 'block' : 'none';
+    if (!runsLine1) baton1Input.value = '';
+    baton2Section.style.display = runsLine2 ? 'block' : 'none';
+    if (!runsLine2) baton2Input.value = '';
 
+    const needsTwoBatons = linesSelect.value === 'Both Lines';
     feeText.textContent = needsTwoBatons
         ? `Both Lines needs two batons. Each one you don't already own costs $${BATON_PRICE} (up to $${BATON_PRICE * 2}) and is required for team approval.`
         : `If you don't have a previous LRR baton, a $${BATON_PRICE} charge for a new baton will be required for team approval.`;

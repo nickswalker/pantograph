@@ -12,7 +12,7 @@ from flask import Blueprint, request, redirect, render_template, send_from_direc
 from flask_login import current_user
 from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
-from app.models import db, Team, TeamMembership, TeamStatus, TeamMembershipStatus, TeamFormat
+from app.models import db, Team, TeamMembership, TeamStatus, TeamMembershipStatus, TeamFormat, TeamLines
 from app.permissions import (
     team_access_required, team_management_access_required, team_captain_required,
     team_captain_or_member_required, team_upload_allowed, admin_required,
@@ -943,11 +943,11 @@ def update_team_details(team_id, team):
         team.estimated_duration_seconds = parse_hh_mm_to_seconds(estimated_duration_str)
         team.comments = comments if comments else None
         if team.status == TeamStatus.PENDING:
-            team.previous_baton_serial = previous_baton_serial or None
-            # Only a Both Lines team has a second baton to declare.
-            team.previous_baton_serial_2 = (
-                previous_baton_serial_2 or None if team.batons_required > 1 else None
-            )
+            # previous_baton_serial is the 1 Line baton, previous_baton_serial_2
+            # is always the 2 Line baton -- each only applies to a team
+            # actually running that line.
+            team.previous_baton_serial = (previous_baton_serial or None) if team.runs_line(TeamLines.ONE) else None
+            team.previous_baton_serial_2 = (previous_baton_serial_2 or None) if team.runs_line(TeamLines.TWO) else None
         db.session.commit()
 
         return jsonify({'success': True, 'message': 'Team details updated successfully'}), 200

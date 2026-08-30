@@ -402,18 +402,20 @@
                                                       maxlength="500">{{ team.comments or '' }}</textarea>
                                             <div class="form-text">Optional comments visible to the admin</div>
                                         </div>
+                                        {% if team.runs_line(TeamLines.ONE) %}
                                         <div class="mb-3">
-                                            <label for="previous_baton_serial_input" class="form-label">Previous Baton Serial</label>
+                                            <label for="previous_baton_serial_input" class="form-label">Previous 1 Line Baton Serial</label>
                                             <input type="text" class="form-control" id="previous_baton_serial_input" name="previous_baton_serial" value="{{ team.previous_baton_serial or '' }}" maxlength="12" {% if team.status != TeamStatus.PENDING %}disabled{% endif %}>
-                                            <div class="form-text">If you have a baton from a previous year, enter its serial number here.  {% if team.status != TeamStatus.PENDING %}You can't change this after you've paid and your team is approved.
+                                            <div class="form-text">If you have a 1 Line baton from a previous year, enter its serial number here.  {% if team.status != TeamStatus.PENDING %}You can't change this after you've paid and your team is approved.
                                             {% endif %}</div>
 
                                         </div>
-                                        {% if team.batons_required > 1 %}
+                                        {% endif %}
+                                        {% if team.runs_line(TeamLines.TWO) %}
                                         <div class="mb-3">
-                                            <label for="previous_baton_serial_2_input" class="form-label">Second Previous Baton Serial</label>
+                                            <label for="previous_baton_serial_2_input" class="form-label">Previous 2 Line Baton Serial</label>
                                             <input type="text" class="form-control" id="previous_baton_serial_2_input" name="previous_baton_serial_2" value="{{ team.previous_baton_serial_2 or '' }}" maxlength="12" {% if team.status != TeamStatus.PENDING %}disabled{% endif %}>
-                                            <div class="form-text">{{ team.lines.value }} needs {{ team.batons_required }} batons, one per branch. {% if team.status != TeamStatus.PENDING %}You can't change this after you've paid and your team is approved.{% endif %}</div>
+                                            <div class="form-text">If you have a 2 Line baton from a previous year, enter its serial number here. {% if team.status != TeamStatus.PENDING %}You can't change this after you've paid and your team is approved.{% endif %}</div>
                                         </div>
                                         {% endif %}
                                         {% if team.format == TeamFormat.SOLO %}
@@ -761,7 +763,7 @@
                 const commentsInput = document.getElementById('comments_input');
                 const comments = commentsInput.value.trim();
                 const previousBatonSerialInput = document.getElementById('previous_baton_serial_input');
-                const previousBatonSerial = previousBatonSerialInput.value.trim();
+                const previousBatonSerial = previousBatonSerialInput ? previousBatonSerialInput.value.trim() : '';
                 const previousBatonSerial2Input = document.getElementById('previous_baton_serial_2_input');
                 const previousBatonSerial2 = previousBatonSerial2Input ? previousBatonSerial2Input.value.trim() : '';
 

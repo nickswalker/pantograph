@@ -120,9 +120,11 @@ def create_team():
             lines=team_lines,
             estimated_duration_seconds=estimated_duration_seconds,
             comments=comments if comments else None,
-            previous_baton_serial=previous_baton_serial if previous_baton_serial else None,
-            # Only a Both Lines team has a second baton to declare.
-            previous_baton_serial_2=(previous_baton_serial_2 or None) if team_lines == TeamLines.BOTH else None,
+            # previous_baton_serial is the 1 Line baton; a team not running
+            # the 1 Line has none to declare. Likewise, previous_baton_serial_2
+            # is always the 2 Line baton.
+            previous_baton_serial=(previous_baton_serial or None) if team_lines != TeamLines.TWO else None,
+            previous_baton_serial_2=(previous_baton_serial_2 or None) if team_lines != TeamLines.ONE else None,
             status=TeamStatus.PENDING,
             captain_id=current_user.id
         )
