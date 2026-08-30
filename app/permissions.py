@@ -6,7 +6,21 @@ Provides decorators for common permission patterns.
 from functools import wraps
 from flask import abort, request
 from flask_login import current_user, login_required
+from app.config import Config
 from app.models import Team, TeamMembership, User, db, TeamStatus, TeamMembershipStatus
+
+
+def legs_feature_required(f):
+    """Gate a leg-assignment-board route behind the LEGS_ENABLED deployment
+    flag. 404s rather than 403s -- while unfinished, the feature should look
+    entirely absent, not merely forbidden. Put this outermost (directly under
+    @route) so it short-circuits before any auth/permission checks run."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not Config.LEGS_ENABLED:
+            abort(404)
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 def admin_required(f):

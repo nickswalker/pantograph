@@ -99,6 +99,10 @@ class Config:
     THUMBNAIL_MAX_SIZE = 400        # longest edge, px
     THUMBNAIL_QUALITY = 75
 
+    # Leg-assignment board (still being finalized) -- flip to 'false' to hide
+    # the "Legs" nav tab and 404 its routes for a launch without it.
+    LEGS_ENABLED = os.getenv('LEGS_ENABLED', 'true').strip().lower() not in ('0', 'false', 'no', 'off')
+
 
 # OAuth providers configuration for templates
 OAUTH_PROVIDERS = [

@@ -41,6 +41,8 @@ def create_app():
         os.getenv('FLASK_ENV') != 'development' and os.getenv('FLASK_DEBUG') != '1'
     )
 
+    app.jinja_env.globals['legs_enabled'] = app.config['LEGS_ENABLED']
+
     # Make model enums available globally in Jinja2 templates
     from app.models import TeamMembershipStatus, TeamFormat, TeamLines, TeamStatus, OAuthProvider
     app.jinja_env.globals['TeamMembershipStatus'] = TeamMembershipStatus

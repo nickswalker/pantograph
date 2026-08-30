@@ -16,7 +16,7 @@ from app.models import db, Team, TeamMembership, TeamStatus, TeamMembershipStatu
 from app.permissions import (
     team_access_required, team_captain_required,
     team_captain_or_member_required, team_upload_allowed, admin_required,
-    PermissionChecker
+    legs_feature_required, PermissionChecker
 )
 from app.utils import is_allowed_image, validate_image_content, secure_filename_enhanced, find_team_by_id, \
     find_team_by_gallery_hash, load_end_station_names, course_lines_for, max_preferred_miles, parse_hh_mm_to_seconds, convert_to_jpeg, is_heic_file, \
@@ -217,6 +217,7 @@ def team_members(team_id, team):
 
 
 @teams.route('/<team_id>/legs')
+@legs_feature_required
 @team_access_required()
 def team_legs(team_id, team):
     """Leg-assignment board: one row per relay leg with drag-and-drop member
@@ -336,6 +337,7 @@ def export_members_tsv(team_id, team):
 
 
 @teams.route('/<team_id>/assignments', methods=['GET'])
+@legs_feature_required
 @team_access_required()
 def get_assignments(team_id, team):
     """Board state: leg assignments plus members with their join preferences.
@@ -350,6 +352,7 @@ def get_assignments(team_id, team):
 
 
 @teams.route('/<team_id>/members/<membership_id>/preference-overrides', methods=['PUT'])
+@legs_feature_required
 @team_captain_required()
 def put_preference_overrides(team_id, team, membership_id):
     """Set a captain's overrides of one member's stated preferences.
@@ -385,6 +388,7 @@ def put_preference_overrides(team_id, team, membership_id):
 
 
 @teams.route('/<team_id>/members/<membership_id>/preference-overrides', methods=['DELETE'])
+@legs_feature_required
 @team_captain_required()
 def delete_preference_overrides(team_id, team, membership_id):
     """Drop every override for one member, reverting to their stated preferences."""
@@ -407,6 +411,7 @@ def delete_preference_overrides(team_id, team, membership_id):
 
 
 @teams.route('/<team_id>/assignments', methods=['PUT'])
+@legs_feature_required
 @team_captain_required()
 def put_assignments(team_id, team):
     """Full replacement of the team's assignment set (captain or admin only).
