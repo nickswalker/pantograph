@@ -104,6 +104,7 @@ def seeded(app):
             'team_id': team.id,
             'captain_id': captain.id,
             'runner_id': runner.id,
+            'quitter_id': quitter.id,
             'outsider_id': outsider.id,
             'admin_id': admin.id,
             'captain_membership_id': captain_membership.id,

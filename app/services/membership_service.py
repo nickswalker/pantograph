@@ -161,6 +161,31 @@ def _validate_preferences(data: RegistrationInput, max_miles):
     return preferred_miles_numeric, planned_pace_seconds
 
 
+def _create_or_reactivate_membership(user_id, team_id, data, preferred_miles_numeric,
+                                      planned_pace_seconds, preferred_station, comments):
+    """Create a membership row for (user_id, team_id), or reactivate a stale one.
+
+    unique_membership is on (user_id, team_id), and withdraw/remove only flip
+    status rather than delete the row -- so a member returning to a team they
+    previously withdrew from or were removed from already has a row here.
+    Reactivating it in place avoids a duplicate insert that would violate the
+    constraint.
+    """
+    membership = TeamMembership.query.filter_by(user_id=user_id, team_id=team_id).first()
+    if membership:
+        membership.status = TeamMembershipStatus.ACTIVE
+    else:
+        membership = TeamMembership(user_id=user_id, team_id=team_id)
+        db.session.add(membership)
+
+    membership.willing_to_lead = data.willing_to_lead
+    membership.preferred_miles = preferred_miles_numeric
+    membership.planned_pace_seconds = planned_pace_seconds
+    membership.preferred_station = preferred_station
+    membership.comments = comments
+    return membership
+
+
 def register(user, data: RegistrationInput, mode='join') -> RegistrationResult:
     """Create or update ``user``'s membership/preferences for a team.
 
@@ -203,16 +228,12 @@ def register(user, data: RegistrationInput, mode='join') -> RegistrationResult:
 
     membership_to_log = None
     if is_switching_teams:
-        # Switch to a different team: drop old membership, create new one.
+        # Switch to a different team: drop old membership, create/reactivate the new one.
         db.session.delete(existing_membership)
-        membership = TeamMembership(
-            user_id=user.id, team_id=team.id,
-            willing_to_lead=data.willing_to_lead,
-            preferred_miles=preferred_miles_numeric,
-            planned_pace_seconds=planned_pace_seconds,
-            preferred_station=preferred_station, comments=comments,
+        membership = _create_or_reactivate_membership(
+            user.id, team.id, data, preferred_miles_numeric, planned_pace_seconds,
+            preferred_station, comments,
         )
-        db.session.add(membership)
         membership_to_log = membership
         message = f'Successfully switched to {team.name}'
     elif existing_membership:
@@ -225,26 +246,18 @@ def register(user, data: RegistrationInput, mode='join') -> RegistrationResult:
         message = f'Successfully updated preferences for {team.name}'
     elif existing_captained_team:
         # Captain creating their own membership (captains have none by default).
-        membership = TeamMembership(
-            user_id=user.id, team_id=team.id,
-            willing_to_lead=data.willing_to_lead,
-            preferred_miles=preferred_miles_numeric,
-            planned_pace_seconds=planned_pace_seconds,
-            preferred_station=preferred_station, comments=comments,
+        membership = _create_or_reactivate_membership(
+            user.id, team.id, data, preferred_miles_numeric, planned_pace_seconds,
+            preferred_station, comments,
         )
-        db.session.add(membership)
         # Don't log a captain joining their own team for the digest.
         message = f'Successfully added preferences for {team.name}'
     else:
-        # Fresh join.
-        membership = TeamMembership(
-            user_id=user.id, team_id=team.id,
-            willing_to_lead=data.willing_to_lead,
-            preferred_miles=preferred_miles_numeric,
-            planned_pace_seconds=planned_pace_seconds,
-            preferred_station=preferred_station, comments=comments,
+        # Fresh join (or a returning member reactivating a stale row).
+        membership = _create_or_reactivate_membership(
+            user.id, team.id, data, preferred_miles_numeric, planned_pace_seconds,
+            preferred_station, comments,
         )
-        db.session.add(membership)
         if team.captain_id != user.id:
             membership_to_log = membership
         message = f'Successfully joined {team.name}'

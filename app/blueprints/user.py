@@ -287,9 +287,15 @@ def join_team():
 @login_required
 def my_registration():
     """Handle editing existing team registration/preferences"""
-    # Check if user has existing membership or captained team
+    # Check if user has existing membership or captained team. Scoped to
+    # ACTIVE like every other membership lookup -- withdraw/remove only flip
+    # status rather than delete the row, so an unfiltered query here could
+    # surface a stale membership (wrong team, or a dead end on resubmit)
+    # instead of the user's real active one.
     existing_captained_team = Team.query.filter_by(captain_id=current_user.id).first()
-    existing_membership = TeamMembership.query.filter_by(user_id=current_user.id).first()
+    existing_membership = TeamMembership.query.filter_by(
+        user_id=current_user.id, status=TeamMembershipStatus.ACTIVE
+    ).first()
 
     registering_for = existing_membership.team if existing_membership else existing_captained_team
     stations = stations_for_team(registering_for)
