@@ -5,7 +5,7 @@ Provides sample data for previewing email templates in the admin interface.
 
 from datetime import datetime, timezone
 from app.config import Config
-from app.models import TeamFormat, TeamStatus, NotificationType
+from app.models import TeamFormat, TeamLines, TeamStatus, NotificationType
 from app.utils import format_hh_mm_from_seconds, get_registration_deadline_info
 
 
@@ -18,13 +18,33 @@ class MockUser:
 
 
 class MockTeam:
-    def __init__(self, name, format_type=TeamFormat.TEAM, status=TeamStatus.OPEN, estimated_duration_seconds=18000):
+    """Mirrors just enough of the real Team model for email previews --
+    including the per-line baton properties, since payment_reminder and
+    team_created both key their copy off ``batons_to_purchase``."""
+
+    def __init__(self, name, format_type=TeamFormat.TEAM, status=TeamStatus.OPEN, estimated_duration_seconds=18000,
+                 lines=TeamLines.ONE, previous_baton_serial=None, previous_baton_serial_2=None):
         self.name = name
         self.format = format_type
         self.status = status
         self.estimated_duration_seconds = estimated_duration_seconds
         self.id = "teampreview"
         self.captain = MockUser("Sarah Johnson", "sarah@example.com")
+        self.lines = lines
+        self.previous_baton_serial = previous_baton_serial
+        self.previous_baton_serial_2 = previous_baton_serial_2
+
+    @property
+    def batons_required(self):
+        return 2 if self.lines == TeamLines.BOTH else 1
+
+    @property
+    def previous_baton_serials(self):
+        return [s for s in (self.previous_baton_serial, self.previous_baton_serial_2) if s]
+
+    @property
+    def batons_to_purchase(self):
+        return max(self.batons_required - len(self.previous_baton_serials), 0)
 
 
 class MockMembership:
@@ -72,7 +92,9 @@ def get_sample_data_for_template(template_name):
             }
 
         case NotificationType.TEAM_CREATION.value:
-            team = MockTeam("Lightning Runners", TeamFormat.TEAM, TeamStatus.PENDING, 18000)
+            # Interline, no previous batons -- exercises the two-baton wording.
+            team = MockTeam("Lightning Runners", TeamFormat.TEAM, TeamStatus.PENDING, 18000,
+                             lines=TeamLines.BOTH)
             return {
                 **base_context,
                 'team': team,
@@ -123,7 +145,10 @@ def get_sample_data_for_template(template_name):
             }
 
         case NotificationType.PAYMENT_REMINDER.value:
-            team = sample_team
+            # Interline with one previous baton already on hand -- exercises
+            # the singular ("1 baton") branch of the owed-amount wording.
+            team = MockTeam("Lightning Runners", TeamFormat.TEAM, TeamStatus.PENDING, 18000,
+                             lines=TeamLines.BOTH, previous_baton_serial="LRR-042")
             return {
                 **base_context,
                 'user': sample_user,

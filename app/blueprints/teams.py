@@ -1028,6 +1028,10 @@ def send_payment_reminder(team_id):
         if team.status != TeamStatus.PENDING:
             return jsonify({'error': 'Payment reminders can only be sent to pending teams'}), 400
 
+        # Nothing to remind them about if they already have every baton covered.
+        if team.batons_to_purchase == 0:
+            return jsonify({'error': 'This team has no outstanding baton payment'}), 400
+
         # Get team captain
         captain = team.captain
         if not captain:
