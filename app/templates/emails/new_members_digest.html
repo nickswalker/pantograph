@@ -20,7 +20,7 @@
                     {% if member.planned_pace_seconds %} • {{ (member.planned_pace_seconds // 60) }}:{{ '{:02d}'.format(member.planned_pace_seconds % 60) }}/mile pace{% endif %}
                     {% if member.willing_to_lead %} • Willing to lead{% endif %}
                     <br>
-                    <small>Joined {{ member.joined_at.strftime('%B %d at %I:%M %p') }}</small>
+                    <small>Joined {{ member.joined_at.strftime('%B %d') }}</small>
                 </div>
             </div>
         </div>
