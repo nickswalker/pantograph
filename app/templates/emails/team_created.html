@@ -23,7 +23,7 @@
   {% if not team.previous_baton_serial %}
     <div class="alert-warning">
         <h4>Payment Required for Approval</h4>
-        <p>Your registration requires a payment of $16 for a new race baton. Your team will not be approved until this payment is received.</p>
+        <p>Your registration requires a payment of ${{ baton_price }} for a new race baton. Your team will not be approved until this payment is received.</p>
         <p>Please see the <a href="{{ url_for('main.payment') }}">payment details</a> for instructions.</p>
     </div>
     {% endif %}

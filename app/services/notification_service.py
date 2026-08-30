@@ -31,6 +31,7 @@ def _render(template_name, template_context):
         'contact_email': Config.CONTACT_EMAIL,
         'event_name': Config.EVENT_NAME,
         'event_url': Config.EVENT_URL,
+        'baton_price': Config.BATON_PRICE_USD,
         **(template_context or {}),
     }
     return render_template(f'emails/{template_name}.html', **context)

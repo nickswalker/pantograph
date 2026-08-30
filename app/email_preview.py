@@ -4,6 +4,7 @@ Provides sample data for previewing email templates in the admin interface.
 """
 
 from datetime import datetime, timezone
+from app.config import Config
 from app.models import TeamFormat, TeamStatus, NotificationType
 from app.utils import format_hh_mm_from_seconds, get_registration_deadline_info
 
@@ -50,6 +51,7 @@ def get_sample_data_for_template(template_name):
         'contact_email': 'support@example.com',
         'event_name': 'Light Rail Relay 2026',
         'event_url': '#event-preview-link',
+        'baton_price': Config.BATON_PRICE_USD,
         'payment_url': '#payment-preview-link',
         'my_preferences_url': '#prefs-preview-link',
         'team_url': '#team-preview-link'
