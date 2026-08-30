@@ -118,7 +118,7 @@
                                         {% else %}
                                             <span class="text-muted">None</span>
                                         {% endif %}
-                                        {% if team.batons_to_purchase %}
+                                        {% if team.status == TeamStatus.PENDING and team.batons_to_purchase %}
                                             <span class="text-secondary">{{ team.batons_to_purchase }} to buy</span>
                                         {% endif %}
                                         {% if current_user.is_admin %}
