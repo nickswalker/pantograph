@@ -201,8 +201,11 @@ function pairKey(legKey, membershipId) {
  * `leg/3`'s first argument is just the index in `course.legs` -- the domain
  * needs a unique id, but identity comes back out of the start/end
  * exchanges, so it never has to be mapped back.
+ *
+ * `options.singleRunnerPerLeg` adds a hard per-leg headcount cap for
+ * captains who would rather the solver not double anyone up.
  */
-export function generateFacts(state) {
+export function generateFacts(state, options = {}) {
     const { course, members, assignments } = state || {};
     if (!course || !members) {
         return { program: '', pinnedPairs: new Set() };
@@ -265,6 +268,7 @@ export function generateFacts(state) {
     }
 
     const pinnedPairs = new Set();
+    const pinnedCountByLegId = new Map();
     course.legs.forEach((leg, legId) => {
         const key = legKey(leg);
         const membershipIds = (assignments && assignments[key]) || [];
@@ -272,7 +276,19 @@ export function generateFacts(state) {
             lines.push(`assignment(${quoteAtomString(membershipId)},leg(${legId},${leg.start.id},${leg.end.id})).`);
             pinnedPairs.add(pairKey(key, membershipId));
         }
+        pinnedCountByLegId.set(legId, membershipIds.length);
     });
+
+    if (options.singleRunnerPerLeg) {
+        // max(1, pins already there): the solver may fill an empty leg but
+        // never double it up, while a leg the captain already stacked keeps
+        // exactly that headcount rather than going UNSAT.
+        course.legs.forEach((leg, legId) => {
+            const cap = Math.max(1, pinnedCountByLegId.get(legId) || 0);
+            lines.push(`runnerCap(${legId},${cap}).`);
+        });
+        lines.push(':- legCoverage(T,C), C > N, runnerCap(T,N), leg(T,_,_).');
+    }
 
     return { program: `${lines.join('\n')}\n`, pinnedPairs };
 }
@@ -344,11 +360,13 @@ export function witnessToSuggestions(witness, pinnedPairs) {
  *   error       -- clingo ran but the program itself errored; retrying
  *                  won't help, but the solver isn't "unavailable" either
  *
- * Does not touch the DOM or the board's real state -- leg-solver-ui.js owns
- * turning `suggestions` into chips and `board.addAssignment()` calls.
+ * Touches neither the DOM nor the board's real state.
  */
-export async function optimizeRemaining(state, handle, { fetchSources = fetchAspSources, onModel = null } = {}) {
-    const { program: factsProgram, pinnedPairs } = generateFacts(state);
+export async function optimizeRemaining(
+    state, handle,
+    { fetchSources = fetchAspSources, onModel = null, singleRunnerPerLeg = false } = {},
+) {
+    const { program: factsProgram, pinnedPairs } = generateFacts(state, { singleRunnerPerLeg });
     if (!factsProgram) {
         return { status: 'error', message: 'No course data is loaded yet.' };
     }
@@ -401,8 +419,12 @@ export async function optimizeRemaining(state, handle, { fetchSources = fetchAsp
     if (result.Result === 'UNSATISFIABLE') {
         return {
             status: 'unsat',
-            message: 'No valid assignment exists for the current members and pins (unexpected given the '
-                + 'at-least-1 coverage relaxation -- check whether the team has any active members left).',
+            message: singleRunnerPerLeg
+                ? 'No valid assignment exists with "one runner per leg" and the current pins -- there likely '
+                    + 'aren\'t enough active members left to give every remaining leg its own runner. Uncheck '
+                    + 'the option, or free up a member, and try again.'
+                : 'No valid assignment exists for the current members and pins (unexpected given the '
+                    + 'at-least-1 coverage relaxation -- check whether the team has any active members left).',
         };
     }
 

@@ -68,46 +68,72 @@
     {# ---- Edit mode: the assignment board (captains and site admins only) ---- #}
     {% if can_edit %}
     <div id="legs-edit" class="d-none">
-        <div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mb-3">
-            <span id="legs-suggestion-count" class="badge text-bg-primary d-none"></span>
-            <span id="legs-dirty-indicator" class="badge text-bg-warning d-none">Unsaved changes</span>
-            <span id="legs-saved-indicator" class="badge text-bg-success d-none">All changes saved</span>
-            <button type="button" id="legs-optimize-btn" class="btn btn-outline-primary"
-                    title="Fill every leg that still has nobody assigned, using each member's preferences">
-               Optimize remaining
-            </button>
-            <button type="button" id="legs-optimize-cancel-btn" class="btn btn-outline-danger d-none">
-                <ion-icon name="stop-circle-outline" class="me-1"></ion-icon>Cancel
-            </button>
-            <button type="button" id="legs-accept-all-btn" class="btn btn-success d-none">
-                <ion-icon name="checkmark-done-outline" class="me-1"></ion-icon>Accept all
-            </button>
-            <button type="button" id="legs-clear-suggestions-btn" class="btn btn-outline-secondary d-none">
-                <ion-icon name="close-outline" class="me-1"></ion-icon>Clear suggestions
-            </button>
-            <button type="button" id="legs-save-btn" class="btn btn-primary" disabled>
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+            <p class="text-muted small mb-0">
+                Drag a member from the roster onto a leg to assign them, or use their <ion-icon name="add-outline"></ion-icon>
+                menu. Each placed chip has its own remove button. A member can be assigned to multiple legs, and a leg can
+                have multiple members.
+                <br>
+                Use the <ion-icon name="create-outline"></ion-icon> beside a member to adjust the preferences the board
+                scores and solves against &mdash; their own answers are kept and shown underneath.
+            </p>
+            <button type="button" id="legs-save-btn" class="btn btn-primary flex-shrink-0" disabled>
                 <ion-icon name="save-outline" class="me-1"></ion-icon>Save Assignments
             </button>
         </div>
 
-        <p class="text-muted small">
-            Drag a member from the roster onto a leg to assign them, or use their <ion-icon name="add-outline"></ion-icon>
-            menu. Each placed chip has its own remove button. A member can be assigned to multiple legs, and a leg can
-            have multiple members.
-            <br>
-            Use the <ion-icon name="create-outline"></ion-icon> beside a member to adjust the preferences the board
-            scores and solves against &mdash; their own answers are kept and shown underneath.
-            <br>
-            <strong>Optimize remaining</strong> fills any leg nobody has claimed yet, based on those preferences --
-            it never moves or removes an assignment you've already made. Suggestions show up as dashed chips; accept
-            them individually or all at once before saving, or clear them and keep assigning manually.
-            <br>
-            While it searches you'll see a greyed-out draft plan that keeps changing as it finds better ones --
-            that's normal, and it isn't yours to accept until the search stops. Let it finish for the best plan it
-            can prove, or hit <strong>Stop &amp; keep best</strong> any time to take the draft as it stands.
-        </p>
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Optimize remaining</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    Fills any leg nobody has claimed yet, based on stated (or captain-adjusted) preferences -- it
+                    never moves or removes an assignment you've already made. Suggestions show up as dashed chips;
+                    accept them individually or all at once before saving, or clear them and keep assigning manually.
+                    <br>
+                    While it searches you'll see a greyed-out draft plan that keeps changing as it finds better ones
+                    -- that's normal, and it isn't yours to accept until the search stops. Let it finish for the best
+                    plan it can prove, or hit <strong>Stop &amp; keep best</strong> any time to take the draft as it
+                    stands.
+                </p>
 
-        <div id="legs-team-summary" class="d-flex flex-wrap gap-2 mb-3"></div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="legs-single-runner-checkbox">
+                    <label class="form-check-label" for="legs-single-runner-checkbox">
+                        Only one runner per leg
+                    </label>
+                    <div class="form-text">
+                        Off by default: the solver may double up runners on a leg to satisfy preferences. Checking
+                        this stops it from placing a second runner on any leg -- legs you've already assigned more
+                        than one runner to yourself are left as they are.
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+                    <button type="button" id="legs-optimize-btn" class="btn btn-outline-primary"
+                            title="Fill every leg that still has nobody assigned, using each member's preferences">
+                       Optimize remaining
+                    </button>
+                    <button type="button" id="legs-optimize-cancel-btn" class="btn btn-outline-danger d-none">
+                        <ion-icon name="stop-circle-outline" class="me-1"></ion-icon>Cancel
+                    </button>
+                    <button type="button" id="legs-accept-all-btn" class="btn btn-success d-none">
+                        <ion-icon name="checkmark-done-outline" class="me-1"></ion-icon>Accept all
+                    </button>
+                    <button type="button" id="legs-clear-suggestions-btn" class="btn btn-outline-secondary d-none">
+                        <ion-icon name="close-outline" class="me-1"></ion-icon>Clear suggestions
+                    </button>
+                    <div id="legs-solver-spinner" class="spinner-border spinner-border-sm text-primary d-none" role="status">
+                        <span class="visually-hidden">Solving&hellip;</span>
+                    </div>
+                    <span id="legs-suggestion-count" class="badge text-bg-primary d-none"></span>
+                </div>
+
+                <h6 class="text-muted small text-uppercase mb-2">Current solution</h6>
+                <div id="legs-team-summary" class="d-flex flex-wrap gap-2"></div>
+            </div>
+        </div>
 
         <div class="row g-4">
             <div class="col-lg-8">
@@ -239,8 +265,6 @@
             legsListEl: document.getElementById('legs-list'),
             benchEl: document.getElementById('legs-bench'),
             saveButtonEl: document.getElementById('legs-save-btn'),
-            dirtyIndicatorEl: document.getElementById('legs-dirty-indicator'),
-            savedIndicatorEl: document.getElementById('legs-saved-indicator'),
             loadingEl: document.getElementById('legs-loading'),
             overrideModalEl: document.getElementById('override-modal'),
         });
@@ -256,6 +280,8 @@
             acceptAllButtonEl: document.getElementById('legs-accept-all-btn'),
             clearButtonEl: document.getElementById('legs-clear-suggestions-btn'),
             suggestionCountEl: document.getElementById('legs-suggestion-count'),
+            spinnerEl: document.getElementById('legs-solver-spinner'),
+            singleRunnerCheckboxEl: document.getElementById('legs-single-runner-checkbox'),
         });
 
         // ---- View / edit mode -------------------------------------------

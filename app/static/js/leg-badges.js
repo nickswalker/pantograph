@@ -8,33 +8,10 @@
  * `[data-metrics-mount="leg"]` per leg row (estimated duration), and
  * `#legs-team-summary` from team_legs.html (total vs target).
  *
- *   - `[data-metrics-mount="member"][data-membership-id]` -- one per bench
- *     chip. Gets a plain wants-vs-current table (miles / pace / end) --
- *     no color coding, just the two numbers side by side -- plus, in the
- *     captain/admin view, the "edit preferences" button next to "Wants"
- *     (leg-board.js binds its click; see `state.canEdit` below).
- *   - `[data-metrics-mount="leg"][data-leg-key]` -- one per leg row. Gets
- *     the leg's estimated-duration badge.
- *   - `#legs-team-summary` (in team_legs.html, not written by leg-board.js)
- *     -- team-level uncovered-legs-count and total-duration-vs-target.
- *
- * Badge color mapping (Bootstrap `text-bg-*`, matching the rest of the
- * board's badge usage -- leg and team-summary badges only; the member table
- * is deliberately uncolored):
- *   satisfied -> text-bg-success   near -> text-bg-warning
- *   violated  -> text-bg-danger
- *
- * Every badge carries a plain-language `title` tooltip (the board's existing
- * convention -- see leg-board.js's status/leader badges -- native browser
- * tooltip, no Bootstrap JS tooltip component needed).
- *
- * Wiring: call `initLegBadges()` once (from team_legs.html, alongside
- * `initLegBoard`) *before* the board starts loading. It installs itself as
- * `window.onAssignmentsChanged`, chaining any previously-installed handler
- * so this module composes rather than clobbers. `state.canEdit` (set by
- * leg-board.js's `_notifyChanged()`) is the one thing this module reads to
- * tell the captain/admin view from the read-only member view -- it doesn't
- * import leg-board.js or know anything else about it.
+ * Call `initLegBadges()` once, before the board loads. It installs itself as
+ * `window.onAssignmentsChanged`, chaining any existing handler so it composes
+ * rather than clobbers. `state.canEdit` is the only thing it reads to tell the
+ * captain view from the read-only one; it never imports leg-board.js.
  */
 
 import { computeMetrics } from './leg-metrics.js';
@@ -177,18 +154,6 @@ function renderTeamSummary(mountEl, team) {
     }
 
     const parts = [];
-
-    const uncoveredStatus = team.uncoveredLegsCount === 0 ? 'satisfied' : 'violated';
-    const uncoveredLabel = team.uncoveredLegsCount === 0
-        ? 'All legs covered'
-        : `${team.uncoveredLegsCount} leg${team.uncoveredLegsCount === 1 ? '' : 's'} uncovered`;
-    parts.push(badgeHtml(
-        uncoveredStatus,
-        uncoveredLabel,
-        team.uncoveredLegsCount === 0
-            ? 'Every leg has at least one runner assigned'
-            : `${team.uncoveredLegsCount} leg(s) have nobody assigned yet`,
-    ));
 
     if (team.status !== 'no data') {
         const totalLabel = formatDuration(team.totalEstimatedDurationSeconds);

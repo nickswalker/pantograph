@@ -61,8 +61,6 @@ export class LegBoard {
      * @param {HTMLElement} opts.legsListEl - container the leg rows render into
      * @param {HTMLElement} opts.benchEl - container the bench chips render into
      * @param {HTMLElement} [opts.saveButtonEl]
-     * @param {HTMLElement} [opts.dirtyIndicatorEl]
-     * @param {HTMLElement} [opts.savedIndicatorEl]
      * @param {HTMLElement} [opts.loadingEl]
      * @param {HTMLElement} [opts.overrideModalEl] - captain-only dialog for
      *   adjusting the preferences a member is scored/solved against;
@@ -74,8 +72,6 @@ export class LegBoard {
         this.legsListEl = opts.legsListEl;
         this.benchEl = opts.benchEl;
         this.saveButtonEl = opts.saveButtonEl || null;
-        this.dirtyIndicatorEl = opts.dirtyIndicatorEl || null;
-        this.savedIndicatorEl = opts.savedIndicatorEl || null;
         this.loadingEl = opts.loadingEl || null;
         this.overrideModalEl = (this.canEdit && opts.overrideModalEl) || null;
 
@@ -211,8 +207,6 @@ export class LegBoard {
     _setDirty(isDirty) {
         this.dirty = isDirty;
         if (this.saveButtonEl) this.saveButtonEl.disabled = !isDirty;
-        if (this.dirtyIndicatorEl) this.dirtyIndicatorEl.classList.toggle('d-none', !isDirty);
-        if (this.savedIndicatorEl) this.savedIndicatorEl.classList.toggle('d-none', isDirty);
     }
 
     _notifyChanged() {

@@ -24,20 +24,6 @@
 import { api } from './api-client.js';
 import { createSolverHandle, optimizeRemaining, generateFacts } from './leg-solver.js';
 
-// Auto-stop a solve that's taking unreasonably long. Optimize remaining
-// searches to a *proven* optimum (see leg-solver.js's createSolverHandle
-// docstring -- clasp's branch-and-bound needs `models=0`, not `1`, to
-// actually finish the proof rather than stopping at the first feasible
-// answer), which is real solving work: the full 22-leg/6-member course in
-// this repo measures ~4.3s in Node on clingo-wasm 0.6.0. Browser wasm is
-// slower, and a bigger team/looser preferences could take longer still, so
-// this is a generous ceiling, not a tuned expectation -- Stop is always
-// available well before it fires.
-//
-// Unlike before streaming, hitting this ceiling is no longer a total loss:
-// the timeout keeps the best model streamed so far, same as a manual Stop.
-const AUTO_TIMEOUT_MS = 45000;
-
 // How often the provisional preview may repaint, at most.
 //
 // Not politeness -- a requirement. Measured on the full course, clasp streams
@@ -63,6 +49,8 @@ export class LegSolverUI {
      * @param {HTMLElement} [opts.acceptAllButtonEl]
      * @param {HTMLElement} [opts.clearButtonEl]
      * @param {HTMLElement} [opts.suggestionCountEl] - small text/badge showing pending count
+     * @param {HTMLElement} [opts.spinnerEl] - shown only while a solve is running
+     * @param {HTMLElement} [opts.singleRunnerCheckboxEl] - "one runner per leg" solver option
      */
     constructor(opts) {
         this.board = opts.board;
@@ -72,16 +60,16 @@ export class LegSolverUI {
         this.acceptAllButtonEl = opts.acceptAllButtonEl || null;
         this.clearButtonEl = opts.clearButtonEl || null;
         this.suggestionCountEl = opts.suggestionCountEl || null;
+        this.spinnerEl = opts.spinnerEl || null;
+        this.singleRunnerCheckboxEl = opts.singleRunnerCheckboxEl || null;
 
         this.handle = createSolverHandle();
         this.suggestions = [];
         // Whether `this.suggestions` came from a solve that ran to a proven
-        // optimum. False after a Stop/timeout, which is what the "best so
-        // far" wording throughout this class is keyed off.
+        // optimum. False after a Stop, which is what the "best so far"
+        // wording throughout this class is keyed off.
         this.suggestionsOptimal = true;
         this.solving = false;
-        this._timedOut = false;
-        this._timeoutHandle = null;
 
         // Provisional plan painted during a solve (see PREVIEW_THROTTLE_MS).
         this.previewSuggestions = [];
@@ -124,24 +112,14 @@ export class LegSolverUI {
         this.modelCount = 0;
         this._repaintSuggestions();
         this._setSolving(true);
-        this._timedOut = false;
-        this._timeoutHandle = setTimeout(() => {
-            this._timedOut = true;
-            // Swallow: cancel() reaches for the loader again, so it can
-            // reject if the network went away mid-solve. The in-flight
-            // run() has already been rejected by then, so optimizeRemaining
-            // still returns a clean 'cancelled' -- there is nothing useful
-            // to do here but avoid an unhandled rejection.
-            this.handle.cancel('Optimize remaining timed out').catch(() => {});
-        }, AUTO_TIMEOUT_MS);
 
         let result;
         try {
             result = await optimizeRemaining(this.board.state, this.handle, {
                 onModel: ({ index, suggestions }) => this._onStreamedModel(index, suggestions),
+                singleRunnerPerLeg: !!(this.singleRunnerCheckboxEl && this.singleRunnerCheckboxEl.checked),
             });
         } finally {
-            clearTimeout(this._timeoutHandle);
             this._cancelPreviewTimer();
             this.previewSuggestions = [];
             this._setSolving(false);
@@ -189,7 +167,11 @@ export class LegSolverUI {
 
     async cancelSolve() {
         if (!this.solving) return;
-        // See the timeout's catch above -- same reasoning from a click.
+        // Swallow: cancel() reaches for the loader again, so it can reject
+        // if the network went away mid-solve. The in-flight run() has
+        // already been rejected by then, so optimizeRemaining still returns
+        // a clean 'cancelled' -- there is nothing useful to do here but
+        // avoid an unhandled rejection.
         await this.handle.cancel('Optimize remaining stopped').catch(() => {});
     }
 
@@ -216,29 +198,22 @@ export class LegSolverUI {
                 api.showBanner(`Optimize remaining: ${result.message}`, 'danger');
                 break;
 
-            // A Stop (or the auto-timeout) is no longer a discarded solve:
-            // whatever clasp had streamed by then is a valid, fully-covering
-            // plan -- just one it never got to prove was the best available.
-            // Keep it, and be explicit about that distinction, since every
-            // other path through this UI hands the captain a proven optimum.
+            // A Stop is no longer a discarded solve: whatever clasp had
+            // streamed by then is a valid, fully-covering plan -- just one
+            // it never got to prove was the best available. Keep it, and be
+            // explicit about that distinction, since every other path
+            // through this UI hands the captain a proven optimum.
             case 'cancelled': {
                 const kept = result.suggestions || [];
                 if (kept.length === 0) {
-                    api.showBanner(
-                        this._timedOut
-                            ? `Optimize remaining hit the ${Math.round(AUTO_TIMEOUT_MS / 1000)}s limit before finding any plan. `
-                              + 'You can try again, or assign the rest manually.'
-                            : 'Optimize remaining was stopped before it found a plan.',
-                        'warning',
-                    );
+                    api.showBanner('Optimize remaining was stopped before it found a plan.', 'warning');
                     break;
                 }
                 this.suggestions = kept;
                 this.suggestionsOptimal = false;
                 this._repaintSuggestions();
                 api.showBanner(
-                    `${this._timedOut ? `Optimize remaining hit the ${Math.round(AUTO_TIMEOUT_MS / 1000)}s limit` : 'Stopped early'} `
-                    + `-- keeping the best plan found so far (${kept.length} placement${kept.length === 1 ? '' : 's'}). `
+                    `Stopped early -- keeping the best plan found so far (${kept.length} placement${kept.length === 1 ? '' : 's'}). `
                     + 'It covers every leg and respects your pins, but it was not checked against every alternative, '
                     + 'so a full run might place a few people differently.',
                     'warning',
@@ -338,6 +313,15 @@ export class LegSolverUI {
         }
         if (this.clearButtonEl) {
             this.clearButtonEl.classList.toggle('d-none', !hasSettled);
+        }
+        if (this.spinnerEl) {
+            this.spinnerEl.classList.toggle('d-none', !this.solving);
+        }
+        // The option only takes effect at the start of a solve (it's baked
+        // into the generated facts) -- lock it while one is running rather
+        // than let a mid-solve toggle imply it did something.
+        if (this.singleRunnerCheckboxEl) {
+            this.singleRunnerCheckboxEl.disabled = this.solving;
         }
         this._updateStatusBadge();
     }

@@ -242,6 +242,30 @@ test('generateFacts: no course/members -> empty program, not a crash', () => {
     assert.deepEqual(generateFacts(null), { program: '', pinnedPairs: new Set() });
 });
 
+test('generateFacts: singleRunnerPerLeg appends a per-leg headcount cap, off by default', () => {
+    const state = buildState(SMALL_COURSE, MEMBERS, {});
+    const { program: defaultProgram } = generateFacts(state);
+    assert.ok(!defaultProgram.includes('runnerCap('));
+    assert.ok(!defaultProgram.includes('legCoverage(T,C), C > N'));
+
+    const { program: cappedProgram } = generateFacts(state, { singleRunnerPerLeg: true });
+    assert.ok(cappedProgram.includes(':- legCoverage(T,C), C > N, runnerCap(T,N), leg(T,_,_).'));
+    // No pins at all -- every leg's cap should be the floor of 1.
+    for (let legId = 0; legId < SMALL_COURSE.legs.length; legId += 1) {
+        assert.ok(cappedProgram.includes(`runnerCap(${legId},1).`), `leg ${legId} should default to cap 1`);
+    }
+});
+
+test('generateFacts: singleRunnerPerLeg raises the cap to match a leg already pinned with more than one runner', () => {
+    const leg1 = SMALL_COURSE.legs[1];
+    const leg1Key = `${leg1.start.id}-${leg1.end.id}`;
+    const state = buildState(SMALL_COURSE, MEMBERS, { [leg1Key]: ['m2', 'm3'] });
+
+    const { program } = generateFacts(state, { singleRunnerPerLeg: true });
+    assert.ok(program.includes('runnerCap(1,2).'), 'leg1 (index 1) should be capped at its existing 2 pins');
+    assert.ok(program.includes('runnerCap(0,1).'), 'an unrelated leg should still default to cap 1');
+});
+
 test('parseAssignments: extracts membershipId + legKey, ignores non-assignment atoms', () => {
     const values = [
         'participant("m1")',
@@ -558,6 +582,78 @@ test('smoke: vendored domain + generated facts solve SAT, cover all legs, preser
     const suggestions = diffSuggestions(solved, pinnedPairs);
     for (const s of suggestions) {
         assert.ok(!pinnedPairs.has(`${s.legKey}::${s.membershipId}`));
+    }
+});
+
+test('smoke: singleRunnerPerLeg caps every leg at one runner when the board allows it', async (t) => {
+    let clingoRun;
+    try {
+        ({ run: clingoRun } = (await import('clingo-wasm')).default);
+    } catch (err) {
+        t.skip(`clingo-wasm not installed in tests/js/node_modules (run "npm install" in tests/js): ${err.message}`);
+        return;
+    }
+
+    const state = buildState(SMALL_COURSE, MEMBERS, {});
+    const { program: factsProgram } = generateFacts(state, { singleRunnerPerLeg: true });
+    const program = buildProgram(DOMAIN_SOURCE, TEAM_SOURCE, factsProgram);
+
+    const result = await clingoRun(program, 0);
+    assert.equal(result.Result, 'OPTIMUM FOUND', `expected a solvable single-runner plan, got ${result.Result}`);
+
+    const witness = bestWitness(result);
+    const solved = parseAssignments(witness.Value);
+    const runnersByLeg = new Map();
+    for (const { membershipId, legKey } of solved) {
+        if (!runnersByLeg.has(legKey)) runnersByLeg.set(legKey, new Set());
+        runnersByLeg.get(legKey).add(membershipId);
+    }
+    for (const leg of SMALL_COURSE.legs) {
+        const key = `${leg.start.id}-${leg.end.id}`;
+        const runners = runnersByLeg.get(key);
+        assert.equal(runners && runners.size, 1, `leg ${key} should have exactly one runner`);
+    }
+});
+
+test('smoke: singleRunnerPerLeg holds a leg already double-covered by pins at its existing count, caps the rest at one', async (t) => {
+    let clingoRun;
+    try {
+        ({ run: clingoRun } = (await import('clingo-wasm')).default);
+    } catch (err) {
+        t.skip(`clingo-wasm not installed in tests/js/node_modules (run "npm install" in tests/js): ${err.message}`);
+        return;
+    }
+
+    // Same pinned two-runner leg as the earlier pin-preservation test, but
+    // this time with singleRunnerPerLeg on: the pins predate the solve, so
+    // that leg's cap rises to match them (2) instead of forcing UNSAT or
+    // silently trying to strip one down to satisfy a flat cap of 1, while
+    // every other leg still gets the default cap of one.
+    const leg1 = SMALL_COURSE.legs[1];
+    const leg1Key = `${leg1.start.id}-${leg1.end.id}`;
+    const state = buildState(SMALL_COURSE, MEMBERS, { [leg1Key]: ['m2', 'm3'] });
+    const { program: factsProgram } = generateFacts(state, { singleRunnerPerLeg: true });
+    const program = buildProgram(DOMAIN_SOURCE, TEAM_SOURCE, factsProgram);
+
+    const result = await clingoRun(program, 0);
+    assert.equal(result.Result, 'OPTIMUM FOUND', `expected a solvable plan, got ${result.Result}`);
+
+    const witness = bestWitness(result);
+    const solved = parseAssignments(witness.Value);
+    const runnersByLeg = new Map();
+    for (const { membershipId, legKey: key } of solved) {
+        if (!runnersByLeg.has(key)) runnersByLeg.set(key, new Set());
+        runnersByLeg.get(key).add(membershipId);
+    }
+
+    for (const leg of SMALL_COURSE.legs) {
+        const key = `${leg.start.id}-${leg.end.id}`;
+        const runners = runnersByLeg.get(key);
+        if (key === leg1Key) {
+            assert.deepEqual([...runners].sort(), ['m2', 'm3'], 'leg should keep exactly its two pinned runners');
+        } else {
+            assert.equal(runners && runners.size, 1, `leg ${key} should be capped at one runner`);
+        }
     }
 });
 
