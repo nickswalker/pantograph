@@ -201,14 +201,14 @@
 
                          <div class="mb-3">
                             <label for="willing_to_lead" class="form-label">
-                                Are you willing to lead your legs? <span class="text-danger">*</span>
+                                Are you willing to run alone? <span class="text-danger">*</span>
                             </label>
                             <select class="form-select" id="willing_to_lead" name="willing_to_lead" required {% if is_form_disabled or mode == 'preview' or mode == 'view' %}disabled{% endif %}>
                                 <option value="">Select...</option>
                                 <option value="yes" {% if (mode == 'edit' or mode == 'view') and existing_membership and existing_membership.willing_to_lead %}selected{% endif %}>Yes</option>
                                 <option value="no" {% if (mode == 'edit' or mode == 'view') and existing_membership and not existing_membership.willing_to_lead %}selected{% endif %}>No</option>
                             </select>
-                            <div class="form-text">Say "yes" if you're happy/confident to navigate. This only matters if your captain is scheduling more than one person per leg.</div>
+                            <div class="form-text">Say "No" to let your captain know you'd prefer to run with a teammate.</div>
                         </div>
 
                         <div class="mb-3">
