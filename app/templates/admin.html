@@ -31,6 +31,7 @@
                                 <tr>
                                     <th>Team Name</th>
                                     <th>Status</th>
+                                    <th>Line(s)</th>
                                     <th>Members</th>
                                     <th>Photos</th>
                                     <th>Estimate</th>
@@ -72,6 +73,10 @@
                                                 <ion-icon name="lock-open-outline" class="text-muted ms-1" style="font-size: 14px;" title="No password"></ion-icon>
                                             {% endif %}
                                         {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if team.lines in (TeamLines.ONE, TeamLines.BOTH) %}<span class="line-pill"><span class="line-name line-name-1">1</span></span>{% endif %}
+                                        {% if team.lines in (TeamLines.TWO, TeamLines.BOTH) %}<span class="line-pill"><span class="line-name line-name-2">2</span></span>{% endif %}
                                     </td>
                                     <td>
                                         <a href="{{ url_for('teams.team_members', team_id=team.id) }}" target="_blank" class="text-decoration-none">
