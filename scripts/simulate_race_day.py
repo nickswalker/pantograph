@@ -211,6 +211,8 @@ class SimClient:
     def __init__(self, base_url, cookie_name, cookie_value, label):
         self.base_url = base_url
         self.label = label  # for logging
+        self.cookie_name = cookie_name
+        self.cookie_value = cookie_value  # kept around so we can print login cookies at the end
         self.http = requests.Session()
         self.http.cookies.set(cookie_name, cookie_value)
 
@@ -330,6 +332,14 @@ def main():
     from app.utils import course_lines_for, max_preferred_miles, load_end_station_names, course_distance_miles
 
     flask_app = create_app()
+    # Dev mode: reload templates from disk on every request instead of
+    # caching them after first render, so edits to templates/*.html show up
+    # without restarting this script. (We drive the server via make_server
+    # below rather than app.run(), so Flask's process-restarting reloader
+    # -- which watches .py files and needs to own the main process -- isn't
+    # used here; this only affects Jinja template caching.)
+    flask_app.config['TEMPLATES_AUTO_RELOAD'] = True
+    flask_app.jinja_env.auto_reload = True
 
     from werkzeug.serving import make_server
     server = make_server(args.host, args.port, flask_app, threaded=True)
@@ -507,6 +517,22 @@ def main():
         for entrant in entrants:
             team = db.session.get(Team, entrant.team_id)
             entrant.gallery_hash = team.gallery_hash
+
+        # --- Login cookies, printed now (not after the race) so you can log
+        # in and start watching before the timed simulation even begins. ---
+        print()
+        print("=" * 72)
+        print(f"Login cookies (cookie name: '{admin_client.cookie_name}' -- set it in your browser's")
+        print("  devtools, or send 'Cookie: <name>=<value>' as a header, to browse as that user):")
+        print(f"  {'ROLE':<9s} {'ENTRY':<26s} {'NAME':<22s} {'EMAIL':<32s} COOKIE VALUE")
+        print(f"  {'admin':<9s} {'':<26s} {admin_user.name:<22s} {admin_user.email:<32s} {admin_client.cookie_value}")
+        for entrant in entrants:
+            entry_label = entrant.name if entrant.approved else f"{entrant.name} [PENDING]"
+            for i, m in enumerate(entrant.members):
+                role = 'captain' if i == 0 else 'member'
+                print(f"  {role:<9s} {entry_label:<26s} {m.name:<22s} {m.email:<32s} {m.client.cookie_value}")
+        print("=" * 72)
+        print()
 
         # --- Optional: populate the leg-assignment board ------------------
         if not args.no_assign_legs:
