@@ -97,7 +97,10 @@ class Config:
     # Upload configuration
     UPLOAD_FOLDER = './uploads'
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-    MAX_PHOTOS_PER_TEAM = 30
+    # Comfortably above a Both Lines team's 39 exchange points this year (the
+    # 1 Line/2 Line merge in data/lrr2026.geojson), with room for a few
+    # non-exchange shots (start, finish, group photo).
+    MAX_PHOTOS_PER_TEAM = 45
     ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.tiff'}
     IMAGE_CACHE_MAX_AGE = 31536000  # 1 year; stored filenames are timestamp-prefixed and never overwritten
 

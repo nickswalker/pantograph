@@ -42,7 +42,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Admin interface**: Protected admin panel at `/admin` for team management and statistics
 - **EXIF metadata extraction**: Capture time and GPS coordinates from uploaded images
 - **File handling**: Supports JPEG, PNG, HEIC, and other formats with deduplication
-- **Image limits**: 23 photos max per team, 10MB file size limit
+- **Image limits**: `MAX_PHOTOS_PER_TEAM` / `MAX_FILE_SIZE` in `app/config.py` (currently 45 photos per team, 10MB per file) -- keep the photo count comfortably above the largest team's exchange count in the current course data
 
 ### Key Components
 - **Team folders**: Each team gets a directory in `./uploads/` (folder name = team display name)
