@@ -286,7 +286,7 @@ You may find this eye-opening: https://www.caniemail.com/features/css-unit-rem/
     <div class="footer">
         {% block footer %}
             <p>
-                <a href="{{ url_for('main.index', _external=True) }}" class="brand">
+                <a href="{{ url_for('main.index', _external=True, ref='email') }}" class="brand">
                     {{ get_svg('favicon.svg') }}
                     Pantograph
                 </a> |

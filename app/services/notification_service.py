@@ -11,6 +11,7 @@ Direct emails are rendered once; digests are re-rendered as members coalesce in.
 
 import json
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 from flask import render_template, url_for
 
@@ -20,9 +21,34 @@ from app.models import (
     TeamMembership, TeamMembershipStatus,
 )
 
+# ref tag appended to the event site link in every template's footer (and any
+# other {{ event_url }} use), so click-through analytics on the marketing
+# site can tell the visit came from an email at all. One flat tag for every
+# template -- not worth the bookkeeping of a per-template value.
+EVENT_URL_REF = 'panto-email'
+
 
 def _naive_utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _with_ref(url, ref):
+    """Merge ?ref=<ref> into a URL's query string."""
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query))
+    query['ref'] = ref
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
+def _event_url_with_ref():
+    """Config.EVENT_URL with ?ref={EVENT_URL_REF} merged in."""
+    return _with_ref(Config.EVENT_URL, EVENT_URL_REF)
+
+
+# Context keys that point back into Pantograph itself (as opposed to the
+# external event site). Unlike event_url above, we don't need per-template
+# granularity here -- just a flat "this click came from an email" tag.
+INTERNAL_LINK_KEYS = ('team_url', 'payment_url', 'my_preferences_url')
 
 
 def _render(template_name, template_context):
@@ -30,10 +56,15 @@ def _render(template_name, template_context):
     context = {
         'contact_email': Config.CONTACT_EMAIL,
         'event_name': Config.EVENT_NAME,
-        'event_url': Config.EVENT_URL,
+        'event_url': _event_url_with_ref(),
         'baton_price': Config.BATON_PRICE_USD,
         **(template_context or {}),
     }
+    for key in INTERNAL_LINK_KEYS:
+        # Preview/test-send placeholders (e.g. "#team-preview-link") aren't
+        # real links -- leave them alone.
+        if context.get(key) and not context[key].startswith('#'):
+            context[key] = _with_ref(context[key], 'email')
     return render_template(f'emails/{template_name}.html', **context)
 
 

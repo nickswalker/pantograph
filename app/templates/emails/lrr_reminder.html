@@ -1,0 +1,26 @@
+{% extends "emails/email_base.html" %}
+
+{% block title %}Light Rail Relay Returns October 3rd{% endblock %}
+
+{% block header %}Light Rail Relay Returns October 3rd{% endblock %}
+
+{% block content %}
+    <p>Light Rail Relay will run again <b>Saturday, October 3rd, 08:30</b>. You can read more and sign up on <a href="{{ event_url }}">the site</a>.</p>
+
+    <p>This year brings big changes:</p>
+    <ul>
+        <li>A new start line for the 1 Line at Federal Way (+ two more new stations before Angle Lake)</li>
+        <li>For the first time, the option for teams to run the 2 Line starting from Redmond</li>
+        <li>The option for teams to &ldquo;interline&rdquo; and run both lines at once</li>
+    </ul>
+
+    <p>As with previous years, we hope you&rsquo;ll join and reuse your team&rsquo;s baton. A new baton for either line is ${{ baton_price }}.</p>
+
+    <div class="btn-container">
+        <a href="{{ event_url }}" class="btn">Read More &amp; Sign Up</a>
+    </div>
+
+    <p>&mdash; Nick Walker</p>
+
+    <p class="small text-muted">You&rsquo;re getting this email because you asked to be notified when the next Light Rail Relay happens. You won&rsquo;t receive another unless you register and opt in again.</p>
+{% endblock %}

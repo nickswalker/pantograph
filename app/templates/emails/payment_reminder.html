@@ -6,7 +6,7 @@
 
 {% block content %}
 
-<p>Your team registration is pending until we receive ${{ team.batons_to_purchase * baton_price }} for {{ team.batons_to_purchase }} new baton{{ 's' if team.batons_to_purchase != 1 else '' }}. See the <a href="{{ url_for('main.payment') }}">payment details</a> for instructions.</p>
+<p>Your team registration is pending until we receive ${{ team.batons_to_purchase * baton_price }} for {{ team.batons_to_purchase }} new baton{{ 's' if team.batons_to_purchase != 1 else '' }}. See the <a href="{{ url_for('main.payment', _external=True, ref='email') }}">payment details</a> for instructions.</p>
 
 <p>If you've paid already, or you'd like to use your baton from a previous LRR, contact us. If you are no longer planning to participate, you can withdraw your team from <a href="{{ team_url }}">your team page</a> to stop these reminders.</p>
 
@@ -26,7 +26,7 @@
     </div>
 
     <div class="btn-container">
-        <a href="{{ url_for('main.payment') }}" class="btn">Payment Instructions</a>
+        <a href="{{ url_for('main.payment', _external=True, ref='email') }}" class="btn">Payment Instructions</a>
     </div>
 
 {% endblock %}

@@ -26,7 +26,7 @@
     <div class="alert-warning">
         <h4>Payment Required for Approval</h4>
         <p>Your registration requires a payment of ${{ team.batons_to_purchase * baton_price }} for {{ team.batons_to_purchase }} new race baton{{ 's' if team.batons_to_purchase != 1 else '' }}. Your team will not be approved until this payment is received.</p>
-        <p>Please see the <a href="{{ url_for('main.payment') }}">payment details</a> for instructions.</p>
+        <p>Please see the <a href="{{ url_for('main.payment', _external=True, ref='email') }}">payment details</a> for instructions.</p>
     </div>
     {% endif %}
 

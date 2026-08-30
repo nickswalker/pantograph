@@ -389,7 +389,8 @@ def handle_team_registration_post(stations, mode='join'):
         context = {
             'team': team,
             'membership': membership_to_log,
-            'team_url': url_for('teams.team_members', team_id=team.id, _external=True)
+            'team_url': url_for('teams.team_members', team_id=team.id, _external=True),
+            'my_preferences_url': url_for('user.my_registration', _external=True),
         }
         metadata = {
             'team_name': team.name,

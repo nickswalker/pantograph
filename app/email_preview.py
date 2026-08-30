@@ -67,10 +67,15 @@ def get_sample_data_for_template(template_name):
     sample_user = MockUser("Alex Chen", "alex@example.com")
     sample_captain = MockUser("Sarah Johnson", "sarah@example.com")
 
+    # event_url is a real, working link even in previews/test-sends: unlike
+    # payment_url/team_url/my_preferences_url below, it doesn't depend on the
+    # mock team/user existing in the DB, so there's no reason to fake it out.
+    from app.services.notification_service import _event_url_with_ref
+
     base_context = {
         'contact_email': 'support@example.com',
         'event_name': 'Light Rail Relay 2026',
-        'event_url': '#event-preview-link',
+        'event_url': _event_url_with_ref(),
         'baton_price': Config.BATON_PRICE_USD,
         'payment_url': '#payment-preview-link',
         'my_preferences_url': '#prefs-preview-link',
@@ -144,6 +149,9 @@ def get_sample_data_for_template(template_name):
                 'registration_url': '#registration-link'
             }
 
+        case 'lrr_reminder':
+            return {**base_context}
+
         case NotificationType.PAYMENT_REMINDER.value:
             # Interline with one previous baton already on hand -- exercises
             # the singular ("1 baton") branch of the owed-amount wording.
@@ -175,6 +183,7 @@ def get_available_templates():
         {'name': NotificationType.NEW_MEMBERS_DIGEST.value, 'display': 'New Members Digest'},
         {'name': NotificationType.REGISTRATION_REMINDER.value, 'display': 'Registration Reminder'},
         {'name': NotificationType.PAYMENT_REMINDER.value, 'display': 'Payment Reminder'},
+        {'name': 'lrr_reminder', 'display': 'LRR 2026 Opt-In Announcement'},
     ]
 
 
@@ -187,6 +196,7 @@ def get_sample_subject_for_template(template_name):
         NotificationType.CAPTAIN_TRANSFER.value: "You're Now Captain of Team 'Lightning Runners'",
         NotificationType.NEW_MEMBERS_DIGEST.value: "New Team Members - Lightning Runners",
         NotificationType.REGISTRATION_REMINDER.value: "Reminder: Register for Light Rail Relay 2026",
-        NotificationType.PAYMENT_REMINDER.value: "Reminder: Complete Registration for Light Rail Relay 2026"
+        NotificationType.PAYMENT_REMINDER.value: "Reminder: Complete Registration for Light Rail Relay 2026",
+        'lrr_reminder': "Light Rail Relay Returns October 3rd",
     }
     return subjects.get(template_name, f"Email Preview: {template_name.replace('_', ' ').title()}")

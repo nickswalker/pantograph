@@ -4,6 +4,8 @@ pantograph.db
 pantograph.db-shm
 pantograph.db-wal
 *.db.bak-*
+lrr26_optin_recipients.csv
+lrr26_announce_sent.jsonl
 .env
 .env.dev
 .venv
