@@ -126,7 +126,6 @@
    https://github.com/TheLastProject/CSSBox. You are not required to add
    additional credit to your website, just leave the above text in this file */
 div.cssbox {
-  display: inline-block;
 }
 
 span.cssbox_full {
@@ -299,11 +298,11 @@ a:target span.cssbox_full {
 
 {% if can_manage_photos %}
 <form id="uploadForm" action="{{ url_for('teams.upload_images', team_id=team.id) }}" method="POST" enctype="multipart/form-data" class="mb-4">
-  <div id="initialDropZone" class="row mt-3 mb-3 align-items-center p-3 border-2 border-dashed rounded transition-colors" style="transition: all 0.2s ease;">
+  <div id="initialDropZone" class="row mt-3 mb-3 align-items-center p-3 border-2 border-dashed rounded transition-colors border-light-subtle" style="transition: all 0.2s ease;">
     <label for="fileInput" class="col-sm-2 col-form-label d-none">Upload Photos:</label>
     <div class="p-0 w-100">
       <input type="file" class="visually-hidden" id="fileInput" name="files" required multiple data-max-files="20" accept="image/*">
-      <label for="fileInput" class="d-block mt-2 text-muted small text-center" style="cursor: pointer;">
+      <label for="fileInput" class="d-block text-muted small text-center" style="cursor: pointer;">
         <ion-icon name="cloud-upload-outline" class="me-1"></ion-icon>
         Drag and drop images here or click to select files
       </label>
@@ -350,7 +349,13 @@ a:target span.cssbox_full {
 
           <a id="image{{ image.id }}" href="#image{{ image.id }}">
             <img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename, size='thumb') }}" class="cssbox_thumb card-img-top bg-secondary-subtle" style="height: 200px; object-fit: contain; object-position: center;" loading="lazy" title="{{ image.original_filename }} uploaded by {{ image.uploader.name }} on {{ image.upload_time.strftime('%B %-d, %Y at %I:%M %p') }}">
-            <span class="cssbox_full"><img src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename) }}"></span>
+            {# No src here on purpose -- see the "Lazy-load cssbox full-size
+               images" script below. cssbox_full is position:fixed and
+               covers the viewport even while hidden (opacity: 0, not
+               display: none), so a real src -- even with loading="lazy" --
+               would make every full-size original fetch immediately on
+               page load, for every photo in the gallery. #}
+            <span class="cssbox_full"><img data-src="{{ url_for('teams_public.serve_image', team_id=team.id, filename=image.filename) }}" alt=""></span>
           </a>
           <div class="card-body">
             <h5 class="card-title">
@@ -510,6 +515,25 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('img.card-img-top').forEach(setupImageFallback);
 
 });
+
+// Lazy-load cssbox full-size images: the lightbox (see the cssbox_* CSS
+// above) opens purely via the URL hash matching an `<a id="imageN">`, with
+// no JS involved -- so the full-size <img> inside it never got a real `src`
+// in the markup (see gallery.html's comment on cssbox_full). Load it only
+// once its lightbox is the one actually targeted: on the initial hash (a
+// direct link to a photo) and every hashchange after (open, and prev/next,
+// which just changes the hash to another #imageN).
+function loadTargetedFullImage() {
+  const id = location.hash.slice(1);
+  if (!id) return;
+  const fullImg = document.getElementById(id)?.querySelector('.cssbox_full img');
+  if (fullImg && fullImg.dataset.src) {
+    fullImg.src = fullImg.dataset.src;
+    delete fullImg.dataset.src;
+  }
+}
+loadTargetedFullImage();
+window.addEventListener('hashchange', loadTargetedFullImage);
 
 // Initialize your MapLibre map
 const map = new maplibregl.Map({
@@ -1050,7 +1074,7 @@ async function addFilePreviews(newFiles) {
         //gpsCoordinates = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank">(${lat}, ${lon})</a>`;
         addPreviewMarkerToMap(lat, lon, file.name, previewElement.querySelector('img').src);
       } else {
-        gpsCoordinates = `<span class="badge text-bg-warning" title="No geolocation data is included in the file. Check the troubleshooting section below.">No GPS Coordinates</span>`;
+        gpsCoordinates = `<span class="badge text-bg-warning" title="No geolocation data is included in the file. Check the troubleshooting section below.">No GPS</span>`;
       }
 
       // Update EXIF status in the UI
