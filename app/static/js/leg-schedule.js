@@ -12,14 +12,10 @@
  *     A leg's destination is the next row's exchange, so it is named only
  *     where the chain ends: the finish, and an Interline transfer.
  *
- *   - `#legs-my-assignment` -- the viewer's own legs, first thing on the page:
- *     which legs they're on, their total mileage, and when each leg is
- *     estimated to start.
- *   - `#legs-schedule` -- the course as a timetable. A row is a *handoff*:
- *     the exchange, the time the baton reaches it, and the leg that leaves
- *     from it. A leg's destination is the next row's exchange, so it is only
- *     named where the chain actually ends -- the finish, and the transfer
- *     between lines on a Both Lines course.
+ * Clock times come from `legScheduleMetrics()` and appear only where they are
+ * derivable -- the first leg without a pace estimate ends the clock for the
+ * rest of the course. A blank cell means "not knowable yet", never an
+ * assumed pace.
  *
  * Deliberately absent: preference badges. Those score against captain-adjusted
  * values the rest of the team is not shown (see `_serialize_member`), so they
@@ -164,7 +160,7 @@ function renderMyAssignment(mountEl, state, metrics, clock) {
 // ---- The full schedule table ----------------------------------------------
 
 /**
- * Split the course into the stretches a Both Lines team actually runs as
+ * Split the course into the stretches an Interline team actually runs as
  * separate things: the 1 Line branch, the 2 Line branch, and the shared trunk
  * they both feed into (see `legs_for()` in course_service.py, which orders the
  * legs branches-first for exactly this reason).
@@ -269,7 +265,7 @@ function renderSchedule(mountEl, state, metrics, clock) {
     const rows = [];
 
     segments.forEach((segment) => {
-        // Only a Both Lines course has more than one segment; a single-line
+        // Only an Interline course has more than one segment; a single-line
         // team gets the plain uninterrupted table.
         if (segments.length > 1) {
             rows.push(`

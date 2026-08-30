@@ -291,19 +291,19 @@ export function legDurationMetric(leg, assignments, membersById) {
 /**
  * Wall-clock start/end for each leg, accumulated from `course.event_start_time`.
  *
- * The course is a Y, not a line (see `legs_for()` in course_service.py): a
- * Both Lines team runs the 1 Line and 2 Line branches from their two termini
- * to International District/Chinatown, then one shared trunk north. So the
- * clock is driven by when the baton *arrives* at each exchange, not by a
- * running cursor down a single chain:
+ * The course is a Y, not a line (see `legs_for()` in course_service.py), so
+ * the clock is driven by when the baton *arrives* at each exchange rather
+ * than by a cursor down a single chain. A leg starting at a terminus (an
+ * exchange no leg ends at) starts at the event start, so both branches of an
+ * Interline course start together. Any other leg starts at the LATEST
+ * arrival among the legs ending at its start exchange -- a converging
+ * exchange waits for the slower branch.
  *
- *   - A leg starting at a terminus (an exchange no leg ends at) starts at the
- *     event start. Both branches of a Both Lines course therefore start at
- *     8:30 together, rather than one waiting on the other.
- *   - Any other leg starts when the baton reaches its start exchange, which
- *     is the LATEST arrival among the legs ending there. A converging
- *     exchange waits for every branch feeding it: the trunk does not begin
- *     when the first branch gets in, it begins when the slower one does.
+ * Unknowns propagate and are never bridged with an invented pace: a leg with
+ * no duration gets a start but no end (`no-duration`); a leg whose start
+ * exchange has any unknown arrival can't be placed (`awaiting-arrival`); a
+ * non-terminus nothing has reached yet is a `discontinuity`; no parseable
+ * event start blanks everything (`no-event-start`).
  *
  * Returns `{byKey, firstUnknownLegKey, allKnown}`, each entry
  * `{legKey, startMs, endMs, durationSeconds, known, reason}` with epoch-ms

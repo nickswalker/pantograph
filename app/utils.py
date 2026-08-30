@@ -242,7 +242,7 @@ def course_distance_miles(lines=None):
 def longest_line_distance_miles(lines=None):
     """Length of the longest single line in ``lines``.
 
-    The ceiling on what one runner can cover: a Both Lines team's branches run
+    The ceiling on what one runner can cover: an Interline team's branches run
     concurrently, so nobody runs more than one line's worth.
     """
     selected = lines if lines is not None else ALL_LINES

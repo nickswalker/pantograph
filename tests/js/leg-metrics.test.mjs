@@ -539,7 +539,7 @@ test('legScheduleMetrics: per-leg durations survive the gap even when the clock 
     assert.equal(byKey['104-105'].durationSeconds, null);
 });
 
-// ---- Schedule: the Y-shaped Both Lines course ------------------------------
+// ---- Schedule: the Y-shaped Interline course ------------------------------
 //
 // The real course converges: the 1 Line branch and the 2 Line branch both run
 // to International District/Chinatown, then share a trunk north. Miniature of

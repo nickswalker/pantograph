@@ -97,7 +97,7 @@ class Config:
     # Upload configuration
     UPLOAD_FOLDER = './uploads'
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-    # Comfortably above a Both Lines team's 39 exchange points this year (the
+    # Comfortably above an Interline team's 39 exchange points this year (the
     # 1 Line/2 Line merge in data/lrr2026.geojson), with room for a few
     # non-exchange shots (start, finish, group photo).
     MAX_PHOTOS_PER_TEAM = 45

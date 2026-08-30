@@ -7,7 +7,7 @@ per line.
 
 The two lines share a 13-leg trunk from International District/Chinatown to
 Lynnwood City Center. Those legs appear once, carrying both line keys, so a
-Both Lines course is the union of the branches plus one trunk -- 38 legs, not
+Interline course is the union of the branches plus one trunk -- 38 legs, not
 51. A leg's identity is therefore its ``(start_exchange, end_exchange)`` pair,
 which is stable across lines; ``sequence`` is per-line display ordering only.
 

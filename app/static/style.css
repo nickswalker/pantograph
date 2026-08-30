@@ -257,13 +257,13 @@ html[data-bs-theme="dark"] .invert-when-dark {
 }
 
 /* The exchange that closes out a chain of legs -- the finish, or the transfer
-   between lines on a Both Lines course. It has no leg departing from it, so
+   between lines on an Interline course. It has no leg departing from it, so
    it reads as an endpoint rather than another handoff. */
 .schedule-row-terminus > td {
   background-color: var(--bs-tertiary-bg);
 }
 
-/* Section header inside the schedule: one per branch on a Both Lines course
+/* Section header inside the schedule: one per branch on an Interline course
    (a single-line team gets no sections at all). */
 .schedule-row-section > th {
   background-color: var(--bs-tertiary-bg);

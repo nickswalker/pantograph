@@ -61,7 +61,7 @@
                                 <option value="{{ option.value }}" {% if request.args.get('lines') == option.value %}selected{% endif %}>{{ option.value }} &mdash; {{ option.distance | round(1) }} miles</option>
                                 {% endfor %}
                             </select>
-                            <div class="form-text" id="lines-help">Both Lines requires your team to start in two locations and converge at Chinatown to run the shared trunk</div>
+                            <div class="form-text" id="lines-help">Interline requires your team to start in two locations and converge at Chinatown to run the shared trunk</div>
                         </div>
 
                         <div class="mb-3" id="team-name-section">
@@ -231,28 +231,31 @@ function updateFormForFormat() {
 }
 
 const BATON_PRICE = {{ baton_price }};
+// The TeamLines.BOTH display label -- templated rather than hardcoded so
+// this stays correct if that label ever changes again.
+const BOTH_LINES = {{ both_lines_value | tojson }};
 
 function updateFormForLines() {
     const linesSelect = document.getElementById('lines');
-    const bothOption = linesSelect.querySelector('option[value="Both Lines"]');
+    const bothOption = linesSelect.querySelector(`option[value="${BOTH_LINES}"]`);
     const linesHelp = document.getElementById('lines-help');
 
-    // Both Lines runs two branches concurrently, so a solo entry can't do it.
+    // Interline runs two branches concurrently, so a solo entry can't do it.
     const isSolo = document.getElementById('format').value === 'Solo';
     bothOption.disabled = isSolo;
     bothOption.hidden = isSolo;
-    if (isSolo && linesSelect.value === 'Both Lines') linesSelect.value = '';
+    if (isSolo && linesSelect.value === BOTH_LINES) linesSelect.value = '';
     document.getElementById('lines-label-text').textContent = isSolo ? 'Line' : 'Line(s)';
     linesSelect.querySelector('option[value=""]').textContent = isSolo ? 'Select line...' : 'Select line(s)...';
     linesHelp.textContent = isSolo
         ? ''
-        : 'Both Lines requires your team to start in two locations and converge at Chinatown to run the shared trunk';
+        : 'Interline requires your team to start in two locations and converge at Chinatown to run the shared trunk';
 
     // Each previous-baton field only makes sense for a team running that
     // line -- ask about the 1 Line baton iff they're running the 1 Line
-    // (alone or as part of Both Lines), and likewise for the 2 Line baton.
-    const runsLine1 = linesSelect.value === '1 Line' || linesSelect.value === 'Both Lines';
-    const runsLine2 = linesSelect.value === '2 Line' || linesSelect.value === 'Both Lines';
+    // (alone or as part of Interline), and likewise for the 2 Line baton.
+    const runsLine1 = linesSelect.value === '1 Line' || linesSelect.value === BOTH_LINES;
+    const runsLine2 = linesSelect.value === '2 Line' || linesSelect.value === BOTH_LINES;
     const baton1Section = document.getElementById('previous-baton-1-section');
     const baton1Input = document.getElementById('previous_baton_serial');
     const baton2Section = document.getElementById('previous-baton-2-section');
@@ -264,9 +267,9 @@ function updateFormForLines() {
     baton2Section.style.display = runsLine2 ? 'block' : 'none';
     if (!runsLine2) baton2Input.value = '';
 
-    const needsTwoBatons = linesSelect.value === 'Both Lines';
+    const needsTwoBatons = linesSelect.value === BOTH_LINES;
     feeText.textContent = needsTwoBatons
-        ? `Both Lines needs two batons. Each one you don't already own costs $${BATON_PRICE} (up to $${BATON_PRICE * 2}) and is required for team approval.`
+        ? `Interline needs two batons. Each one you don't already own costs $${BATON_PRICE} (up to $${BATON_PRICE * 2}) and is required for team approval.`
         : `If you don't have a previous LRR baton, a $${BATON_PRICE} charge for a new baton will be required for team approval.`;
 }
 

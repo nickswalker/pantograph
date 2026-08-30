@@ -43,6 +43,7 @@ def create_team():
         deadline_info = get_registration_deadline_info()
         return render_template('create_team.html', user=current_user, deadline_info=deadline_info,
                                line_options=team_line_options(),
+                               both_lines_value=TeamLines.BOTH.value,
                                baton_price=Config.BATON_PRICE_USD)
 
     # Handle POST request - require authentication for actual submission
@@ -91,12 +92,12 @@ def create_team():
         try:
             team_lines = TeamLines(lines_str)
         except ValueError:
-            return jsonify({'error': 'Lines must be 1 Line, 2 Line, or Both Lines'}), 400
+            return jsonify({'error': 'Lines must be 1 Line, 2 Line, or Interline'}), 400
 
-        # Both Lines runs two branches at the same time, so it needs at least
+        # Interline runs two branches at the same time, so it needs at least
         # two runners and two batons -- impossible for a solo entry.
         if format_type == TeamFormat.SOLO and team_lines == TeamLines.BOTH:
-            return jsonify({'error': 'A solo entry cannot run Both Lines: the two branches run '
+            return jsonify({'error': 'A solo entry cannot run Interline: the two branches run '
                                      'concurrently. Choose the 1 Line or the 2 Line.'}), 400
 
         if not estimated_duration_str:

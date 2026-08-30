@@ -23,10 +23,14 @@ class TeamFormat(enum.Enum):
 
 class TeamLines(enum.Enum):
     """Which Link line(s) a team runs.
+
+    BOTH's display value is 'Interline' -- SQLAlchemy's Enum column stores
+    the member *name* ('ONE'/'TWO'/'BOTH'), not this value, so this is a
+    label-only rename and doesn't touch existing rows.
     """
     ONE = '1 Line'
     TWO = '2 Line'
-    BOTH = 'Both Lines'
+    BOTH = 'Interline'
 
 class TeamMembershipStatus(enum.Enum):
     ACTIVE = 'active'
@@ -77,7 +81,7 @@ class Team(db.Model):
     password_hash = db.Column(db.String(255), nullable=True)  # Optional password for joining
     invite_token = db.Column(db.String(32), unique=True, nullable=True) # Shareable, revocable invite token
     status = db.Column(db.Enum(TeamStatus), nullable=False, default=TeamStatus.PENDING)
-    # A Both Lines team runs two branches concurrently, so it needs two batons.
+    # An Interline team runs two branches concurrently, so it needs two batons.
     previous_baton_serial = db.Column(db.String(12), nullable=True)
     previous_baton_serial_2 = db.Column(db.String(12), nullable=True)
     baton_serial = db.Column(db.String(12), nullable=True)
@@ -109,7 +113,7 @@ class Team(db.Model):
 
     @property
     def batons_required(self):
-        """Two for Both Lines (one per branch), otherwise one."""
+        """Two for Interline (one per branch), otherwise one."""
         return 2 if self.lines == TeamLines.BOTH else 1
 
     @property
@@ -257,7 +261,7 @@ class LegAssignment(db.Model):
     because index is per-line: leg 20 is Roosevelt->Northgate on the 1 Line
     but Northgate->Pinehurst on the 2 Line. The pair is stable across lines,
     so a shared trunk leg is one leg no matter which line a team registered
-    for, and a Both Lines team cannot double-assign it.
+    for, and an Interline team cannot double-assign it.
     """
 
     id = db.Column(db.String(8), primary_key=True, default=lambda: secrets.token_urlsafe(6))

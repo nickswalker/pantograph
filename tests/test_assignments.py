@@ -453,7 +453,7 @@ def test_edit_query_does_nothing_for_a_plain_member(client, seeded):
 # The course converges: each line's branch runs from its own terminus to
 # International District/Chinatown, and from there they share one trunk north.
 # legs_for() returns them in the order the race is run -- branches first, then
-# the trunk once -- so a Both Lines team's board and schedule show two starts
+# the trunk once -- so an Interline team's board and schedule show two starts
 # feeding a single shared stretch.
 
 def test_both_lines_orders_branches_before_the_shared_trunk():

@@ -173,7 +173,7 @@ def update_baton_serial(team_id):
 
         data = request.get_json()
         team.baton_serial = data.get('baton_serial') or None
-        # Only a Both Lines team is issued a second baton.
+        # Only an Interline team is issued a second baton.
         team.baton_serial_2 = (
             data.get('baton_serial_2') or None if team.batons_required > 1 else None
         )
