@@ -2,7 +2,7 @@ import os
 import shutil
 from flask import Blueprint, render_template, jsonify, url_for, request
 from flask_login import current_user
-from app.models import db, User, Team, TeamMembership, TeamMembershipStatus, Image
+from app.models import db, User, Team, TeamMembership, TeamMembershipStatus, Image, UserRole
 from app.permissions import admin_required, manager_or_admin_required
 from app.utils import is_allowed_image, format_mm_ss_from_seconds, get_registration_deadline_info
 from app.config import Config
@@ -294,6 +294,46 @@ def delete_all_images():
             "success": False,
             "error": f"Failed to delete images: {str(e)}"
         }), 500
+
+
+@admin.route('/user/<user_id>/role', methods=['PATCH'])
+@admin_required
+def update_user_role(user_id):
+    """Grant or revoke the manager role from the admin board.
+    """
+    data = request.get_json(silent=True) or {}
+    requested = str(data.get('role', '')).strip().lower()
+    if requested not in ('participant', 'manager'):
+        return jsonify({'error': "Role must be 'participant' or 'manager'"}), 400
+
+    user = User.query.filter_by(id=user_id).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    if user.id == current_user.id:
+        return jsonify({'error': 'You cannot change your own role'}), 403
+    if user.role == UserRole.ADMIN:
+        return jsonify({
+            'error': 'Admin accounts are set by deployment configuration and cannot be changed here'
+        }), 403
+
+    new_role = UserRole.MANAGER if requested == 'manager' else UserRole.PARTICIPANT
+    if user.role == new_role:
+        return jsonify({
+            'success': True,
+            'role': new_role.value,
+            'message': f'{user.name} is already a {new_role.value}.'
+        }), 200
+
+    try:
+        user.role = new_role
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to update role: {str(e)}'}), 500
+
+    message = (f'{user.name} is now a manager.' if new_role == UserRole.MANAGER
+               else f'Manager access removed from {user.name}.')
+    return jsonify({'success': True, 'role': new_role.value, 'message': message}), 200
 
 @admin.route('/send-registration-reminder', methods=['POST'])
 @admin_required

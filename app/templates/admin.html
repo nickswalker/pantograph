@@ -214,7 +214,7 @@
                             </thead>
                             <tbody>
                                 {% for user in users %}
-                                <tr>
+                                <tr id="user-row-{{ user.id }}">
                                     <td>
                                         <div class="d-flex align-items-center">
                                             {% if user.avatar_url %}
@@ -266,6 +266,14 @@
                                                 <ion-icon name="ellipsis-horizontal-outline"></ion-icon>
                                             </button>
                                             <ul class="dropdown-menu">
+                                                {# Admins are set by ADMIN_EMAIL, and nobody edits their own role -- so
+                                                   neither case gets a role item at all. #}
+                                                {% if not user.is_admin and user.id != current_user.id %}
+                                                <li><a class="dropdown-item" href="#" onclick="setUserRole('{{ user.id }}', '{{ user.name }}', '{{ 'participant' if user.is_manager else 'manager' }}')">
+                                                    <ion-icon name="{{ 'person-remove-outline' if user.is_manager else 'ribbon-outline' }}" class="me-2"></ion-icon>{{ 'Revoke Manager' if user.is_manager else 'Make Manager' }}
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                {% endif %}
                                                 <li><a class="dropdown-item text-danger" href="#" onclick="confirmDeleteUser('{{ user.name }}', '{{ user.id }}')">
                                                     <ion-icon name="trash-outline" class="me-2"></ion-icon>Delete User
                                                 </a></li>
@@ -575,6 +583,27 @@ window.copyToClipboard = async function(text) {
     }
 }
 
+
+// Manager role grant/revoke. The server refuses admins and self-edits, and the
+// menu item is hidden in both cases -- this only covers participant <-> manager.
+window.setUserRole = async function(userId, userName, role) {
+    const question = role === 'manager'
+        ? `Make "${userName}" a manager? They will be able to approve and manage every team, but not see team photos.`
+        : `Revoke manager access from "${userName}"?`;
+    if (!api.confirm(question)) {
+        return;
+    }
+
+    const result = await adminAPI.updateUserRole(userId, role);
+
+    if (result.success) {
+        api.showBanner(result.data.message, 'success');
+        api.redirectAfterDelay(window.location.href, 1500);
+    } else {
+        api.showRowAlert(document.getElementById(`user-row-${userId}`), 'danger',
+                         result.error || 'Failed to update role');
+    }
+}
 
 // Team deletion functions
 window.confirmDeleteTeam = function(teamName, shortId) {

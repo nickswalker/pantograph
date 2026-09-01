@@ -492,6 +492,15 @@ export class AdminAPI extends ApiClient {
             method: 'POST'
         });
     }
+
+    // Grant or revoke the manager role (admin); role is 'manager' or 'participant'
+    async updateUserRole(userId, role) {
+        const url = this.buildUrl('updateUserRole', { user_id: userId });
+        return await this.request(url, {
+            method: 'PATCH',
+            body: JSON.stringify({ role: role })
+        });
+    }
 }
 
 // Image Management API

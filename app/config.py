@@ -69,7 +69,9 @@ class Config:
     # comma-separated addresses, granted the same way admin is: checked
     # against a user's email the moment their account is first created, so
     # adding/removing an address here has no effect on an existing account
-    # (consistent with how ADMIN_EMAIL already behaves).
+    # (consistent with how ADMIN_EMAIL already behaves). To promote/demote an
+    # existing account, use the admin board's per-user menu
+    # (admin.update_user_role)
     MANAGER_EMAILS = {e.strip() for e in os.getenv('MANAGER_EMAILS', '').split(',') if e.strip()}
     CONTACT_EMAIL = get_secret('CONTACT_EMAIL')
     NOTIFICATION_EMAIL = get_secret('NOTIFICATION_EMAIL')

@@ -118,6 +118,7 @@ configureUrls({
     deleteTeam: '{{ url_for("admin.delete_team", team_id="__TEAM_ID__") }}',
     sendRegistrationReminder: '{{ url_for("admin.send_registration_reminder") }}',
     deleteAllImages: '{{ url_for("admin.delete_all_images") }}',
+    updateUserRole: '{{ url_for("admin.update_user_role", user_id="__USER_ID__") }}',
     admin: '{{ url_for("admin.admin_dashboard") }}',
     {% endif %}
 
