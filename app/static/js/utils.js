@@ -21,6 +21,15 @@ export function formatTimes(times){
                 minute: '2-digit',
                 timeZoneName: 'short'
             });
+        } else if (timeEl.classList.contains('format-as-datetime')) {
+            // Update the display text to Pacific time
+            timeEl.textContent = utcTime.toLocaleString('en-US', {
+                timeZone: 'America/Los_Angeles',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+            });
         } else if (timeEl.classList.contains('format-as-time-with-seconds')) {
              // Update the display text to Pacific time
             timeEl.textContent = utcTime.toLocaleTimeString('en-US', {

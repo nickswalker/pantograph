@@ -179,3 +179,39 @@ def test_pending_team_falls_back_to_its_creation_date(app, client, seeded):
     body = client.get('/admin/').get_data(as_text=True)
     assert 'Registered ·' in body
 
+
+# --- The activity card ---
+
+def test_activity_card_lists_recent_events(app, client, seeded):
+    login(client, seeded['captain_id'])
+    client.post(f"/team/{seeded['team_id']}/close")
+
+    login(client, seeded['admin_id'])
+    body = client.get('/admin/').get_data(as_text=True)
+    assert 'Closed team Test Team to new members' in body
+    assert 'Cap Tain' in body
+
+
+def test_activity_card_is_hidden_from_managers(app, client, seeded):
+    """Managers share the admin board, but the audit log is admin-only."""
+    from app.models import db, User, UserRole
+    with app.app_context():
+        user = User.query.filter_by(id=seeded['runner_id']).first()
+        user.role = UserRole.MANAGER
+        db.session.commit()
+
+    login(client, seeded['captain_id'])
+    client.post(f"/team/{seeded['team_id']}/close")
+
+    login(client, seeded['runner_id'])
+    response = client.get('/admin/')
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'Closed team Test Team' not in body
+    assert 'No activity recorded yet.' not in body
+
+
+def test_activity_card_shows_an_empty_state(app, client, seeded):
+    login(client, seeded['admin_id'])
+    body = client.get('/admin/').get_data(as_text=True)
+    assert 'No activity recorded yet.' in body

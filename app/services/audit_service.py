@@ -65,6 +65,49 @@ def record(verb, target=None, actor=None, **payload):
     return event
 
 
+#: One-line English summary per verb, for the admin activity feed. Formatted
+#: with ``target`` (the label snapshot) plus whatever is in the event payload.
+VERB_SENTENCES = {
+    AuditVerb.TEAM_APPROVED: 'Approved team {target}',
+    AuditVerb.TEAM_CANCELLED: 'Cancelled team {target}',
+    AuditVerb.TEAM_CLOSED: 'Closed team {target} to new members',
+    AuditVerb.TEAM_REOPENED: 'Reopened team {target} to new members',
+    AuditVerb.TEAM_WITHDRAWN: 'Withdrew team {target} from the event',
+    AuditVerb.TEAM_UNWITHDRAWN: 'Un-withdrew team {target}',
+    AuditVerb.TEAM_DELETED: 'Deleted team {target} and its photos',
+    AuditVerb.CAPTAIN_TRANSFERRED: 'Made {to} captain of {target}',
+    AuditVerb.MEMBER_WITHDRAWN: 'Withdrew {target} from {team_name}',
+    AuditVerb.MEMBER_UNWITHDRAWN: 'Re-joined {target} to {team_name}',
+    AuditVerb.MEMBER_REMOVED: 'Removed {target} from {team_name}',
+    AuditVerb.ROLE_GRANTED: 'Made {target} a manager',
+    AuditVerb.ROLE_REVOKED: 'Revoked manager access from {target}',
+    AuditVerb.ALL_IMAGES_DELETED: 'Deleted every photo in the event ({deleted_count})',
+}
+
+
+def describe(event):
+    """``event`` as one line of English.
+
+    Falls back to the bare verb rather than raising: an old row whose payload
+    predates a wording change should still show up in the feed.
+    """
+    sentence = VERB_SENTENCES.get(event.verb)
+    if not sentence:
+        return event.verb.value
+    try:
+        return sentence.format(target=event.target_label or 'a deleted record', **event.details)
+    except KeyError:
+        return event.verb.value
+
+
+def recent(limit=25):
+    """The newest events first, for the admin activity feed."""
+    return (AuditEvent.query
+            .order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc())
+            .limit(limit)
+            .all())
+
+
 #: How each status verb reads in the admin board's hover text.
 STATUS_VERB_LABELS = {
     AuditVerb.TEAM_APPROVED: 'Approved',

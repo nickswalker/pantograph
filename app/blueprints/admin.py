@@ -93,7 +93,18 @@ def admin_dashboard():
     # Remove duplicates (in case someone captains multiple teams)
     captain_emails = list(set(captain_emails))
 
-    return render_template('admin.html', teams=teams, users=users, user=current_user, captain_emails=captain_emails)
+    # The activity feed is admin-only; managers share this page but not the log.
+    activity = []
+    if current_user.is_admin:
+        activity = [
+            {'at': event.occurred_at,
+             'actor': event.actor_name,
+             'summary': audit_service.describe(event)}
+            for event in audit_service.recent()
+        ]
+
+    return render_template('admin.html', teams=teams, users=users, user=current_user,
+                           captain_emails=captain_emails, activity=activity)
 
 
 @admin.route('/team/<team_id>', methods=['DELETE'])
