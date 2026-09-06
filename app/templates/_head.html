@@ -69,7 +69,7 @@ import { api, userAPI, adminAPI, configureUrls } from '{{ url_for("static", file
 
 // Global timezone conversion for all time elements
 document.addEventListener('DOMContentLoaded', function() {
-    formatTimes(document.querySelectorAll('time[datetime]'));
+    formatTimes(document.querySelectorAll('time[datetime], [data-datetime]'));
 });
 
 

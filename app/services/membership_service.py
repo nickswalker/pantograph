@@ -6,6 +6,11 @@ preferences. No HTTP concerns: validation failures raise
 :class:`~app.services.exceptions.ServiceError` (with an appropriate status),
 which route handlers translate into JSON responses.
 
+Membership lifecycle changes and captaincy transfers are recorded to the audit
+log in the same transaction -- they affect somebody other than the person doing
+them, so "who dropped me, and when?" needs an answer. Callers pass the acting
+user as ``actor``.
+
 Notification side effects (emails, digest logging) stay in the route handlers;
 these functions only own the persistence and business rules.
 """
@@ -14,14 +19,17 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-from app.models import db, Team, TeamMembership, User, TeamStatus, TeamFormat, TeamMembershipStatus
+from app.models import (
+    db, AuditVerb, Team, TeamMembership, User, TeamStatus, TeamFormat, TeamMembershipStatus,
+)
+from app.services import audit_service
 from app.services.exceptions import ServiceError
 from app.utils import parse_mm_ss_to_seconds, load_end_station_names, course_lines_for, max_preferred_miles
 
 
 # --- Membership lifecycle operations ---
 
-def withdraw_membership(team, membership):
+def withdraw_membership(team, membership, actor=None):
     """Withdraw a member from a team. Captains cannot withdraw themselves."""
     if membership.status == TeamMembershipStatus.WITHDRAWN:
         raise ServiceError('Membership is already withdrawn')
@@ -29,21 +37,25 @@ def withdraw_membership(team, membership):
         raise ServiceError('Captain cannot withdraw from their own team. Make someone else captain first.')
 
     membership.status = TeamMembershipStatus.WITHDRAWN
+    audit_service.record(AuditVerb.MEMBER_WITHDRAWN, target=membership, actor=actor,
+                         team_id=team.id, team_name=team.name)
     db.session.commit()
     return membership
 
 
-def unwithdraw_membership(membership):
+def unwithdraw_membership(membership, actor=None):
     """Restore a withdrawn membership to active."""
     if membership.status != TeamMembershipStatus.WITHDRAWN:
         raise ServiceError('Membership is not withdrawn')
 
     membership.status = TeamMembershipStatus.ACTIVE
+    audit_service.record(AuditVerb.MEMBER_UNWITHDRAWN, target=membership, actor=actor,
+                         team_id=membership.team_id, team_name=membership.team.name)
     db.session.commit()
     return membership
 
 
-def remove_member(team, user_id):
+def remove_member(team, user_id, actor=None):
     """Remove a member (by user id) from a team. Captains cannot be removed."""
     membership = TeamMembership.query.filter_by(team_id=team.id, user_id=user_id).first()
     if not membership:
@@ -52,11 +64,13 @@ def remove_member(team, user_id):
         raise ServiceError('Cannot remove team captain')
 
     membership.status = TeamMembershipStatus.REMOVED
+    audit_service.record(AuditVerb.MEMBER_REMOVED, target=membership, actor=actor,
+                         team_id=team.id, team_name=team.name)
     db.session.commit()
     return membership
 
 
-def transfer_captain(team, user_id):
+def transfer_captain(team, user_id, actor=None):
     """Transfer captaincy to an active member of the team.
 
     Returns ``(previous_captain, new_captain)`` so the caller can notify them.
@@ -75,6 +89,9 @@ def transfer_captain(team, user_id):
 
     previous_captain = team.captain
     team.captain_id = user_id
+    audit_service.record(AuditVerb.CAPTAIN_TRANSFERRED, target=team, actor=actor,
+                         **{'from': previous_captain.name if previous_captain else None,
+                            'to': new_captain.name})
     db.session.commit()
     return previous_captain, new_captain
 

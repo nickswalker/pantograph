@@ -1,7 +1,9 @@
 export function formatTimes(times){
     // Convert all time elements to Pacific timezone
     times.forEach(timeEl => {
-        const utcTime = new Date(timeEl.getAttribute('datetime'));
+        // data-datetime lets a non-<time> element (a status badge, say) get the
+        // same tooltip treatment without pretending its text is a timestamp.
+        const utcTime = new Date(timeEl.getAttribute('datetime') || timeEl.dataset.datetime);
 
         if (timeEl.classList.contains('format-as-date')) {
             // Update the display text to Pacific time
@@ -31,8 +33,9 @@ export function formatTimes(times){
         }
 
         if (timeEl.classList.contains('format-datetime-tooltip')) {
-            // Update the tooltip to show full Pacific time
-            timeEl.title = utcTime.toLocaleString('en-US', {
+            // Update the tooltip to show full Pacific time, keeping any lead-in
+            // text (e.g. "Approved by Ada Lovelace") ahead of it.
+            timeEl.title = (timeEl.dataset.tooltipPrefix || '') + utcTime.toLocaleString('en-US', {
                 timeZone: 'America/Los_Angeles',
                 month: 'long',
                 day: 'numeric',

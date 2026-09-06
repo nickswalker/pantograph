@@ -70,6 +70,53 @@ class NotificationStatus(enum.Enum):
     SENT = 'sent'
     FAILED = 'failed'     # retries exhausted
 
+class AuditVerb(enum.Enum):
+    """An administrative action worth keeping a record of.
+
+    Verbs are *semantic*, not column diffs: approving a pending team and
+    reopening a closed one both leave ``status == OPEN``, but they are
+    different acts and the log should say which one happened.
+
+    Add a verb when an action is performable by more than one person, affects
+    somebody other than the actor, or cannot be undone. Actions whose own row
+    already is the record (an uploaded Image, a queued NotificationLog, a
+    MembershipPreferenceOverride with its ``created_by``) do not need one.
+    """
+    TEAM_APPROVED = 'team.approved'
+    TEAM_CANCELLED = 'team.cancelled'
+    TEAM_CLOSED = 'team.closed'
+    TEAM_REOPENED = 'team.reopened'
+    TEAM_WITHDRAWN = 'team.withdrawn'
+    TEAM_UNWITHDRAWN = 'team.unwithdrawn'
+    TEAM_DELETED = 'team.deleted'
+    CAPTAIN_TRANSFERRED = 'team.captain_transferred'
+    MEMBER_WITHDRAWN = 'membership.withdrawn'
+    MEMBER_UNWITHDRAWN = 'membership.unwithdrawn'
+    MEMBER_REMOVED = 'membership.removed'
+    ROLE_GRANTED = 'user.role_granted'
+    ROLE_REVOKED = 'user.role_revoked'
+    ALL_IMAGES_DELETED = 'images.deleted_all'
+
+
+#: Verbs that move a team from one TeamStatus to another. These are what the
+#: admin board reads to answer "when did this team's status last change?".
+TEAM_STATUS_VERBS = (
+    AuditVerb.TEAM_APPROVED,
+    AuditVerb.TEAM_CANCELLED,
+    AuditVerb.TEAM_CLOSED,
+    AuditVerb.TEAM_REOPENED,
+    AuditVerb.TEAM_WITHDRAWN,
+    AuditVerb.TEAM_UNWITHDRAWN,
+)
+
+
+class AuditTargetType(enum.Enum):
+    """What kind of thing an AuditEvent is about."""
+    TEAM = 'team'
+    USER = 'user'
+    MEMBERSHIP = 'membership'
+    SYSTEM = 'system'   # event-wide actions that name no single row
+
 class Team(db.Model):
     id = db.Column(db.String(8), primary_key=True, default=lambda: secrets.token_urlsafe(6))
     name = db.Column(db.String(255), unique=True, nullable=False)
@@ -389,3 +436,58 @@ class NotificationLog(db.Model):
 
     def __repr__(self):
         return f'<NotificationLog {self.notification_type.value} to {self.recipient.email}>'
+
+
+class AuditEvent(db.Model):
+    """Append-only record of who did what, and when.
+
+    Rows are written in the *same transaction* as the change they describe, so
+    if the change committed, its record exists. (This is the opposite of
+    :class:`NotificationLog`, which is deliberately an outbox: enqueued now,
+    delivered later, retried on failure. Don't confuse the two.)
+
+    Nothing here is ever updated or deleted.
+
+    Neither the actor nor the target is a foreign key, and that is deliberate.
+    Teams and users are both hard-deleted in this app (``admin.delete_team``
+    takes the photo files with it), and an audit row must outlive the thing it
+    describes -- a delete is precisely the event you most want a record of.
+    So ids are stored as plain strings next to a ``_label`` snapshot of how the
+    row read at the time, which is also what gets displayed.
+
+    A null ``actor_id`` means the system did it (a scheduled job), not that the
+    actor is unknown.
+    """
+
+    id = db.Column(db.String(8), primary_key=True, default=lambda: secrets.token_urlsafe(6))
+    occurred_at = db.Column(db.DateTime, nullable=False, default=_naive_utcnow, index=True)
+    verb = db.Column(db.Enum(AuditVerb), nullable=False, index=True)
+
+    actor_id = db.Column(db.String(8), nullable=True, index=True)
+    actor_label = db.Column(db.String(255), nullable=True)
+
+    target_type = db.Column(db.Enum(AuditTargetType), nullable=False)
+    target_id = db.Column(db.String(8), nullable=True, index=True)
+    target_label = db.Column(db.String(255), nullable=True)
+
+    #: JSON object of verb-specific detail, e.g. {"from": "pending", "to": "open"}.
+    payload = db.Column(db.Text, nullable=True)
+
+    @property
+    def details(self):
+        """The payload as a dict (empty if absent or unparseable)."""
+        import json
+        if not self.payload:
+            return {}
+        try:
+            return json.loads(self.payload)
+        except ValueError:
+            return {}
+
+    @property
+    def actor_name(self):
+        """Who did it, for display."""
+        return self.actor_label or 'System'
+
+    def __repr__(self):
+        return f'<AuditEvent {self.verb.value} on {self.target_label} by {self.actor_name}>'

@@ -2,7 +2,10 @@ import os
 import shutil
 from flask import Blueprint, render_template, jsonify, url_for, request
 from flask_login import current_user
-from app.models import db, User, Team, TeamMembership, TeamMembershipStatus, Image, UserRole
+from app.models import (
+    db, User, Team, TeamMembership, TeamMembershipStatus, Image, UserRole, AuditVerb, TeamStatus,
+)
+from app.services import audit_service
 from app.permissions import admin_required, manager_or_admin_required
 from app.utils import is_allowed_image, format_mm_ss_from_seconds, get_registration_deadline_info
 from app.config import Config
@@ -16,10 +19,27 @@ def admin_dashboard():
     # Get all teams from database
     db_teams = Team.query.all()
 
+    # One query for the whole table: who last changed each team's status, and when.
+    status_events = audit_service.latest_team_status_changes()
+
     teams = []
     for team in db_teams:
         # Count images from database
         image_count = Image.query.filter_by(team_id=team.id).count()
+
+        # A team still PENDING with no recorded transition has been pending
+        # since it was created -- that much we know without a log entry.
+        status_event = status_events.get(team.id)
+        if status_event:
+            status_change = {
+                'label': audit_service.STATUS_VERB_LABELS.get(status_event.verb, 'Changed'),
+                'actor': status_event.actor_name,
+                'at': status_event.occurred_at,
+            }
+        elif team.status == TeamStatus.PENDING:
+            status_change = {'label': 'Registered', 'actor': None, 'at': team.created_at}
+        else:
+            status_change = None
 
         teams.append({
             'name': team.name,
@@ -32,6 +52,7 @@ def admin_dashboard():
             'created_at': team.created_at,
             'member_count': len([m for m in team.memberships if m.status == TeamMembershipStatus.ACTIVE]),
             'status': team.status,
+            'status_change': status_change,
             'comments': team.comments,
             'baton_serial': team.baton_serial,
             'baton_serial_2': team.baton_serial_2,
@@ -88,6 +109,14 @@ def delete_team(team_id):
 
         # Delete team memberships first (due to foreign key constraints)
         if team:
+            # Logged before the delete, in the same transaction: this is the one
+            # action that destroys its own evidence (rows and photo files both).
+            audit_service.record(
+                AuditVerb.TEAM_DELETED, target=team, actor=current_user,
+                status=team.status.value,
+                member_count=len(team.memberships),
+                image_count=Image.query.filter_by(team_id=team.id).count(),
+            )
             TeamMembership.query.filter_by(team_id=team.id).delete()
             db.session.delete(team)
             db.session.commit()
@@ -128,7 +157,7 @@ def approve_team(team_id):
 
         try:
             # Solo teams go to 'closed', Team goes to 'open'
-            team_service.approve_team(team)
+            team_service.approve_team(team, actor=current_user)
         except TeamStateError as e:
             return jsonify({'error': e.message}), 400
 
@@ -280,6 +309,9 @@ def delete_all_images():
             db.session.delete(image)
             deleted_count += 1
 
+        audit_service.record(AuditVerb.ALL_IMAGES_DELETED, actor=current_user,
+                             deleted_count=deleted_count)
+
         # Commit all deletions
         db.session.commit()
 
@@ -324,8 +356,14 @@ def update_user_role(user_id):
             'message': f'{user.name} is already a {new_role.value}.'
         }), 200
 
+    previous_role = user.role
     try:
         user.role = new_role
+        audit_service.record(
+            AuditVerb.ROLE_GRANTED if new_role == UserRole.MANAGER else AuditVerb.ROLE_REVOKED,
+            target=user, actor=current_user,
+            **{'from': previous_role.value, 'to': new_role.value},
+        )
         db.session.commit()
     except Exception as e:
         db.session.rollback()

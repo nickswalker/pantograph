@@ -48,6 +48,13 @@
                                 <tr>
                                     <td><strong>{{ team.name }}</strong>{% if team.format == TeamFormat.SOLO %} <span class="text-muted">(Solo)</span>{% endif %}</td>
                                     <td>
+                                        {# Hovering the status says when it last changed, and who changed it. #}
+                                        {% set change = team.status_change %}
+                                        {% set prefix = (change.label ~ (' by ' ~ change.actor if change.actor else '') ~ ' · ') if change else '' %}
+                                        <span {% if change %}class="format-datetime-tooltip" style="cursor: help;"
+                                              data-datetime="{{ change.at.isoformat() }}Z"
+                                              data-tooltip-prefix="{{ prefix }}"
+                                              title="{{ prefix }}{{ change.at.strftime('%B %-d, %Y at %I:%M %p') }}"{% endif %}>
                                         {% if team.status == TeamStatus.PENDING %}
                                         <span class="text-warning">
                                             Pending
@@ -68,6 +75,7 @@
                                             Closed
                                         </span>
                                         {% endif %}
+                                        </span>
                                         {% if team.format == TeamFormat.TEAM %}
                                             {% if team.has_password %}
                                                 <ion-icon name="lock-closed-outline" class="text-muted ms-1" style="font-size: 14px;" title="Password protected"></ion-icon>

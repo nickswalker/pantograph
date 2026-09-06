@@ -701,7 +701,7 @@ def serve_image(team_id, filename):
 @team_captain_required()
 def withdraw_team(team_id, team):
     try:
-        team_service.withdraw_team(team)
+        team_service.withdraw_team(team, actor=current_user)
         return jsonify({
             'success': True,
             'message': f'Team "{team.name}" withdrawn successfully'
@@ -718,7 +718,7 @@ def withdraw_team(team_id, team):
 @team_captain_required()
 def unwithdraw_team(team_id, team):
     try:
-        team_service.unwithdraw_team(team)
+        team_service.unwithdraw_team(team, actor=current_user)
         return jsonify({
             'success': True,
             'message': f'Team "{team.name}" un-withdrawn successfully'
@@ -735,7 +735,7 @@ def unwithdraw_team(team_id, team):
 @team_captain_required()
 def cancel_team(team_id, team):
     try:
-        team_service.cancel_team(team)
+        team_service.cancel_team(team, actor=current_user)
         return jsonify({
             'success': True,
             'message': f'Team "{team.name}" cancelled successfully'
@@ -752,7 +752,7 @@ def cancel_team(team_id, team):
 @team_captain_required()
 def close_team(team_id, team):
     try:
-        team_service.close_team(team)
+        team_service.close_team(team, actor=current_user)
         return jsonify({
             'success': True,
             'message': f'Team "{team.name}" closed to new registrations'
@@ -769,7 +769,7 @@ def close_team(team_id, team):
 @team_captain_required()
 def reopen_team(team_id, team):
     try:
-        team_service.reopen_team(team)
+        team_service.reopen_team(team, actor=current_user)
         return jsonify({
             'success': True,
             'message': f'Team "{team.name}" reopened for new registrations'
@@ -808,7 +808,7 @@ def view_member(team_id, team, user_id):
 @team_captain_or_member_required()
 def withdraw_membership(team_id, user_id, team, membership):
     try:
-        membership_service.withdraw_membership(team, membership)
+        membership_service.withdraw_membership(team, membership, actor=current_user)
         return jsonify({
             'success': True,
             'message': f'Successfully withdrawn from team "{membership.team.name}"'
@@ -825,7 +825,7 @@ def withdraw_membership(team_id, user_id, team, membership):
 @team_captain_or_member_required()
 def unwithdraw_membership(team_id, user_id, team, membership):
     try:
-        membership_service.unwithdraw_membership(membership)
+        membership_service.unwithdraw_membership(membership, actor=current_user)
         return jsonify({
             'success': True,
             'message': f'Successfully re-joined team "{membership.team.name}"'
@@ -842,7 +842,7 @@ def unwithdraw_membership(team_id, user_id, team, membership):
 @team_captain_required()
 def remove_member(team_id, user_id, team):
     try:
-        membership = membership_service.remove_member(team, user_id)
+        membership = membership_service.remove_member(team, user_id, actor=current_user)
         return jsonify({
             'success': True,
             'message': f'Successfully removed {membership.user.name} from team "{team.name}"'
@@ -859,7 +859,7 @@ def remove_member(team_id, user_id, team):
 @team_captain_required()
 def transfer_captain(team_id, user_id, team):
     try:
-        previous_captain, new_captain = membership_service.transfer_captain(team, user_id)
+        previous_captain, new_captain = membership_service.transfer_captain(team, user_id, actor=current_user)
 
         # Queue captain transfer notification email
         from app.services import notification_service
