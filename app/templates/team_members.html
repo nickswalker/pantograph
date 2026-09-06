@@ -296,200 +296,198 @@
 
         <!-- Captain Actions Card -->
         {% if permissions.can_manage_team(current_user, team) and team.status != TeamStatus.CANCELLED %}
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            Captain Actions
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        {% if team.status not in [TeamStatus.WITHDRAWN, TeamStatus.CANCELLED] %}
-                            {% if team.format == TeamFormat.TEAM %}
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-4">
-                                        <h6>Team Password</h6>
-                                        <p class="text-muted small">Control access to your team by setting or changing the password.            {% if team.has_password %}
-                                        <button type="button" class="btn btn-link p-0 align-baseline text-secondary" onclick="removePassword()">
-                                            <small><ion-icon name="lock-open-outline" class="me-1"></ion-icon>Remove Password</small>
-                                        </button>
-                                        {% endif %}</p>
-                                        <form id="password-form" class="mb-2">
-                                            <div class="input-group">
-                                                <input type="password" class="form-control" id="team_password"
-                                                       placeholder="{% if team.has_password %}Enter new password{% else %}Set team password{% endif %}"
-                                                       >
-                                                <button class="btn btn-outline-primary" type="submit">
-                                                    {% if team.has_password %}Update{% else %}Set{% endif %}
-                                                </button>
-                                            </div>
-                                        </form>
-
-                                    </div>
-                                        {% if team.format == TeamFormat.TEAM and team.status == TeamStatus.CLOSED %}
-                                    <div class="mb-4">
-                                        <div class="d-flex justify-content-between align-items-start gap-3">
-                                            <div>
-                                                <h6>Team Registration</h6>
-                                                {% if team.status == TeamStatus.CLOSED %}
-                                                <p class="text-muted small mb-0">Your team is closed to new registrations. Click to reopen.</p>
-                                                {% else %}
-                                                <p class="text-muted small mb-0">Close your team to prevent new members from joining.</p>
-                                                {% endif %}
-                                            </div>
-                                            <div class="flex-shrink-0">
-                                                {% if team.status == TeamStatus.CLOSED %}
-                                                <button class="btn btn-outline-success" onclick="reopenTeam('{{ team.name }}', '{{ team.id }}')">
-                                                    <div class="d-flex align-items-center gap-2">
-                                                        <ion-icon name="lock-open-outline"></ion-icon>
-                                                        <span>Reopen Team</span>
-                                                    </div>
-                                                </button>
-                                                {% else %}
-                                                <button class="btn btn-outline-secondary" onclick="closeTeam('{{ team.name }}', '{{ team.id }}')">
-                                                    Close Team
-                                                </button>
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3{% if team.status == TeamStatus.PENDING %} opacity-50{% endif %}">
-                                        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-                                            <div>
-                                                <h6>Invite Members</h6>
-                                                <p class="text-muted small mb-0">Share this unique link to allow others to join your team directly, bypassing the password.</p>
-                                                <small class="text-muted d-block mt-2">Regenerating the link will invalidate the old one.</small>
-                                                {% if team.status == TeamStatus.PENDING %}
-                                                <p class="text-muted small mb-0"><em>Invite links are disabled while your team is pending approval.</em></p>
-                                                {% endif %}
-                                            </div>
-                                            <div class="flex-shrink-0">
-                                                <button class="btn btn-outline-primary" id="generateInviteLinkBtn" onclick="generateInviteLink()" {% if team.status == TeamStatus.PENDING %}disabled{% endif %}>
-                                                    {% if team.invite_token %}Regenerate Link{% else %}Generate Link{% endif %}
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="input-group mb-2">
-                                            <input type="text" class="form-control" id="inviteLink"
-                                                   value="{% if team.invite_token %}{{ url_for('user.join_team', invite_token=team.invite_token, _external=True) }}{% else %}Click 'Generate' to create a link.{% endif %}" readonly {% if team.status == TeamStatus.PENDING %}disabled{% endif %}>
-                                            <button class="btn btn-outline-secondary" type="button" id="copyInviteLinkBtn" onclick="copyInviteLink()" {% if not team.invite_token or team.status == TeamStatus.PENDING %}disabled{% endif %}>
-                                                <ion-icon name="copy-outline"></ion-icon> Copy
-                                            </button>
-                                        </div>
-
-                                    </div>
-
-
-                                </div>
-                            </div>
-                            <hr>
-                            {% endif %}
-                            <div class="row">
-                                <div class="col-12">
-                                    <h6>Update Details</h6>
-                                    <p class="text-muted small">Update your entry's time estimate and comments.</p>
-                                    <form id="update-details-form" class="small">
-                                        <div class="mb-3">
-                                            <label for="estimated_duration_input" class="form-label">Estimated Duration</label>
-                                            <input type="text" class="form-control" id="estimated_duration_input"
-                                                   placeholder="HH:MM" value="{{ team.estimated_duration_seconds | format_hh_mm_from_seconds }}" required pattern="^\d{1,2}:\d{2}$" title="Format: HH:MM">
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="comments_input" class="form-label">Comments</label>
-                                            <textarea class="form-control" id="comments_input" rows="3"
-                                                      placeholder="Optional comments about your {% if team.format == TeamFormat.SOLO %}entry{% else %}team entry{% endif %}..."
-                                                      maxlength="500">{{ team.comments or '' }}</textarea>
-                                            <div class="form-text">Optional comments visible to the admin</div>
-                                        </div>
-                                        {% if team.runs_line(TeamLines.ONE) %}
-                                        <div class="mb-3">
-                                            <label for="previous_baton_serial_input" class="form-label">Previous 1 Line Baton Serial</label>
-                                            <input type="text" class="form-control" id="previous_baton_serial_input" name="previous_baton_serial" value="{{ team.previous_baton_serial or '' }}" maxlength="12" {% if team.status != TeamStatus.PENDING %}disabled{% endif %}>
-                                            <div class="form-text">If you have a 1 Line baton from a previous year, enter its serial number here.  {% if team.status != TeamStatus.PENDING %}You can't change this after you've paid and your team is approved.
-                                            {% endif %}</div>
-
-                                        </div>
-                                        {% endif %}
-                                        {% if team.runs_line(TeamLines.TWO) %}
-                                        <div class="mb-3">
-                                            <label for="previous_baton_serial_2_input" class="form-label">Previous 2 Line Baton Serial</label>
-                                            <input type="text" class="form-control" id="previous_baton_serial_2_input" name="previous_baton_serial_2" value="{{ team.previous_baton_serial_2 or '' }}" maxlength="12" {% if team.status != TeamStatus.PENDING %}disabled{% endif %}>
-                                            <div class="form-text">If you have a 2 Line baton from a previous year, enter its serial number here. {% if team.status != TeamStatus.PENDING %}You can't change this after you've paid and your team is approved.{% endif %}</div>
-                                        </div>
-                                        {% endif %}
-                                        {% if team.format == TeamFormat.SOLO %}
-                                        <div class="mb-4">
-
-                                            <input class="form-check-input" type="checkbox" id="notify_next_lrr" name="notify_next" {% if current_user.email_opt_in %}checked{% endif %}>
-                                            <label class="form-check-label" for="notify_next_lrr">
-                                                Email me when the next LRR happens
-                                            </label>
-                                        </div>
-                                        {% endif %}
-                                        <div class="text-end">
-                                            <button class="btn btn-outline-primary" type="submit">Save Changes
+        <div class="col-12 mt-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        Captain Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if team.status not in [TeamStatus.WITHDRAWN, TeamStatus.CANCELLED] %}
+                        {% if team.format == TeamFormat.TEAM %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-4">
+                                    <h6>Team Password</h6>
+                                    <p class="text-muted small">Control access to your team by setting or changing the password.            {% if team.has_password %}
+                                    <button type="button" class="btn btn-link p-0 align-baseline text-secondary" onclick="removePassword()">
+                                        <small><ion-icon name="lock-open-outline" class="me-1"></ion-icon>Remove Password</small>
+                                    </button>
+                                    {% endif %}</p>
+                                    <form id="password-form" class="mb-2">
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="team_password"
+                                                   placeholder="{% if team.has_password %}Enter new password{% else %}Set team password{% endif %}"
+                                                   >
+                                            <button class="btn btn-outline-primary" type="submit">
+                                                {% if team.has_password %}Update{% else %}Set{% endif %}
                                             </button>
                                         </div>
                                     </form>
-                                </div>
-                            </div>
-                            <hr>
-                        {% endif %}
 
-                        {% if team.format == TeamFormat.TEAM and current_user.is_captain_of(team) %}
-                            <div class="row">
-                                <div class="col-12">
-                                    <div class="mb-4">
-                                        <h6>Captain Notifications</h6>
-                                        <p class="text-muted small">Control which email notifications you receive as team captain.</p>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="captain_notifications"
-                                                   {% if current_user.captain_notifications_enabled %}checked{% endif %}>
-                                            <label class="form-check-label" for="captain_notifications">
-                                                Receive notifications when new members join or leave the team.
-                                            </label>
+                                </div>
+                                    {% if team.format == TeamFormat.TEAM and team.status == TeamStatus.CLOSED %}
+                                <div class="mb-4">
+                                    <div class="d-flex justify-content-between align-items-start gap-3">
+                                        <div>
+                                            <h6>Team Registration</h6>
+                                            {% if team.status == TeamStatus.CLOSED %}
+                                            <p class="text-muted small mb-0">Your team is closed to new registrations. Click to reopen.</p>
+                                            {% else %}
+                                            <p class="text-muted small mb-0">Close your team to prevent new members from joining.</p>
+                                            {% endif %}
+                                        </div>
+                                        <div class="flex-shrink-0">
+                                            {% if team.status == TeamStatus.CLOSED %}
+                                            <button class="btn btn-outline-success" onclick="reopenTeam('{{ team.name }}', '{{ team.id }}')">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <ion-icon name="lock-open-outline"></ion-icon>
+                                                    <span>Reopen Team</span>
+                                                </div>
+                                            </button>
+                                            {% else %}
+                                            <button class="btn btn-outline-secondary" onclick="closeTeam('{{ team.name }}', '{{ team.id }}')">
+                                                Close Team
+                                            </button>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
+                                {% endif %}
                             </div>
-                            <hr>
+                            <div class="col-md-6">
+                                <div class="mb-3{% if team.status == TeamStatus.PENDING %} opacity-50{% endif %}">
+                                    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                        <div>
+                                            <h6>Invite Members</h6>
+                                            <p class="text-muted small mb-0">Share this unique link to allow others to join your team directly, bypassing the password.</p>
+                                            <small class="text-muted d-block mt-2">Regenerating the link will invalidate the old one.</small>
+                                            {% if team.status == TeamStatus.PENDING %}
+                                            <p class="text-muted small mb-0"><em>Invite links are disabled while your team is pending approval.</em></p>
+                                            {% endif %}
+                                        </div>
+                                        <div class="flex-shrink-0">
+                                            <button class="btn btn-outline-primary" id="generateInviteLinkBtn" onclick="generateInviteLink()" {% if team.status == TeamStatus.PENDING %}disabled{% endif %}>
+                                                {% if team.invite_token %}Regenerate Link{% else %}Generate Link{% endif %}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="input-group mb-2">
+                                        <input type="text" class="form-control" id="inviteLink"
+                                               value="{% if team.invite_token %}{{ url_for('user.join_team', invite_token=team.invite_token, _external=True) }}{% else %}Click 'Generate' to create a link.{% endif %}" readonly {% if team.status == TeamStatus.PENDING %}disabled{% endif %}>
+                                        <button class="btn btn-outline-secondary" type="button" id="copyInviteLinkBtn" onclick="copyInviteLink()" {% if not team.invite_token or team.status == TeamStatus.PENDING %}disabled{% endif %}>
+                                            <ion-icon name="copy-outline"></ion-icon> Copy
+                                        </button>
+                                    </div>
+
+                                </div>
+
+
+                            </div>
+                        </div>
+                        <hr>
                         {% endif %}
                         <div class="row">
                             <div class="col-12">
-                                <div class="d-flex justify-content-between align-items-start gap-3">
-                                    <div>
-                                        <h6>Entry Management</h6>
-                                        {% if team.status == TeamStatus.WITHDRAWN %}
-                                        <p class="text-muted small mb-0">Your {% if team.format == TeamFormat.SOLO %}entry has{% else %}team has{% endif %} been withdrawn. Click to re-enter the event.</p>
-                                        {% elif team.status == TeamStatus.PENDING %}
-                                        <p class="text-muted small mb-0">Cancel your {% if team.format == TeamFormat.SOLO %}entry{% else %}team{% endif %} registration if you no longer wish to participate.</p>
-                                        {% else %}
-                                        <p class="text-muted small mb-0">Withdraw your {% if team.format == TeamFormat.SOLO %}entry{% else %}team{% endif %} from the event if needed.</p>
-                                        {% endif %}
+                                <h6>Update Details</h6>
+                                <p class="text-muted small">Update your entry's time estimate and comments.</p>
+                                <form id="update-details-form" class="small">
+                                    <div class="mb-3">
+                                        <label for="estimated_duration_input" class="form-label">Estimated Duration</label>
+                                        <input type="text" class="form-control" id="estimated_duration_input"
+                                               placeholder="HH:MM" value="{{ team.estimated_duration_seconds | format_hh_mm_from_seconds }}" required pattern="^\d{1,2}:\d{2}$" title="Format: HH:MM">
                                     </div>
-                                    <div class="flex-shrink-0">
-                                        {% if team.status == TeamStatus.WITHDRAWN %}
-                                        <button class="btn btn-outline-success" onclick="unwithdrawTeam('{{ team.name }}', '{{ team.id }}')">
-                                            Un-withdraw {% if team.format == TeamFormat.SOLO %}Entry{% else %}Team{% endif %}
-                                        </button>
-                                        {% elif team.status == TeamStatus.PENDING %}
-                                        <button class="btn btn-outline-danger" onclick="cancelTeam('{{ team.name }}', '{{ team.id }}')">
-                                            <div class="d-flex align-items-center gap-2">
-                                                <ion-icon name="close-circle-outline"></ion-icon>
-                                                <span>Cancel {% if team.format == TeamFormat.SOLO %}Entry{% else %}Team{% endif %}</span>
-                                            </div>
-                                        </button>
-                                        {% else %}
-                                        <button class="btn btn-outline-warning" onclick="withdrawTeam('{{ team.name }}', '{{ team.id }}')">
-                                            Withdraw {% if team.format == TeamFormat.SOLO %}Entry{% else %}Team{% endif %}
-                                        </button>
-                                        {% endif %}
+                                    <div class="mb-3">
+                                        <label for="comments_input" class="form-label">Comments</label>
+                                        <textarea class="form-control" id="comments_input" rows="3"
+                                                  placeholder="Optional comments about your {% if team.format == TeamFormat.SOLO %}entry{% else %}team entry{% endif %}..."
+                                                  maxlength="500">{{ team.comments or '' }}</textarea>
+                                        <div class="form-text">Optional comments visible to the admin</div>
                                     </div>
+                                    {% if team.runs_line(TeamLines.ONE) %}
+                                    <div class="mb-3">
+                                        <label for="previous_baton_serial_input" class="form-label">Previous 1 Line Baton Serial</label>
+                                        <input type="text" class="form-control" id="previous_baton_serial_input" name="previous_baton_serial" value="{{ team.previous_baton_serial or '' }}" maxlength="12" {% if team.status != TeamStatus.PENDING %}disabled{% endif %}>
+                                        <div class="form-text">If you have a 1 Line baton from a previous year, enter its serial number here.  {% if team.status != TeamStatus.PENDING %}You can't change this after you've paid and your team is approved.
+                                        {% endif %}</div>
+
+                                    </div>
+                                    {% endif %}
+                                    {% if team.runs_line(TeamLines.TWO) %}
+                                    <div class="mb-3">
+                                        <label for="previous_baton_serial_2_input" class="form-label">Previous 2 Line Baton Serial</label>
+                                        <input type="text" class="form-control" id="previous_baton_serial_2_input" name="previous_baton_serial_2" value="{{ team.previous_baton_serial_2 or '' }}" maxlength="12" {% if team.status != TeamStatus.PENDING %}disabled{% endif %}>
+                                        <div class="form-text">If you have a 2 Line baton from a previous year, enter its serial number here. {% if team.status != TeamStatus.PENDING %}You can't change this after you've paid and your team is approved.{% endif %}</div>
+                                    </div>
+                                    {% endif %}
+                                    {% if team.format == TeamFormat.SOLO %}
+                                    <div class="mb-4">
+
+                                        <input class="form-check-input" type="checkbox" id="notify_next_lrr" name="notify_next" {% if current_user.email_opt_in %}checked{% endif %}>
+                                        <label class="form-check-label" for="notify_next_lrr">
+                                            Email me when the next LRR happens
+                                        </label>
+                                    </div>
+                                    {% endif %}
+                                    <div class="text-end">
+                                        <button class="btn btn-outline-primary" type="submit">Save Changes
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <hr>
+                    {% endif %}
+
+                    {% if team.format == TeamFormat.TEAM and current_user.is_captain_of(team) %}
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="mb-4">
+                                    <h6>Captain Notifications</h6>
+                                    <p class="text-muted small">Control which email notifications you receive as team captain.</p>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="captain_notifications"
+                                               {% if current_user.captain_notifications_enabled %}checked{% endif %}>
+                                        <label class="form-check-label" for="captain_notifications">
+                                            Receive notifications when new members join or leave the team.
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                    {% endif %}
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-start gap-3">
+                                <div>
+                                    <h6>Entry Management</h6>
+                                    {% if team.status == TeamStatus.WITHDRAWN %}
+                                    <p class="text-muted small mb-0">Your {% if team.format == TeamFormat.SOLO %}entry has{% else %}team has{% endif %} been withdrawn. Click to re-enter the event.</p>
+                                    {% elif team.status == TeamStatus.PENDING %}
+                                    <p class="text-muted small mb-0">Cancel your {% if team.format == TeamFormat.SOLO %}entry{% else %}team{% endif %} registration if you no longer wish to participate.</p>
+                                    {% else %}
+                                    <p class="text-muted small mb-0">Withdraw your {% if team.format == TeamFormat.SOLO %}entry{% else %}team{% endif %} from the event if needed.</p>
+                                    {% endif %}
+                                </div>
+                                <div class="flex-shrink-0">
+                                    {% if team.status == TeamStatus.WITHDRAWN %}
+                                    <button class="btn btn-outline-success" onclick="unwithdrawTeam('{{ team.name }}', '{{ team.id }}')">
+                                        Un-withdraw {% if team.format == TeamFormat.SOLO %}Entry{% else %}Team{% endif %}
+                                    </button>
+                                    {% elif team.status == TeamStatus.PENDING %}
+                                    <button class="btn btn-outline-danger" onclick="cancelTeam('{{ team.name }}', '{{ team.id }}')">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <ion-icon name="close-circle-outline"></ion-icon>
+                                            <span>Cancel {% if team.format == TeamFormat.SOLO %}Entry{% else %}Team{% endif %}</span>
+                                        </div>
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-outline-warning" onclick="withdrawTeam('{{ team.name }}', '{{ team.id }}')">
+                                        Withdraw {% if team.format == TeamFormat.SOLO %}Entry{% else %}Team{% endif %}
+                                    </button>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
