@@ -103,3 +103,11 @@ def test_withdrawn_member_shows_their_pace(app, client, seeded):
     row = _member_cell(body, 'Quit Ter')
     assert '9:15/mi' in row
 
+
+def test_captain_badge_is_grey(app, client, seeded):
+    login(client, seeded['captain_id'])
+    body = client.get(f"/team/{seeded['team_id']}/members").get_data(as_text=True)
+    row = _member_cell(body, 'Cap Tain')
+    assert 'bg-secondary ms-2 rounded-pill">Captain' in row
+    assert 'bg-success' not in row
+

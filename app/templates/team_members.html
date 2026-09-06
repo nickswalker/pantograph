@@ -54,7 +54,7 @@
                                 <!-- Active Team Members -->
                                 {% if active_members %}
                                 <tr>
-                                    <td colspan="{% if permissions.can_manage_team(current_user, team) %}4{% else %}3{% endif %}" class="fw-bold text-success px-3 py-2">
+                                    <td colspan="{% if permissions.can_manage_team(current_user, team) %}4{% else %}3{% endif %}" class="fw-bold px-3 py-2">
                                         Active ({{ active_members|length }})
                                     </td>
                                 </tr>
@@ -72,7 +72,7 @@
                                                     <!--span class="badge bg-primary ms-2">Me</span-->
                                                 {% endif %}
                                                 {% if membership.user_id == team.captain_id %}
-                                                    <span class="badge bg-success ms-2 rounded-pill">Captain</span>
+                                                    <span class="badge bg-secondary ms-2 rounded-pill">Captain</span>
                                                 {% endif %}
                                                 {% if permissions.can_manage_team(current_user, team) %}
                                                     <a href="mailto:{{ membership.user.email }}" class="link-secondary text-decoration-none d-block">
@@ -157,7 +157,7 @@
                                 <!-- Withdrawn Team Members -->
                                 {% if withdrawn_members %}
                                 <tr>
-                                    <td colspan="{% if permissions.can_manage_team(current_user, team) %}4{% else %}3{% endif %}" class="fw-bold text-warning px-3 py-2">
+                                    <td colspan="{% if permissions.can_manage_team(current_user, team) %}4{% else %}3{% endif %}" class="fw-bold px-3 py-2">
                                         Withdrawn ({{ withdrawn_members|length }})
                                     </td>
                                 </tr>
@@ -175,7 +175,7 @@
                                                     <!--span class="badge bg-primary ms-2">Me</span-->
                                                 {% endif %}
                                                 {% if membership.user_id == team.captain_id %}
-                                                    <span class="badge bg-success ms-2 rounded-pill">Captain</span>
+                                                    <span class="badge bg-secondary ms-2 rounded-pill">Captain</span>
                                                 {% endif %}
                                                 {% if permissions.can_manage_team(current_user, team) %}
                                                     <a href="mailto:{{ membership.user.email }}" class="link-secondary text-decoration-none d-block">
@@ -229,7 +229,7 @@
                                 <!-- Removed Team Members (Captain and Admin Only) -->
                                 {% if removed_members and (permissions.can_manage_team(current_user, team)) %}
                                 <tr>
-                                    <td colspan="{% if permissions.can_manage_team(current_user, team) %}4{% else %}3{% endif %}" class="fw-bold text-danger px-3 py-2">
+                                    <td colspan="{% if permissions.can_manage_team(current_user, team) %}4{% else %}3{% endif %}" class="fw-bold px-3 py-2">
                                         Removed ({{ removed_members|length }})
                                     </td>
                                 </tr>
