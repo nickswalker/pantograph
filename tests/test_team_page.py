@@ -43,3 +43,46 @@ def test_single_line_team_keeps_its_line_pill(app, client, seeded, line_name, ba
     assert 'Interline' not in header
     assert '</span>Line</span>' in header
 
+
+# --- Willingness to run alone ---
+
+def _roster(app, client, seeded, willing):
+    """The members page body, with the runner's willingness set to ``willing``."""
+    from app.models import db, TeamMembership
+    with app.app_context():
+        membership = TeamMembership.query.filter_by(id=seeded['runner_membership_id']).first()
+        membership.willing_to_lead = willing
+        db.session.commit()
+
+    login(client, seeded['captain_id'])
+    response = client.get(f"/team/{seeded['team_id']}/members")
+    assert response.status_code == 200
+    return response.get_data(as_text=True)
+
+
+def _member_cell(body, name):
+    """The <tr> for ``name`` on the roster (withdrawn rows grey the name)."""
+    for row in re.findall(r'<tr[^>]*>.*?</tr>', body, re.S):
+        if re.search(rf'<strong[^>]*>{name}</strong>', row):
+            return row
+    raise AssertionError(f'no roster row for {name!r}')
+
+
+def test_leg_leader_badge_is_gone(app, client, seeded):
+    assert 'Leg Leader' not in _roster(app, client, seeded, True)
+
+
+def test_willingness_shows_a_check_when_yes(app, client, seeded):
+    row = _member_cell(_roster(app, client, seeded, True), 'Run Ner')
+    assert 'Willing to run alone:' in row
+    assert 'checkmark-circle-outline' in row
+    assert 'close-circle-outline' not in row
+
+
+def test_willingness_shows_an_x_when_no(app, client, seeded):
+    """The old badge could only say "no" by being absent."""
+    row = _member_cell(_roster(app, client, seeded, False), 'Run Ner')
+    assert 'Willing to run alone:' in row
+    assert 'close-circle-outline' in row
+    assert 'checkmark-circle-outline' not in row
+

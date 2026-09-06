@@ -202,7 +202,6 @@ def team_members(team_id, team):
     removed_members = [m for m in all_memberships if m.status == TeamMembershipStatus.REMOVED]
 
     # Calculate statistics from active members only
-    willing_leaders_count = sum(1 for membership in active_members if membership.willing_to_lead)
     preferred_miles_list = [membership.preferred_miles for membership in active_members if membership.preferred_miles]
     avg_preferred_miles = round(sum(preferred_miles_list) / len(preferred_miles_list)) if preferred_miles_list else None
 
@@ -212,7 +211,6 @@ def team_members(team_id, team):
                          withdrawn_members=withdrawn_members,
                          removed_members=removed_members,
                          team_id=team_id,
-                         willing_leaders_count=willing_leaders_count,
                          avg_preferred_miles=avg_preferred_miles)
 
 
