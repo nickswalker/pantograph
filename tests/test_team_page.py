@@ -111,3 +111,19 @@ def test_captain_badge_is_grey(app, client, seeded):
     assert 'bg-secondary ms-2 rounded-pill">Captain' in row
     assert 'bg-success' not in row
 
+
+# --- Roster group headers ---
+
+def test_roster_has_no_active_header(app, client, seeded):
+    """Only departures from the roster get a divider."""
+    login(client, seeded['captain_id'])
+    body = client.get(f"/team/{seeded['team_id']}/members").get_data(as_text=True)
+    assert 'Active (' not in body
+    assert 'Withdrawn (1)' in body   # the seeded team has one
+
+
+def test_roster_count_is_active_members(app, client, seeded):
+    """The count the dropped "Active" header carried: two active, one withdrawn."""
+    login(client, seeded['captain_id'])
+    body = client.get(f"/team/{seeded['team_id']}/members").get_data(as_text=True)
+    assert 'Roster (2)' in body

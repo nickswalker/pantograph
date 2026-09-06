@@ -25,7 +25,7 @@
             {% if team.format == TeamFormat.TEAM %}
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">Roster ({{ active_members|length + withdrawn_members|length }})</h5>
+                    <h5 class="card-title mb-0">Roster ({{ active_members|length }})</h5>
                     {% if permissions.can_manage_team(current_user, team) and active_members %}
                     <div class="btn-group btn-group-sm" role="group" aria-label="Export team data">
                         <a href="{{ url_for('teams.export_members_csv', team_id=team.id) }}" class="btn btn-outline-secondary btn-sm" title="Export as CSV">
@@ -52,12 +52,6 @@
                             </thead>
                             <tbody>
                                 <!-- Active Team Members -->
-                                {% if active_members %}
-                                <tr>
-                                    <td colspan="{% if permissions.can_manage_team(current_user, team) %}4{% else %}3{% endif %}" class="fw-bold px-3 py-2">
-                                        Active ({{ active_members|length }})
-                                    </td>
-                                </tr>
                                 {% for membership in active_members %}
                                 <tr {% if current_user.is_authenticated and membership.user_id == current_user.id %}class="table-primary-subtle"{% endif %}>
                                     <td>
@@ -152,7 +146,6 @@
                                     {% endif %}
                                 </tr>
                                 {% endfor %}
-                                {% endif %}
 
                                 <!-- Withdrawn Team Members -->
                                 {% if withdrawn_members %}
