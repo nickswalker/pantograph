@@ -86,3 +86,32 @@ def test_pending_team_offers_the_full_menu(app, client, seeded):
         assert action in row, action
     assert 'dropdown-divider' in row
 
+
+# --- The Line(s) column ---
+
+def _set_lines(app, team_id, lines):
+    from app.models import db, Team
+    with app.app_context():
+        team = Team.query.filter_by(id=team_id).first()
+        team.lines = lines
+        db.session.commit()
+
+
+def test_interline_team_gets_one_pill_with_both_badges(app, client, seeded):
+    from app.models import TeamLines
+    _set_lines(app, seeded['team_id'], TeamLines.BOTH)
+
+    row = _row(_board(client, seeded['admin_id']), 'Test Team')
+    assert row.count('class="line-pill') == 1
+    assert 'line-name-1' in row and 'line-name-2' in row
+    assert 'title="Interline"' in row
+
+
+def test_single_line_team_gets_one_badge(app, client, seeded):
+    from app.models import TeamLines
+    _set_lines(app, seeded['team_id'], TeamLines.TWO)
+
+    row = _row(_board(client, seeded['admin_id']), 'Test Team')
+    assert row.count('class="line-pill') == 1
+    assert 'line-name-1' not in row and 'line-name-2' in row
+    assert 'title="2 Line"' in row

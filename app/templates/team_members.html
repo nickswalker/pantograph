@@ -6,14 +6,19 @@
     {% include '_team_status_alerts.html' %}
 
     {% set captain_has_joined = active_members | selectattr('user_id', 'equalto', team.captain_id) | list | length > 0 %}
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
         <h1 class="mb-0"> {{team.name }}{% if team.format == TeamFormat.TEAM %} Members{% endif %}</h1>
+           {# An Interline team is one entry running both branches, so it reads as one
+           pill carrying both circles -- not as two separate line registrations. #}
+        {% if team.lines == TeamLines.BOTH %}
+        <span class="line-pill"><span class="line-name line-name-1">1</span><span class="line-name line-name-2">2</span>Interline</span>
+        {% elif team.lines == TeamLines.ONE %}
+        <span class="line-pill"><span class="line-name line-name-1">1</span>Line</span>
+        {% else %}
+        <span class="line-pill"><span class="line-name line-name-2">2</span>Line</span>
+        {% endif %}
     </div>
 
-    <p class="mb-4">
-        {% if team.runs_line(TeamLines.ONE) %}<span class="line-pill"><span class="line-name line-name-1">1</span>Line</span>{% endif %}
-        {% if team.runs_line(TeamLines.TWO) %}<span class="line-pill"><span class="line-name line-name-2">2</span>Line</span>{% endif %}
-    </p>
 
     <div class="row">
         <div class="col-12">

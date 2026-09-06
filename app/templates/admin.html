@@ -85,8 +85,9 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if team.lines in (TeamLines.ONE, TeamLines.BOTH) %}<span class="line-pill"><span class="line-name line-name-1">1</span></span>{% endif %}
-                                        {% if team.lines in (TeamLines.TWO, TeamLines.BOTH) %}<span class="line-pill"><span class="line-name line-name-2">2</span></span>{% endif %}
+                                        {# One pill either way: an Interline team runs both lines, so its
+                                           two badges belong together rather than in separate pills. #}
+                                        <span class="line-pill line-pill-icons" title="{{ team.lines.value }}">{% if team.lines in (TeamLines.ONE, TeamLines.BOTH) %}<span class="line-name line-name-1">1</span>{% endif %}{% if team.lines in (TeamLines.TWO, TeamLines.BOTH) %}<span class="line-name line-name-2">2</span>{% endif %}</span>
                                     </td>
                                     <td>
                                         <a href="{{ url_for('teams.team_members', team_id=team.id) }}" target="_blank" class="text-decoration-none">

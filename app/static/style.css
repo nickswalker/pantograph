@@ -151,6 +151,15 @@ html[data-bs-theme="dark"] .invert-when-dark {
   background-color: var(--lrr-2-line-color);
 }
 
+/* Icon-only variant, used by the admin board's Line(s) column. There is no
+   "Line" label to make room for, so the pill doesn't reserve any -- and an
+   Interline team reads as one pill holding both badges, rather than two
+   textless pills each trailing empty space. */
+.line-pill-icons {
+  padding: 0 3px;
+  gap: 3px;
+}
+
 /* Used by the leg assignment board (app/static/js/leg-board.js)'s dropzones
    and, more importantly, by the "Optimize remaining" suggested chips
    (app/static/js/leg-solver-ui.js) -- a suggestion must read as visually
