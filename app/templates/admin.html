@@ -141,12 +141,18 @@
                                         </time>
                                     </td>
                                     <td>
+                                        {# No menu at all when this viewer has nothing they can do to this
+                                           team -- a manager looking at a cancelled or withdrawn one. #}
+                                        {% set can_approve = team.status == TeamStatus.PENDING %}
+                                        {% set can_withdraw = team.status not in (TeamStatus.WITHDRAWN, TeamStatus.CANCELLED) %}
+                                        {% set can_delete = current_user.is_admin %}
+                                        {% if can_approve or can_withdraw or can_delete %}
                                         <div class="dropdown">
                                             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                                 <ion-icon name="ellipsis-horizontal-outline"></ion-icon>
                                             </button>
                                             <ul class="dropdown-menu">
-                                                {% if team.status == TeamStatus.PENDING %}
+                                                {% if can_approve %}
                                                 <li><a class="dropdown-item text-success" href="#" onclick="approveTeam(this, '{{ team.name }}', '{{ team.id }}')">
                                                     <ion-icon name="checkmark-outline" class="me-2"></ion-icon>Approve
                                                 </a></li>
@@ -157,19 +163,20 @@
                                                     <ion-icon name="mail-outline" class="me-2"></ion-icon>Send Payment Reminder
                                                 </a></li>
                                                 {% endif %}
-                                                {% if team.status != TeamStatus.WITHDRAWN and team.status != TeamStatus.CANCELLED %}
+                                                {% if can_withdraw %}
                                                 <li><a class="dropdown-item text-warning" href="#" onclick="withdrawTeam(this, '{{ team.name }}', '{{ team.id }}')">
                                                     <ion-icon name="close-outline" class="me-2"></ion-icon>Withdraw
                                                 </a></li>
                                                 {% endif %}
-                                                {% if current_user.is_admin %}
-                                                <li><hr class="dropdown-divider"></li>
+                                                {% if can_delete %}
+                                                {% if can_approve or can_withdraw %}<li><hr class="dropdown-divider"></li>{% endif %}
                                                 <li><a class="dropdown-item text-danger" href="#" onclick="confirmDeleteTeam('{{ team.name }}', '{{ team.id }}')">
                                                     <ion-icon name="trash-outline" class="me-2"></ion-icon>Delete
                                                 </a></li>
                                                 {% endif %}
                                             </ul>
                                         </div>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
