@@ -190,8 +190,8 @@
                                             {% if membership.preferred_miles %}
                                                 <strong>Miles:</strong> {{ membership.preferred_miles }}<br>
                                             {% endif %}
-                                            {% if membership.planned_pace %}
-                                                <strong>Pace:</strong> {{ membership.planned_pace }}/mile<br>
+                                            {% if membership.planned_pace_seconds %}
+                                                <strong>Pace:</strong> {{ membership.planned_pace_seconds | format_mm_ss_from_seconds }}/mi<br>
                                             {% endif %}
                                             {% if membership.preferred_station %}
                                                 <strong>End Station:</strong> {{ membership.preferred_station }}<br>
@@ -259,8 +259,8 @@
                                             {% if membership.preferred_miles %}
                                                 <strong>Miles:</strong> {{ membership.preferred_miles }}<br>
                                             {% endif %}
-                                            {% if membership.planned_pace %}
-                                                <strong>Pace:</strong> {{ membership.planned_pace }}/mile<br>
+                                            {% if membership.planned_pace_seconds %}
+                                                <strong>Pace:</strong> {{ membership.planned_pace_seconds | format_mm_ss_from_seconds }}/mi<br>
                                             {% endif %}
                                             {% if membership.preferred_station %}
                                                 <strong>End Station:</strong> {{ membership.preferred_station }}<br>

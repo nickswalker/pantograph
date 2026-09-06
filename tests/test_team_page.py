@@ -86,3 +86,20 @@ def test_willingness_shows_an_x_when_no(app, client, seeded):
     assert 'close-circle-outline' in row
     assert 'checkmark-circle-outline' not in row
 
+
+# --- Withdrawn and removed rows ---
+
+def test_withdrawn_member_shows_their_pace(app, client, seeded):
+    """The cell used to read membership.planned_pace, which does not exist --
+    Jinja quietly resolved it to undefined and the line never rendered."""
+    from app.models import db, TeamMembership
+    with app.app_context():
+        membership = TeamMembership.query.filter_by(id=seeded['withdrawn_membership_id']).first()
+        membership.planned_pace_seconds = 555
+        db.session.commit()
+
+    login(client, seeded['captain_id'])
+    body = client.get(f"/team/{seeded['team_id']}/members").get_data(as_text=True)
+    row = _member_cell(body, 'Quit Ter')
+    assert '9:15/mi' in row
+
