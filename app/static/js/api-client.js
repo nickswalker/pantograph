@@ -26,6 +26,10 @@ export class ApiClient {
     buildUrl(key, params = {}) {
         let url = this.getUrl(key);
 
+        if (url === undefined) {
+            throw new Error(`No URL configured for '${key}'`);
+        }
+
         // Replace placeholders like __SHORT_ID__ with actual values
         Object.keys(params).forEach(param => {
             const placeholder = `__${param.toUpperCase()}__`;

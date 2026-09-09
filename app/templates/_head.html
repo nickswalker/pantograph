@@ -88,7 +88,7 @@ configureUrls({
     assignments: '{{ url_for("teams.get_assignments", team_id="__TEAM_ID__") }}',
 {% endif %}
 
-{% if team and permissions.can_manage_team(current_user, team) or current_user.is_admin %}
+{% if (team and permissions.can_manage_team(current_user, team)) or current_user.is_manager %}
     // Team captain management
     withdrawTeam: '{{ url_for("teams.withdraw_team", team_id="__TEAM_ID__") }}',
     unwithdrawTeam: '{{ url_for("teams.unwithdraw_team", team_id="__TEAM_ID__") }}',
@@ -112,14 +112,18 @@ configureUrls({
     updatePreferences: '{{ url_for("user.my_registration") }}',
     updateNotificationPreferences: '{{ url_for("user.update_notification_preferences") }}',
 
-    {% if current_user.is_authenticated and current_user.is_admin %}
-    // Admin routes
+    {% if current_user.is_authenticated and current_user.is_manager %}
+    // Manager-or-above routes
     approveTeam: '{{ url_for("admin.approve_team", team_id="__TEAM_ID__") }}',
+    admin: '{{ url_for("admin.admin_dashboard") }}',
+    {% endif %}
+
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    // Admin-only routes
     deleteTeam: '{{ url_for("admin.delete_team", team_id="__TEAM_ID__") }}',
     sendRegistrationReminder: '{{ url_for("admin.send_registration_reminder") }}',
     deleteAllImages: '{{ url_for("admin.delete_all_images") }}',
     updateUserRole: '{{ url_for("admin.update_user_role", user_id="__USER_ID__") }}',
-    admin: '{{ url_for("admin.admin_dashboard") }}',
     {% endif %}
 
     // Other routes

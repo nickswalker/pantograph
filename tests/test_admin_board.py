@@ -115,3 +115,47 @@ def test_single_line_team_gets_one_badge(app, client, seeded):
     assert row.count('class="line-pill') == 1
     assert 'line-name-1' not in row and 'line-name-2' in row
     assert 'title="2 Line"' in row
+
+
+# --- URL config behind the row menu ---
+
+# Every teamAPI call the board's row menu can make, and the urlConfig key each
+# one builds its URL from. A key missing from the page is not a silent no-op:
+# buildUrl throws before the request is ever made.
+MANAGER_URL_KEYS = ('approveTeam', 'cancelTeam', 'withdrawTeam', 'sendPaymentReminder')
+
+
+def _url_config(body):
+    """The keys of the configureUrls({...}) object rendered into the page."""
+    config = re.search(r'configureUrls\((\{.*?\})\);', body, re.S)
+    assert config, 'no configureUrls call on the page'
+    return set(re.findall(r'^\s*(\w+):', config.group(1), re.M))
+
+
+def test_manager_board_configures_every_action_url(app, client, seeded):
+    """A manager's row menu offers these actions, so the URLs must be there."""
+    from app.models import TeamStatus
+    _set_status(app, seeded['team_id'], TeamStatus.PENDING)
+    _make_manager(app, seeded['runner_id'])
+
+    keys = _url_config(_board(client, seeded['runner_id']))
+    for key in MANAGER_URL_KEYS:
+        assert key in keys, key
+
+
+def test_admin_board_configures_every_action_url(app, client, seeded):
+    from app.models import TeamStatus
+    _set_status(app, seeded['team_id'], TeamStatus.PENDING)
+
+    keys = _url_config(_board(client, seeded['admin_id']))
+    for key in MANAGER_URL_KEYS + ('deleteTeam',):
+        assert key in keys, key
+
+
+def test_participant_gets_no_manager_urls(app, client, seeded):
+    """The gate still holds: a participant with no team context gets none."""
+    login(client, seeded['outsider_id'])
+    response = client.get('/')
+    keys = _url_config(response.get_data(as_text=True))
+    for key in MANAGER_URL_KEYS + ('deleteTeam',):
+        assert key not in keys, key
