@@ -230,6 +230,13 @@ a:target span.cssbox_full {
    (fst-italic), rather than a separate icon. #}
 {% macro station_select(image) %}
   {%- set current_value = image.exchange_id if (image.exchange_id and image.exchange_id != image.gps_exchange_id) else '' -%}
+  {#- Only the team's own course is offered. A photo's existing station or GPS
+      match is kept in the list even if it's off-course, so the control still
+      shows what's actually recorded rather than silently jumping. -#}
+  {%- set extra_ids = [] -%}
+  {%- for extra in [image.gps_exchange_id, image.exchange_id] -%}
+    {%- if extra and extra not in course_exchange_ids and extra not in extra_ids -%}{%- set _ = extra_ids.append(extra) -%}{%- endif -%}
+  {%- endfor -%}
   <span class="js-station-picker">
     <select class="js-station-select-inline{% if image.exchange_source == 'manual' %} fst-italic{% endif %}" id="station-select-{{ image.id }}"
             data-image-id="{{ image.id }}" data-previous="{{ current_value }}"
@@ -237,7 +244,8 @@ a:target span.cssbox_full {
       {% if not image.gps_exchange_id %}
       <option value=""{% if not current_value %} selected{% endif %}>No station match</option>
       {% endif %}
-      {% for exchange_id, station_name in exchange_names.items() %}
+      {% for exchange_id in extra_ids + course_exchange_ids %}
+        {% set station_name = exchange_names.get(exchange_id, exchange_id) %}
         {% if exchange_id == image.gps_exchange_id %}
       <option value="" data-plain-label="{{ station_name }}" data-open-label="{{ station_name }} (GPS Match)"{% if not current_value %} selected{% endif %}>{{ station_name }}</option>
         {% else %}

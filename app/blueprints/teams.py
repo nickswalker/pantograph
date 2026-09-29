@@ -50,6 +50,20 @@ def _exchange_names():
             for exchange_id, exchange_data in load_exchange_points().items()}
 
 
+def _course_exchange_ids(team):
+    """The team's own course exchanges, as string ids in running order --
+    what the photo station picker offers (a 1 Line team never sees
+    2 Line-only stations).
+    """
+    from app.services.course_service import legs_for
+
+    ordered = {}
+    for leg in legs_for(course_lines_for(team.lines)):
+        ordered.setdefault(str(leg['start_exchange']), None)
+        ordered.setdefault(str(leg['end_exchange']), None)
+    return list(ordered)
+
+
 def _exchange_map_points():
     """Every course exchange with what the gallery map draws for it.
     """
@@ -142,7 +156,8 @@ def gallery(team_id, team):
         })
 
     return render_template('gallery.html', team=team, images=image_data, team_id=team_id,
-                           exchange_names=exchange_names, exchange_points=_exchange_map_points())
+                           exchange_names=exchange_names, exchange_points=_exchange_map_points(),
+                           course_exchange_ids=_course_exchange_ids(team))
 
 
 @teams_public.route('/gallery/<gallery_hash>')
