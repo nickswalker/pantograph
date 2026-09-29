@@ -6,7 +6,7 @@
  * `[data-metrics-mount="member"]` per bench chip (a compact assigned-vs-wanted
  * summary, plus the captain's "edit preferences" button),
  * `[data-metrics-mount="leg"]` in each leg row's stats line (estimated duration), and
- * `#legs-team-summary` from team_legs.html (total vs target).
+ * `#legs-team-summary` in team_legs.html's toolbar (total vs target, open legs).
  *
  * Call `initLegBadges()` once, before the board loads. It installs itself as
  * `window.onAssignmentsChanged`, chaining any existing handler so it composes
@@ -181,6 +181,10 @@ function renderTeamSummary(mountEl, team) {
     } else if (team.uncoveredLegsCount === 0 && team.legsMissingPaceCount > 0) {
         parts.push(`<span class="badge text-bg-light text-muted" title="Some assigned runners haven't stated a pace, `
             + `so the team total can't be estimated yet">Pace data incomplete</span>`);
+    }
+    if (team.uncoveredLegsCount > 0) {
+        const n = team.uncoveredLegsCount;
+        parts.push(`<span class="text-muted">${n} leg${n === 1 ? '' : 's'} open</span>`);
     }
 
     mountEl.innerHTML = parts.join(' ');

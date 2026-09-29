@@ -178,12 +178,21 @@ html[data-bs-theme="dark"] .invert-when-dark {
 }
 
 @media (min-width: 992px) {
+  /* Leg board's whole-board actions (team total, Optimize, Save, Done). */
+  .legs-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+  }
+
   .roster-sticky {
     position: sticky;
-    top: 1rem;
+    /* Tucked under the sticky toolbar; its height is published by
+       team_legs.html as --legs-toolbar-h. */
+    top: calc(var(--legs-toolbar-h, 0px) + 1rem);
     /* Leave room for the offset above and a little breathing space below, so
        a long roster scrolls internally instead of running off the viewport. */
-    max-height: calc(100vh - 2rem);
+    max-height: calc(100vh - var(--legs-toolbar-h, 0px) - 2rem);
   }
 
   .roster-sticky .roster-scroll {

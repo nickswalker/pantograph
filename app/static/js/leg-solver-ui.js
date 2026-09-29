@@ -45,6 +45,8 @@ export class LegSolverUI {
      * @param {import('./leg-board.js').LegBoard} opts.board
      * @param {HTMLElement} opts.legsListEl - same container LegBoard renders leg rows into
      * @param {HTMLElement} [opts.optimizeButtonEl]
+     * @param {HTMLElement} [opts.optimizeGroupEl] - wraps the Optimize button and its options menu;
+     *     hidden as a unit while solving or while suggestions await review
      * @param {HTMLElement} [opts.cancelButtonEl]
      * @param {HTMLElement} [opts.acceptAllButtonEl]
      * @param {HTMLElement} [opts.clearButtonEl]
@@ -56,6 +58,7 @@ export class LegSolverUI {
         this.board = opts.board;
         this.legsListEl = opts.legsListEl;
         this.optimizeButtonEl = opts.optimizeButtonEl || null;
+        this.optimizeGroupEl = opts.optimizeGroupEl || this.optimizeButtonEl;
         this.cancelButtonEl = opts.cancelButtonEl || null;
         this.acceptAllButtonEl = opts.acceptAllButtonEl || null;
         this.clearButtonEl = opts.clearButtonEl || null;
@@ -286,9 +289,6 @@ export class LegSolverUI {
         // `disabled`, so an 'unavailable' result's permanent
         // `optimizeButtonEl.disabled = true` (set in
         // _disableForUnavailability) is never un-set by a later solve.
-        if (this.optimizeButtonEl) {
-            this.optimizeButtonEl.classList.toggle('d-none', this.solving);
-        }
         if (this.cancelButtonEl) {
             this.cancelButtonEl.classList.toggle('d-none', !this.solving);
             // The button's meaning changes once there is something to keep:
@@ -307,6 +307,11 @@ export class LegSolverUI {
         // Accept all / Clear act on real suggestions only -- never on the
         // provisional preview, which is not the captain's to accept yet.
         const hasSettled = !this.solving && this.suggestions.length > 0;
+        // Optimize gives way to Accept all / Clear while suggestions are
+        // pending, so the toolbar only ever offers the next step.
+        if (this.optimizeGroupEl) {
+            this.optimizeGroupEl.classList.toggle('d-none', this.solving || hasSettled);
+        }
         if (this.acceptAllButtonEl) {
             this.acceptAllButtonEl.classList.toggle('d-none', !hasSettled);
         }
@@ -343,14 +348,10 @@ export class LegSolverUI {
             // Nothing streams during grounding (~1.5s on the full course),
             // so distinguish "still setting up" from "actively improving" --
             // otherwise the first seconds look identical to a hang.
-            text = this.modelCount === 0
-                ? 'Preparing the course...'
-                : 'Searching -- showing the best plan so far';
+            text = this.modelCount === 0 ? 'Preparing…' : 'Searching…';
         } else if (this.suggestions.length > 0) {
             const n = this.suggestions.length;
-            text = this.suggestionsOptimal
-                ? `${n} suggestion${n === 1 ? '' : 's'} pending`
-                : `${n} suggestion${n === 1 ? '' : 's'} pending -- best so far, not fully searched`;
+            text = `${n} suggestion${n === 1 ? '' : 's'}`;
             if (!this.suggestionsOptimal) variant = 'text-bg-warning';
         }
 
