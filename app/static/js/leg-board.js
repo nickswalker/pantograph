@@ -55,6 +55,9 @@ const OVERRIDE_FIELD_LABELS = {
 const ROSTER_SORTS = { name: 'Name', miles: 'Needs miles', pace: 'Pace' };
 const ROSTER_SORT_STORAGE_KEY = 'legs-roster-sort';
 
+// Override fields that have a "No preference" checkbox.
+const CLEARABLE_OVERRIDE_FIELDS = ['preferred_miles', 'planned_pace_seconds', 'preferred_station'];
+
 // ---- Board -------------------------------------------------------------
 
 export class LegBoard {
@@ -112,6 +115,23 @@ export class LegBoard {
             const resetBtn = this.overrideModalEl.querySelector('[data-override-reset]');
             if (submitBtn) submitBtn.addEventListener('click', () => this._submitOverrides());
             if (resetBtn) resetBtn.addEventListener('click', () => this._clearOverrides());
+
+            // "No preference" empties and locks its field, so the dialog can
+            // never show a value that the checkbox would silently override;
+            // unchecking brings the value back.
+            this.overrideModalEl.addEventListener('change', (e) => {
+                const name = e.target.dataset && e.target.dataset.overrideClear;
+                if (name) this._syncClearedField(name, true);
+            });
+            this.overrideModalEl.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-override-field-reset]');
+                if (btn) this._resetOverrideField(btn.dataset.overrideFieldReset);
+            });
+            // Per-field Reset links show only while that field differs from
+            // what the member stated.
+            ['input', 'change'].forEach(type => this.overrideModalEl.addEventListener(
+                type, () => this._refreshFieldResetLinks(),
+            ));
         }
 
         // Delegated (bound once, on the container) rather than bound per
@@ -333,6 +353,7 @@ export class LegBoard {
             const clear = el.querySelector(`[data-override-clear="${name}"]`);
             const help = el.querySelector(`[data-override-stated="${name}"]`);
             const overridden = Object.prototype.hasOwnProperty.call(overrides, name);
+            input.disabled = false; // may still be locked from the last member opened
             input.value = value === null || value === undefined ? '' : value;
             if (clear) clear.checked = overridden && overrides[name] === null;
             if (help) {
@@ -360,16 +381,84 @@ export class LegBoard {
         aloneInput.checked = !!(overrides.willing_to_lead ?? stated.willing_to_lead);
         const aloneHelp = el.querySelector('[data-override-stated="willing_to_lead"]');
         if (aloneHelp) {
-            aloneHelp.textContent = stated.willing_to_lead
-                ? "Member said they're okay being on a leg alone"
-                : "Member said they'd rather not be on a leg alone";
+            aloneHelp.textContent = stated.willing_to_lead ? 'Member stated yes' : 'Member stated no';
         }
 
         const noteInput = el.querySelector('[data-override-note]');
         if (noteInput) noteInput.value = member.override_note || '';
 
+        for (const name of CLEARABLE_OVERRIDE_FIELDS) this._syncClearedField(name, false);
+        this._refreshFieldResetLinks();
+
         api.clearModalAlert(el);
         Modal.getOrCreateInstance(el).show();
+    }
+
+    /**
+     * Match a field's input to its "No preference" checkbox: checked empties
+     * and disables it (stashing the value), unchecked re-enables it and,
+     * when `restore` is set, brings the stashed value back.
+     */
+    _syncClearedField(name, restore) {
+        const el = this.overrideModalEl;
+        const input = el.querySelector(`[data-override-field="${name}"]`);
+        const box = el.querySelector(`[data-override-clear="${name}"]`);
+        if (!input || !box) return;
+        if (box.checked) {
+            if (!input.disabled) input.dataset.stashed = input.value;
+            input.value = '';
+            input.disabled = true;
+        } else {
+            input.disabled = false;
+            if (restore && input.value === '') input.value = input.dataset.stashed || '';
+        }
+    }
+
+    /** Put one field back to what the member stated (takes effect on Save). */
+    _resetOverrideField(name) {
+        const el = this.overrideModalEl;
+        const member = this._memberById(el.dataset.membershipId);
+        if (!member) return;
+        const stated = (member.stated || {})[name];
+        const input = el.querySelector(`[data-override-field="${name}"]`);
+        if (name === 'willing_to_lead') {
+            input.checked = !!stated;
+        } else {
+            const box = el.querySelector(`[data-override-clear="${name}"]`);
+            if (box) box.checked = false;
+            input.disabled = false;
+            input.value = stated === null || stated === undefined
+                ? ''
+                : (name === 'planned_pace_seconds' ? formatPace(stated) : stated);
+        }
+        this._refreshFieldResetLinks();
+    }
+
+    /** Whether the dialog's current value for `name` differs from what was stated. */
+    _fieldDiffersFromStated(name, stated) {
+        const el = this.overrideModalEl;
+        const input = el.querySelector(`[data-override-field="${name}"]`);
+        if (name === 'willing_to_lead') return input.checked !== !!stated;
+
+        const box = el.querySelector(`[data-override-clear="${name}"]`);
+        const hasStated = stated !== null && stated !== undefined && stated !== '';
+        if (box && box.checked) return hasStated;
+        const value = input.value.trim();
+        if (value === '') return false; // empty means "use stated" -- see _readOverrideForm
+        if (name === 'preferred_miles') return Number(value) !== Number(stated);
+        if (name === 'planned_pace_seconds') return parsePace(value) !== stated;
+        return value !== (stated || '');
+    }
+
+    _refreshFieldResetLinks() {
+        const el = this.overrideModalEl;
+        const member = this._memberById(el.dataset.membershipId);
+        if (!member) return;
+        const stated = member.stated || {};
+        el.querySelectorAll('[data-override-field-reset]').forEach(btn => {
+            const name = btn.dataset.overrideFieldReset;
+            btn.classList.toggle('d-none', !this._fieldDiffersFromStated(name, stated[name]));
+        });
     }
 
     /**
