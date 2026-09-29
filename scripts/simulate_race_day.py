@@ -26,6 +26,17 @@ Usage:
     uv run python scripts/simulate_race_day.py
     uv run python scripts/simulate_race_day.py --teams 12 --solos 5 --orphans 10
     uv run python scripts/simulate_race_day.py --race-seconds-per-hour 20 --no-hold
+    uv run python scripts/simulate_race_day.py --captain-email you@example.com --no-assign-legs
+
+Seeding a real dev DB (e.g. the one the docker instance on :5001 reads) in
+place instead of a scratch copy -- existing accounts are reused by email, so
+you can sign in normally over OAuth as the captain:
+    uv run python scripts/simulate_race_day.py --db data/pantograph.db --teams 1 --solos 0 \
+        --orphans 0 --no-assign-legs --no-race --captain-email you@example.com
+
+Filling an existing team with race-day photos (its active members upload),
+e.g. to review the photos page -- no new teams or accounts are created:
+    uv run python scripts/simulate_race_day.py --db data/pantograph.db --team <team_id> --no-hold
 
 While it runs (and after, until you press Enter or Ctrl-C), the server stays
 up at http://127.0.0.1:<port>/ -- the public gallery links printed at the end
@@ -294,11 +305,29 @@ def parse_args():
     p.add_argument('--keep-data', action='store_true', help="don't wipe --data-dir before starting")
     p.add_argument('--no-hold', action='store_true', help='exit immediately after the run instead of keeping the server up')
     p.add_argument('--no-assign-legs', action='store_true', help='skip populating the leg-assignment board')
+    p.add_argument('--captain-email', default=None,
+                   help='make an account with this email captain of one fully populated, approved team')
+    p.add_argument('--captain-name', default=None, help='display name for --captain-email (default: its local part)')
+    p.add_argument('--db', default=None,
+                   help='seed this existing SQLite DB in place (never wiped) instead of a scratch one in --data-dir')
+    p.add_argument('--no-race', action='store_true', help='seed only; skip the race-day photo uploads')
+    p.add_argument('--uploads', default=None,
+                   help='where photo files go (default: ./uploads with --db, so the DB and files match; '
+                        'otherwise <data-dir>/uploads)')
+    p.add_argument('--team', default=None,
+                   help='with --db: upload race-day photos to this existing team instead of creating teams')
     return p.parse_args()
 
 
 def main():
     args = parse_args()
+    if args.team:
+        if not args.db:
+            sys.exit('--team needs --db (the team has to exist in that database).')
+        # Photos only: no new teams, solos, orphans, or board changes.
+        args.teams = args.solos = args.orphans = 0
+        args.captain_email = None
+        args.no_assign_legs = True
     if args.seed is not None:
         random.seed(args.seed)
     else:
@@ -313,12 +342,18 @@ def main():
     data_dir = Path(args.data_dir)
     if data_dir.exists() and not args.keep_data:
         shutil.rmtree(data_dir)
-    uploads_dir = data_dir / 'uploads'
+    if args.uploads:
+        uploads_dir = Path(args.uploads).resolve()
+    elif args.db:
+        uploads_dir = REPO_ROOT / 'uploads'
+    else:
+        uploads_dir = data_dir / 'uploads'
     uploads_dir.mkdir(parents=True, exist_ok=True)
 
     # Point the app at scratch storage BEFORE create_app() reads Config.
     from app.config import Config
-    Config.SQLALCHEMY_DATABASE_URI = f"sqlite:///{data_dir / 'race_day.db'}"
+    db_file = Path(args.db).resolve() if args.db else data_dir / 'race_day.db'
+    Config.SQLALCHEMY_DATABASE_URI = f"sqlite:///{db_file}"
     Config.UPLOAD_FOLDER = str(uploads_dir)
     # The upload route is rate-limited per source IP (real race day has one
     # real phone per IP). Every simulated user here shares 127.0.0.1, so
@@ -346,7 +381,7 @@ def main():
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
     base_url = f"http://{args.host}:{args.port}"
-    log(f"Server up at {base_url} (seed={args.seed}, scratch DB at {data_dir})")
+    log(f"Server up at {base_url} (seed={args.seed}, DB {db_file}, uploads {uploads_dir})")
 
     for _ in range(50):
         try:
@@ -371,32 +406,54 @@ def main():
         # call that logs in as them -- otherwise that connection's snapshot
         # predates the INSERT and the login silently fails as anonymous.
         hold_back_index = random.randrange(args.teams) if args.teams else -1
+        # --captain-email takes the first team that isn't held back. With a
+        # single team, don't hold it back -- that team is the whole point.
+        mine_index = -1
+        if args.captain_email and args.teams:
+            if args.teams == 1:
+                hold_back_index = -1
+            mine_index = 1 if hold_back_index == 0 else 0
         team_sizes = [1 if i == hold_back_index else random.randint(8, 16) for i in range(args.teams)]
         total_team_slots = sum(team_sizes)
 
         log(f"Seeding accounts (admin + {total_team_slots} team seats + {args.solos} solo captains "
             f"+ {args.orphans} orphans)...")
 
-        admin_user = User(
-            email=os.environ['ADMIN_EMAIL'], name="Race Admin",
-            provider=OAuthProvider.GOOGLE, provider_id='sim-admin', role=UserRole.ADMIN,
-        )
-        db.session.add(admin_user)
-        db.session.commit()
+        # Emails are unique, so if --captain-email is the admin's own address
+        # (and no such account exists yet), the sim admin gets a placeholder
+        # instead (admin rights come from the role, not the email).
+        admin_email = os.environ['ADMIN_EMAIL']
+        if (args.captain_email and args.captain_email.lower() == admin_email.lower()
+                and not User.query.filter_by(email=admin_email).first()):
+            admin_email = 'admin@sim.example.test'
+        admin_user = User.query.filter_by(email=admin_email).first()
+        if admin_user is None:
+            admin_user = User(
+                email=admin_email, name="Race Admin",
+                provider=OAuthProvider.GOOGLE, provider_id=f'sim-{args.seed}-admin', role=UserRole.ADMIN,
+            )
+            db.session.add(admin_user)
+            db.session.commit()
         admin_client = new_client(admin_user, 'admin')
 
         all_names = unique_names(total_team_slots + args.solos + args.orphans)
         name_iter = iter(all_names)
         counter = [0]
 
-        def make_user(name):
+        def make_user(name, email=None):
+            # A real account with this email (--db mode) is reused as-is, so
+            # its owner can still sign in over OAuth.
+            if email and (existing := User.query.filter_by(email=email).first()):
+                return existing
             counter[0] += 1
             slug = ''.join(c for c in name.lower() if c.isalnum())
+            # The seed keeps emails/provider IDs unique across repeat runs
+            # against the same --db.
             u = User(
-                email=f"{slug}.{counter[0]}@sim.example.test",
+                email=email or f"{slug}.{args.seed}.{counter[0]}@sim.example.test",
                 name=name,
                 provider=OAuthProvider.GOOGLE,
-                provider_id=f"sim-{counter[0]}",
+                provider_id=f"sim-{args.seed}-{counter[0]}",
             )
             db.session.add(u)
             db.session.commit()
@@ -406,8 +463,9 @@ def main():
         log(f"  {len(orphan_users)} accounts created that will never join a team.")
 
         # --- Build entrant plans -----------------------------------------
-        team_names = unique_from_pool(TEAM_NAME_POOL, args.teams)
-        solo_names = unique_from_pool(SOLO_NAME_POOL, args.solos)
+        taken = {name for (name,) in db.session.query(Team.name)}
+        team_names = unique_from_pool([n for n in TEAM_NAME_POOL if n not in taken], args.teams)
+        solo_names = unique_from_pool([n for n in SOLO_NAME_POOL if n not in taken], args.solos)
 
         line_choices_team = [TeamLines.ONE] * 45 + [TeamLines.TWO] * 40 + [TeamLines.BOTH] * 15
         line_choices_solo = [TeamLines.ONE, TeamLines.TWO]
@@ -433,13 +491,18 @@ def main():
 
         entrants = []
         held_back = None
+        my_entrant = None
 
         for i in range(args.teams):
             lines = random.choice(line_choices_team)
             is_held_back = (i == hold_back_index)
             names = [next(name_iter) for _ in range(team_sizes[i])]
 
-            captain_user = make_user(names[0])
+            if i == mine_index:
+                captain_user = make_user(args.captain_name or args.captain_email.split('@')[0],
+                                         email=args.captain_email)
+            else:
+                captain_user = make_user(names[0])
             captain_client = new_client(captain_user, f"{team_names[i]}/captain")
             captain = SimUser(captain_user.id, captain_user.name, captain_user.email, captain_client)
 
@@ -486,6 +549,8 @@ def main():
                     log(f"  ! {member_name} failed to join '{team_names[i]}': {resp.status_code} {resp.text[:150]}")
 
             entrants.append(entrant)
+            if i == mine_index:
+                my_entrant = entrant
             log(f"  Team '{team_names[i]}' ({lines.value}, {len(entrant.members)}/{team_sizes[i]} joined"
                 f"{', password-protected' if password else ''})")
 
@@ -513,6 +578,24 @@ def main():
 
         db.session.commit()
 
+        if args.team:
+            from app.models import TeamMembershipStatus
+            team = db.session.get(Team, args.team)
+            if team is None:
+                sys.exit(f"No team with id '{args.team}' in {db_file}.")
+            active = [m for m in team.memberships if m.status == TeamMembershipStatus.ACTIVE]
+            if not active:
+                sys.exit(f"Team '{team.name}' has no active members to upload as.")
+            sim_members = [
+                SimUser(m.user.id, m.user.name, m.user.email, new_client(m.user, f"{team.name}/{m.user.name}"))
+                for m in active
+            ]
+            entrants.append(Entrant(
+                team_id=team.id, name=team.name, format=team.format.value, lines=team.lines,
+                captain=sim_members[0], members=sim_members, approved=True,
+            ))
+            log(f"Uploading to existing team '{team.name}' as its {len(active)} active members.")
+
         # Gallery hashes for the live-watch links printed at the end.
         for entrant in entrants:
             team = db.session.get(Team, entrant.team_id)
@@ -532,6 +615,12 @@ def main():
                 role = 'captain' if i == 0 else 'member'
                 print(f"  {role:<9s} {entry_label:<26s} {m.name:<22s} {m.email:<32s} {m.client.cookie_value}")
         print("=" * 72)
+        if my_entrant:
+            print(f"You ({args.captain_email}) captain '{my_entrant.name}' "
+                  f"({len(my_entrant.members)} members):")
+            print(f"  Leg board: {base_url}/team/{my_entrant.team_id}/legs")
+            print(f"  Cookie:    {my_entrant.captain.client.cookie_name}={my_entrant.captain.client.cookie_value}")
+            print("=" * 72)
         print()
 
         # --- Optional: populate the leg-assignment board ------------------
@@ -602,7 +691,7 @@ def main():
 
     # --- Race day: play out each entrant's timeline concurrently, in real
     # (compressed) time ---------------------------------------------------
-    race_entrants = [e for e in entrants if e.approved and e.timeline]
+    race_entrants = [] if args.no_race else [e for e in entrants if e.approved and e.timeline]
     log(f"Race day starting: {len(race_entrants)} entrants on course "
         f"({args.race_seconds_per_hour}s real time per race hour).")
 
