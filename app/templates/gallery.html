@@ -5,56 +5,14 @@
 {% block head_extra %}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0-17/dist/maplibre-gl.css" crossorigin="anonymous">
 <style>
-    :root {
-         --line-1-primary-color: #3DAE2B;
-         --line-2-primary-color: #00B8F4;
-    }
-          .link-station-label {
-          display: flex;
-          border-radius: 1rem;
-          height: 2rem;
-          font-weight: 500;
-          line-height: 1.4;
-          align-items: center;
-          justify-content: center;
-          padding: 0 3px;
-
-      }
-      .link-station-label.link-station-label-dark {
-          color: white;
-          background-color: rgba(0, 0, 0, 0.85);
-          border: 1px solid #CCC;
-
-      }
-      .link-station-label .line-name {
-          display: inline-block;
-          width: 1.40rem;
-          height: 1.40rem;
-          font-weight: 700;
-          border-radius: .7rem;
-          margin-right: 3px;
-        text-align: center;
-          line-height: 1.0;
-      }
-
-      .link-station-label .line-name.line-name-1 {
-          background-color: var(--line-1-primary-color);
-          color: white;
-      }
-      .link-station-label .line-name.line-name-2 {
-          background-color: var(--line-2-primary-color);
-          color: white;
-      }
-      .link-station-label .link-station-code {
-          padding-right: 4px;
-          font-stretch: condensed;
-      }
-      .link-station-label .link-station-name {
-          padding: 0 6px 0 2px;
-          white-space: nowrap;
-      }
-
+      /* MapLibre sets its own 12px Helvetica on the whole map, which the
+         station badges would inherit; put them back on the site font at
+         body size, as on the Light Rail Relay page. The badge itself is
+         styled by .link-station-label in style.css. */
       .exchange-marker {
+          font-family: var(--bs-font-sans-serif);
+          font-size: 1rem;
+          line-height: 1.5;
           display: flex;
           align-items: center;
           justify-content: center;
