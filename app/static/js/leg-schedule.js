@@ -58,7 +58,7 @@ function formatDuration(seconds) {
  * shifting the instant and formatting in UTC. Keeps an October -07:00 start
  * reading as 8:30 AM for a viewer anywhere.
  */
-function eventClock(course) {
+export function eventClock(course) {
     const iso = course && course.event_start_time;
     const match = iso && /([+-])(\d{2}):(\d{2})$/.exec(iso);
     const sign = match && match[1] === '-' ? -1 : 1;

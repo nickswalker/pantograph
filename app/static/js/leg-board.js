@@ -568,9 +568,9 @@ export class LegBoard {
                             ${formatMiles(leg.distance)} mi
                             <span class="ms-2">&uarr;${leg.ascent}</span>
                             <span class="ms-1">&darr;${leg.descent} ft</span>
+                            <span data-metrics-mount="leg" data-leg-key="${key}"></span>
                         </div>
                     </div>
-                    <div class="d-flex flex-wrap gap-1 mb-2" data-metrics-mount="leg" data-leg-key="${key}"></div>
                     <div class="leg-dropzone d-flex flex-wrap align-items-center gap-2 p-2 border border-dashed rounded"
                          data-leg-key="${key}" role="group" aria-label="${escapeHtml(zoneLabel)}"
                          title="${escapeHtml(zoneLabel)}">

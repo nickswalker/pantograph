@@ -5,7 +5,7 @@
  * (leg-metrics.js) into the mount points leg-board.js leaves behind --
  * `[data-metrics-mount="member"]` per bench chip (an uncolored wants-vs-current
  * table, plus the captain's "edit preferences" button),
- * `[data-metrics-mount="leg"]` per leg row (estimated duration), and
+ * `[data-metrics-mount="leg"]` in each leg row's stats line (estimated duration), and
  * `#legs-team-summary` from team_legs.html (total vs target).
  *
  * Call `initLegBadges()` once, before the board loads. It installs itself as
@@ -15,6 +15,7 @@
  */
 
 import { computeMetrics } from './leg-metrics.js';
+import { eventClock } from './leg-schedule.js';
 
 const STATUS_CLASS = {
     satisfied: 'text-bg-success',
@@ -123,25 +124,32 @@ function renderMemberTable(mountEl, member, metrics, canEdit) {
         </table>`;
 }
 
-// ---- Leg row badges -------------------------------------------------------
+// ---- Leg row duration -------------------------------------------------------
 
-function renderLegBadge(mountEl, metrics) {
+/**
+ * Estimated duration, appended to the leg's distance/elevation line as plain
+ * text rather than a badge -- it's a fact about the leg, not a scored
+ * preference. The tooltip adds the time-of-day range when the schedule can
+ * place the leg (see legScheduleMetrics for when it can't).
+ */
+function renderLegDuration(mountEl, metrics, scheduleEntry, clock) {
     if (!metrics || !metrics.covered || metrics.durationSeconds === null) {
         mountEl.innerHTML = '';
         return;
     }
 
-    const tooltip = `Estimated ${formatDuration(metrics.durationSeconds)} using the slowest assigned pace `
-        + `(${formatPace(metrics.paceSeconds)})`
-        + (metrics.paceOverridden ? ', which the captain adjusted' : '');
-    // No status: an estimated duration isn't a satisfied/violated preference,
-    // so this badge stays neutral (badgeHtml's text-bg-secondary fallback).
-    mountEl.innerHTML = badgeHtml(
-        null,
-        `${formatDuration(metrics.durationSeconds)} est`,
-        tooltip,
-        metrics.paceOverridden,
-    );
+    const duration = formatDuration(metrics.durationSeconds);
+    const lines = [
+        `Estimated ${duration} using the slowest assigned pace (${formatPace(metrics.paceSeconds)})`
+            + (metrics.paceOverridden ? ', which the captain adjusted' : ''),
+    ];
+    if (scheduleEntry && hasValue(scheduleEntry.startMs) && hasValue(scheduleEntry.endMs)) {
+        lines.push(`${clock.format(scheduleEntry.startMs)} – ${clock.format(scheduleEntry.endMs)}`);
+    }
+    const marker = metrics.paceOverridden
+        ? '<ion-icon name="create-outline" class="ms-1" aria-hidden="true"></ion-icon>'
+        : '';
+    mountEl.innerHTML = `<span class="ms-2" title="${escapeHtml(lines.join('\n'))}">~${escapeHtml(duration)}${marker}</span>`;
 }
 
 // ---- Team summary ----------------------------------------------------------
@@ -175,7 +183,8 @@ function renderTeamSummary(mountEl, team) {
 
 /** Recompute metrics for `state` and repaint every badge mount in the DOM. */
 export function renderLegBadges(state) {
-    const { members: memberMetrics, legs: legMetrics, team } = computeMetrics(state);
+    const { members: memberMetrics, legs: legMetrics, team, schedule } = computeMetrics(state);
+    const clock = eventClock(state.course);
     const membersById = new Map((state.members || []).map(m => [m.membership_id, m]));
 
     document.querySelectorAll('[data-metrics-mount="member"]').forEach((mountEl) => {
@@ -184,7 +193,8 @@ export function renderLegBadges(state) {
     });
 
     document.querySelectorAll('[data-metrics-mount="leg"]').forEach((mountEl) => {
-        renderLegBadge(mountEl, legMetrics[mountEl.dataset.legKey]);
+        const key = mountEl.dataset.legKey;
+        renderLegDuration(mountEl, legMetrics[key], schedule.byKey[key], clock);
     });
 
     renderTeamSummary(document.getElementById('legs-team-summary'), team);
