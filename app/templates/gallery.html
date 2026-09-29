@@ -5,6 +5,26 @@
 {% block head_extra %}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0-17/dist/maplibre-gl.css" crossorigin="anonymous">
 <style>
+      .page-drop-overlay {
+          position: fixed;
+          inset: .75rem;
+          z-index: 1060;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 3px dashed var(--bs-primary);
+          border-radius: 1rem;
+          background-color: rgba(var(--bs-primary-rgb), .12);
+          backdrop-filter: blur(2px);
+          color: var(--bs-primary);
+          font-size: 1.5rem;
+          font-weight: 500;
+          /* Drops land on whatever is underneath and bubble to document. */
+          pointer-events: none;
+      }
+      .page-drop-overlay.d-none {
+          display: none !important;
+      }
       /* MapLibre sets its own 12px Helvetica on the whole map, which the
          station badges would inherit; put them back on the site font at
          body size, as on the Light Rail Relay page. The badge itself is
@@ -231,6 +251,14 @@ a:target span.cssbox_full {
 {% include '_team_status_alerts.html' %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1>{{ team.name }}{% if team.format == TeamFormat.SOLO %}'s{% endif %} Photos</h1>
+  <div class="d-flex align-items-center gap-2">
+  {% if can_manage_photos %}
+  {# A label, so it opens the (visually hidden) file input directly. Files
+     can also be dropped anywhere on the page -- see setupDragAndDrop(). #}
+  <label for="fileInput" class="btn btn-primary mb-0" title="Or drop photos anywhere on this page">
+    <ion-icon name="add-outline" class="me-1"></ion-icon>Add photos
+  </label>
+  {% endif %}
   {% if permissions.can_access_team(current_user, team) %}
   <div class="dropdown">
     <button class="btn btn-outline-primary dropdown-toggle" type="button" id="shareDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -252,20 +280,16 @@ a:target span.cssbox_full {
     </div>
   </div>
   {% endif %}
+  </div>
 </div>
 
 {% if can_manage_photos %}
+<div id="pageDropOverlay" class="page-drop-overlay d-none" aria-hidden="true">
+  <div><ion-icon name="cloud-upload-outline" class="me-2"></ion-icon>Drop to add photos</div>
+</div>
 <form id="uploadForm" action="{{ url_for('teams.upload_images', team_id=team.id) }}" method="POST" enctype="multipart/form-data" class="mb-4">
-  <div id="initialDropZone" class="row mt-3 mb-3 align-items-center p-3 border-2 border-dashed rounded transition-colors border-light-subtle" style="transition: all 0.2s ease;">
-    <label for="fileInput" class="col-sm-2 col-form-label d-none">Upload Photos:</label>
-    <div class="p-0 w-100">
-      <input type="file" class="visually-hidden" id="fileInput" name="files" required multiple data-max-files="20" accept="image/*">
-      <label for="fileInput" class="d-block text-muted small text-center" style="cursor: pointer;">
-        <ion-icon name="cloud-upload-outline" class="me-1"></ion-icon>
-        Drag and drop images here or click to select files
-      </label>
-    </div>
-  </div>
+  <input type="file" class="visually-hidden" id="fileInput" name="files" required multiple data-max-files="20" accept="image/*"
+         aria-label="Add photos">
   <div id="imagePreviewContainer" class="mb-3 p-4 border-2 border-dashed rounded transition-colors bg-light-subtle border border-1 border-secondary" style="display: none; transition: all 0.2s ease;">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="mb-0">
@@ -876,7 +900,6 @@ function removeFileFromSelection(fileName) {
   // Hide preview container and show initial drop zone if no files left
   if (currentFiles.length === 0) {
     previewContainer.style.display = 'none';
-    document.getElementById('initialDropZone').style.display = '';
   }
 }
 
@@ -898,10 +921,6 @@ let processedFiles = new Set();
 // Function to ensure preview container is set up and visible
 function ensurePreviewContainerVisible() {
   const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-  const initialDropZone = document.getElementById('initialDropZone');
-
-  // Hide initial dropzone and show preview container
-  initialDropZone.style.display = 'none';
   imagePreviewContainer.style.display = '';
 
   // Only recreate container structure if it doesn't exist
@@ -925,12 +944,8 @@ function ensurePreviewContainerVisible() {
   }
 }
 
-// Function to hide preview container and show initial drop zone
 function hidePreviewContainer() {
   const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-  const initialDropZone = document.getElementById('initialDropZone');
-
-  initialDropZone.style.display = '';
   imagePreviewContainer.style.display = 'none';
   processedFiles.clear();
   previewMarkers.forEach(marker => marker.remove());
@@ -1104,121 +1119,59 @@ if (fileInput) {
   });
 }
 
-// Drag and drop functionality
+// Drag and drop: files can be dropped anywhere on the page. While files are
+// dragged over it, a full-page overlay says so; the drop feeds the same
+// selection (and Selected Photos preview) as the Add photos button.
 function setupDragAndDrop() {
-  const initialDropZone = document.getElementById('initialDropZone');
-  const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+  const overlay = document.getElementById('pageDropOverlay');
+  const canUpload = !!(fileInput && overlay);
+  // dragenter/dragleave fire for every child element crossed, so count
+  // them rather than toggling on each one.
+  let dragDepth = 0;
 
-  function preventDefaults(e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-
-  function highlightInitial(e) {
-      initialDropZone
-    initialDropZone.classList.add('border-primary');
-    initialDropZone.classList.add('bg-primary-subtle')
-      initialDropZone.classList.remove('bg-light-subtle');
-    initialDropZone.classList.remove('border-secondary');
-    initialDropZone.querySelector('.text-muted').style.color = '#007bff';
-  }
-
-  function unhighlightInitial(e) {
-    initialDropZone.classList.remove('border-primary');
-    initialDropZone.classList.remove('bg-primary-subtle');
-    initialDropZone.classList.add('bg-light-subtle');
-    initialDropZone.classList.add('border-secondary');
-    initialDropZone.querySelector('.text-muted').style.color = '';
-  }
-
-  function highlightPreview(e) {
-    imagePreviewContainer.classList.add('border-primary');
-    imagePreviewContainer.classList.add('bg-primary-subtle')
-    imagePreviewContainer.classList.remove('bg-light-subtle');
-    imagePreviewContainer.classList.remove('border-secondary');
-    const textElement = imagePreviewContainer.querySelector('.text-muted');
-    if (textElement) textElement.style.color = '#007bff';
-  }
-
-  function unhighlightPreview(e) {
-    imagePreviewContainer.classList.remove('border-primary');
-    imagePreviewContainer.classList.remove('bg-primary-subtle');
-    imagePreviewContainer.classList.add('bg-light-subtle');
-    imagePreviewContainer.classList.add('border-secondary');
-    const textElement = imagePreviewContainer.querySelector('.text-muted');
-    if (textElement) textElement.style.color = '';
-  }
+  const isFileDrag = e => Array.from(e.dataTransfer?.types || []).includes('Files');
+  const showOverlay = show => overlay && overlay.classList.toggle('d-none', !show);
 
   function handleDrop(e) {
-    const dt = e.dataTransfer;
-    const files = dt.files;
+    const newFiles = Array.from(e.dataTransfer.files || []);
+    if (newFiles.length === 0) return;
+    const maxFiles = parseInt(fileInput.getAttribute('data-max-files') || '99', 10);
 
-    if (files.length > 0) {
-      const newFiles = Array.from(files);
-      const maxFiles = parseInt(fileInput.getAttribute('data-max-files') || '99', 10);
-
-      // Check if adding new files would exceed the limit
-      const totalFiles = currentFiles.length + newFiles.length;
-      if (totalFiles > maxFiles) {
-        if (currentFiles.length > 0) {
-          api.showBanner(`You can only upload ${maxFiles} files at once. You currently have ${currentFiles.length} files selected.`, 'warning');
-        } else {
-          api.showBanner(`You can only upload ${maxFiles} files at once. Please select fewer files.`, 'warning');
-        }
-        return;
-      }
-
-      // Merge new files with existing files
-      const mergedFiles = [...currentFiles, ...newFiles];
-
-      // Update file input with merged files
-      const dataTransfer = new DataTransfer();
-      mergedFiles.forEach(file => dataTransfer.items.add(file));
-      fileInput.files = dataTransfer.files;
-
-      // Update our tracking array and generate previews
-      currentFiles = mergedFiles;
-      addFilePreviews(newFiles);
+    if (currentFiles.length + newFiles.length > maxFiles) {
+      api.showBanner(currentFiles.length > 0
+        ? `You can only upload ${maxFiles} files at once. You currently have ${currentFiles.length} files selected.`
+        : `You can only upload ${maxFiles} files at once. Please select fewer files.`, 'warning');
+      return;
     }
+
+    const mergedFiles = [...currentFiles, ...newFiles];
+    const dataTransfer = new DataTransfer();
+    mergedFiles.forEach(file => dataTransfer.items.add(file));
+    fileInput.files = dataTransfer.files;
+    currentFiles = mergedFiles;
+    addFilePreviews(newFiles);
   }
 
-  // Setup initial drop zone
-  if (initialDropZone) {
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      initialDropZone.addEventListener(eventName, preventDefaults, false);
-    });
+  // Always block the browser's default (opening the dropped file in place
+  // of this page), even for viewers who can't upload.
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    dragDepth = 0;
+    showOverlay(false);
+    if (canUpload && isFileDrag(e)) handleDrop(e);
+  });
+  if (!canUpload) return;
 
-    ['dragenter', 'dragover'].forEach(eventName => {
-      initialDropZone.addEventListener(eventName, highlightInitial, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-      initialDropZone.addEventListener(eventName, unhighlightInitial, false);
-    });
-
-    initialDropZone.addEventListener('drop', handleDrop, false);
-  }
-
-  // Setup preview container drop zone
-  if (imagePreviewContainer) {
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      imagePreviewContainer.addEventListener(eventName, preventDefaults, false);
-    });
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-      imagePreviewContainer.addEventListener(eventName, highlightPreview, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-      imagePreviewContainer.addEventListener(eventName, unhighlightPreview, false);
-    });
-
-    imagePreviewContainer.addEventListener('drop', handleDrop, false);
-  }
-
-  // Prevent default drag behaviors on document body
-  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    document.body.addEventListener(eventName, preventDefaults, false);
+  document.addEventListener('dragenter', e => {
+    if (!isFileDrag(e)) return;
+    dragDepth += 1;
+    showOverlay(true);
+  });
+  document.addEventListener('dragleave', e => {
+    if (!isFileDrag(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) showOverlay(false);
   });
 }
 
