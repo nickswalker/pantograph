@@ -5,7 +5,7 @@ from markupsafe import Markup
 import os
 
 from app import Config
-from app.models import TeamMembershipStatus, TeamFormat, TeamStatus
+from app.models import TeamMembershipStatus, TeamFormat, TeamStatus, TeamLines
 
 main = Blueprint('main', __name__)
 
@@ -74,6 +74,24 @@ def global_stats():
 
     return response
 
+def _line_start_exchanges():
+    """Line code ('1', '2') -> the exchange that line's branch starts from.
+
+    The course is a Y (see course_service.legs_for), so each line's start is
+    the one exchange on its course that no leg ends at. An Interline team
+    starts at both.
+    """
+    from app.services.course_service import legs_for
+    from app.utils import course_lines_for
+
+    starts = {}
+    for code, lines in (('1', TeamLines.ONE), ('2', TeamLines.TWO)):
+        legs = legs_for(course_lines_for(lines))
+        ends = {leg['end_exchange'] for leg in legs}
+        starts[code] = next(str(leg['start_exchange']) for leg in legs if leg['start_exchange'] not in ends)
+    return starts
+
+
 @main.route('/results.json')
 def results():
     """
@@ -99,6 +117,8 @@ def results():
             'name': team.name,
             "category": format,
             "teamSize": team_size,
+            # '1 Line', '2 Line' or 'Interline'; which of `starts` apply.
+            "lines": team.lines.value,
             'exchangeTimes': {}
         }
         images = Image.query.filter_by(team_id=team.id).order_by(Image.capture_time).all()
@@ -131,11 +151,15 @@ def results():
             team_data['exchangeTimes'][exchange_id] = int(team_data['exchangeTimes'][exchange_id].total_seconds())
         results.append(team_data)
 
+    # Every team starts at the same time; per line, `starts` also says where.
+    start_time = Config.EVENT_START_TIME.isoformat()
     response = make_response(jsonify({
         'starts' : {
             'main': {
-                'time': Config.EVENT_START_TIME.isoformat(),
+                'time': start_time,
             },
+            **{code: {'time': start_time, 'exchange': exchange_id}
+               for code, exchange_id in _line_start_exchanges().items()},
         },
         'results': results,
         'lastUpdated': latest_upload_time.astimezone(datetime.UTC).replace(tzinfo=None).isoformat() if latest_upload_time else None,

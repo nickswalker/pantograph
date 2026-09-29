@@ -306,3 +306,27 @@ def test_results_prefer_the_manual_override(client, seeded):
     body = client.get('/results.json').get_json()
     team_result = next(r for r in body['results'] if r['name'] == 'Test Team')
     assert gps_station in team_result['exchangeTimes']
+
+
+def test_results_report_lines_and_per_line_starts(client, seeded, app):
+    """Each team says which lines it runs, and `starts` names each line's
+    starting exchange: the one exchange on that line's course no leg ends at."""
+    from app.models import Team, TeamLines
+    from app.services.course_service import legs_for
+    from app.utils import course_lines_for
+
+    body = client.get('/results.json').get_json()
+
+    with app.app_context():
+        expected = {t.name: t.lines.value for t in Team.query.all()}
+    for result in body['results']:
+        assert result['lines'] == expected[result['name']]
+
+    assert 'main' in body['starts']
+    for code, lines in (('1', TeamLines.ONE), ('2', TeamLines.TWO)):
+        start = body['starts'][code]
+        assert start['time'] == body['starts']['main']['time']
+        legs = legs_for(course_lines_for(lines))
+        assert any(str(leg['start_exchange']) == start['exchange'] for leg in legs)
+        assert all(str(leg['end_exchange']) != start['exchange'] for leg in legs)
+
