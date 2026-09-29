@@ -348,7 +348,7 @@ a:target span.cssbox_full {
                   {% endif %}
             </h5>
             <p class="card-text">
-                {% if not image.gps_coordinates %}<span class="badge text-bg-warning" title="No geolocation data is included in the file. Check the troubleshooting section below.">No GPS coordinates</span><br/>{% endif %}
+                {% if not image.gps_coordinates %}<span class="text-body-secondary small" title="No location data in this photo">No GPS</span><br/>{% endif %}
                 <time datetime="{{ image.capture_time.isoformat() }}Z" title="{{ image.capture_time.strftime('%B %-d, %Y at %I:%M %p') }}" class="format-datetime-tooltip format-as-time-with-seconds">{{ image.capture_time.strftime('%I:%M %p') }} ({{image.capture_time.strftime('%B %-d, %Y')  }})</time>
             </p>
           </div>
@@ -388,7 +388,7 @@ a:target span.cssbox_full {
     </h2>
     <div id="troubleshootingCollapse" class="accordion-collapse collapse" aria-labelledby="troubleshootingHeading" data-bs-parent="#troubleshootingAccordion">
       <div class="accordion-body">
-        <p class="mb-3">If your photos are missing GPS coordinates or showing "No GPS coordinates" badges, you may have disabled photo geotagging. There's no getting the data back in this case, but you can enable it for later photos. Here are some resources on where to find this setting:</p>
+        <p class="mb-3">If your photos are marked "No GPS", you may have disabled photo geotagging. There's no getting the data back in this case, but you can enable it for later photos. Here are some resources on where to find this setting:</p>
         <ul class="list-unstyled">
           <li class="mb-2">
             <ion-icon name="phone-portrait-outline" class="me-2 text-primary"></ion-icon>
@@ -1047,7 +1047,7 @@ async function addFilePreviews(newFiles) {
         //gpsCoordinates = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank">(${lat}, ${lon})</a>`;
         addPreviewMarkerToMap(lat, lon, file.name, previewElement.querySelector('img').src);
       } else {
-        gpsCoordinates = `<span class="badge text-bg-warning" title="No geolocation data is included in the file. Check the troubleshooting section below.">No GPS</span>`;
+        gpsCoordinates = `<span class="text-body-secondary small" title="No location data in this photo. See Troubleshooting location data below.">No GPS</span>`;
       }
 
       // Update EXIF status in the UI
