@@ -111,10 +111,11 @@ def get_board(team, include_private=False):
     )
 
     assigned_membership_ids = {a.membership_id for a in assignments}
-    visible = [
-        m for m in memberships
-        if m.status == TeamMembershipStatus.ACTIVE or m.id in assigned_membership_ids
-    ]
+    visible = sorted(
+        (m for m in memberships
+         if m.status == TeamMembershipStatus.ACTIVE or m.id in assigned_membership_ids),
+        key=lambda m: (m.user.name or '').casefold(),
+    )
 
     course = course_service.course_for(team.lines)
     course['estimated_duration_seconds'] = team.estimated_duration_seconds

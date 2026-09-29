@@ -106,6 +106,42 @@ export function sumDistanceHundredths(course, legKeys) {
 }
 
 /**
+ * Roster order for the board's sort menu, as a list of membership ids.
+ *
+ *   - 'name':  alphabetical.
+ *   - 'miles': who still needs the most miles first -- members with no legs
+ *     at all lead, then by (preferred - assigned) miles, descending. No
+ *     stated distance counts as needing nothing more.
+ *   - 'pace':  fastest planned pace first; no pace last.
+ *
+ * Ties fall back to name, so the order is stable between re-sorts.
+ */
+export function rosterOrder(members, course, assignments, mode) {
+    const byName = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+    const list = [...(members || [])];
+
+    if (mode === 'miles') {
+        const need = new Map(list.map(m => {
+            const keys = legKeysForMember(course, assignments, m.membership_id);
+            const assignedMiles = sumDistanceHundredths(course, keys) / 100;
+            const shortfall = hasValue(m.preferred_miles) ? Number(m.preferred_miles) - assignedMiles : 0;
+            return [m.membership_id, { unassigned: keys.length === 0, shortfall }];
+        }));
+        list.sort((a, b) => {
+            const na = need.get(a.membership_id);
+            const nb = need.get(b.membership_id);
+            return (nb.unassigned - na.unassigned) || (nb.shortfall - na.shortfall) || byName(a, b);
+        });
+    } else if (mode === 'pace') {
+        const pace = m => (hasValue(m.planned_pace_seconds) ? m.planned_pace_seconds : Infinity);
+        list.sort((a, b) => (pace(a) - pace(b)) || byName(a, b));
+    } else {
+        list.sort(byName);
+    }
+    return list.map(m => m.membership_id);
+}
+
+/**
  * Symmetric exchange-id-pair -> distance (hundredths of a mile) lookup built
  * from `course.commute`. Only pairs the course actually has data for are
  * present; a missing pair means "no data" for the caller (this is how

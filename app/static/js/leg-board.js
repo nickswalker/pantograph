@@ -10,6 +10,7 @@ import { assignmentAPI, api } from './api-client.js';
 import Sortable from 'sortablejs';
 import { Modal } from 'bootstrap';
 import { legKey, assignmentKey, parseLegKey, legLabel, legNumbering } from './leg-keys.js';
+import { rosterOrder } from './leg-metrics.js';
 
 // ---- Formatting helpers -----------------------------------------------
 
@@ -51,6 +52,9 @@ const OVERRIDE_FIELD_LABELS = {
     willing_to_lead: 'willingness to run alone',
 };
 
+const ROSTER_SORTS = { name: 'Name', miles: 'Needs miles', pace: 'Pace' };
+const ROSTER_SORT_STORAGE_KEY = 'legs-roster-sort';
+
 // ---- Board -------------------------------------------------------------
 
 export class LegBoard {
@@ -62,6 +66,8 @@ export class LegBoard {
      * @param {HTMLElement} opts.benchEl - container the bench chips render into
      * @param {HTMLElement} [opts.saveButtonEl]
      * @param {HTMLElement} [opts.loadingEl]
+     * @param {HTMLElement} [opts.rosterSortEl] - dropdown whose `[data-roster-sort]`
+     *   items pick the roster order; its `[data-roster-sort-label]` shows the current one
      * @param {HTMLElement} [opts.overrideModalEl] - captain-only dialog for
      *   adjusting the preferences a member is scored/solved against;
      *   omitted in the read-only view, which hides the affordance entirely
@@ -78,6 +84,24 @@ export class LegBoard {
         this.state = { course: null, members: [], assignments: {} };
         this.dirty = false;
         this._sortables = [];
+
+        // The roster is ordered only on load and when a sort is picked (even
+        // the current one again) -- never on each assignment, or the card
+        // just dragged would jump away under "Needs miles".
+        this.rosterSortEl = opts.rosterSortEl || null;
+        this.rosterSort = 'name';
+        try {
+            const saved = localStorage.getItem(ROSTER_SORT_STORAGE_KEY);
+            if (saved in ROSTER_SORTS) this.rosterSort = saved;
+        } catch { /* storage unavailable: default order */ }
+        this._rosterOrder = null;
+        if (this.rosterSortEl) {
+            this.rosterSortEl.addEventListener('click', (e) => {
+                const item = e.target.closest('[data-roster-sort]');
+                if (item) this.setRosterSort(item.dataset.rosterSort);
+            });
+            this._updateRosterSortLabel();
+        }
 
         if (this.saveButtonEl) {
             this.saveButtonEl.addEventListener('click', () => this.save());
@@ -125,6 +149,7 @@ export class LegBoard {
         this.state.course = data.course;
         this.state.members = data.members;
         this.state.assignments = this._groupAssignments(data.course, data.assignments);
+        this._rosterOrder = null;
         this._setDirty(false);
         this._render();
         this._notifyChanged();
@@ -193,9 +218,35 @@ export class LegBoard {
         this._notifyChanged();
     }
 
-    _legsHeldBy(membershipId) {
-        return Object.values(this.state.assignments)
-            .filter(ids => ids.includes(membershipId)).length;
+    setRosterSort(mode) {
+        if (!(mode in ROSTER_SORTS)) return;
+        this.rosterSort = mode;
+        try { localStorage.setItem(ROSTER_SORT_STORAGE_KEY, mode); } catch { /* not persisted */ }
+        this._rosterOrder = null;
+        this._updateRosterSortLabel();
+        this._render();
+        this._notifyChanged(); // repaints the summaries and suggestion chips _render() replaced
+    }
+
+    _updateRosterSortLabel() {
+        const label = this.rosterSortEl && this.rosterSortEl.querySelector('[data-roster-sort-label]');
+        if (label) label.textContent = ROSTER_SORTS[this.rosterSort];
+        this.rosterSortEl?.querySelectorAll('[data-roster-sort]').forEach(item => {
+            item.classList.toggle('active', item.dataset.rosterSort === this.rosterSort);
+        });
+    }
+
+    /** Members in the current roster order; anyone new since the last sort goes last. */
+    _orderedMembers() {
+        if (!this._rosterOrder) {
+            this._rosterOrder = rosterOrder(
+                this.state.members, this.state.course, this.state.assignments, this.rosterSort,
+            );
+        }
+        const rank = new Map(this._rosterOrder.map((id, i) => [id, i]));
+        return [...this.state.members].sort(
+            (a, b) => (rank.get(a.membership_id) ?? Infinity) - (rank.get(b.membership_id) ?? Infinity),
+        );
     }
 
     // ---- Rendering ----
@@ -442,13 +493,7 @@ export class LegBoard {
 
         const legs = this.state.course ? this.state.course.legs : [];
 
-        this.benchEl.innerHTML = this.state.members.map(member => {
-            const legsHeld = this._legsHeldBy(member.membership_id);
-
-            const aloneMarker = member.willing_to_lead
-                ? '<ion-icon name="flag-outline" class="text-info ms-1" title="Okay being on a leg alone"></ion-icon>'
-                : '';
-
+        this.benchEl.innerHTML = this._orderedMembers().map(member => {
             let addControl = '';
             if (this.canEdit && member.status === 'active' && legs.length) {
                 const menuItems = legs.map(leg => {

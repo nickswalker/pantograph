@@ -674,3 +674,30 @@ test('legNumbering: no usable sequence data -> nulls, not a bogus number', () =>
     const leg = { start: { id: 1 }, end: { id: 2 }, lines: ['lrr_1line'] };
     assert.deepEqual(legNumbering(leg, ['lrr_1line']), { text: null, title: null });
 });
+
+// ---- rosterOrder -----------------------------------------------------------
+
+test('rosterOrder: name, needs-miles, and pace orderings', async () => {
+    const { rosterOrder } = await import('../../app/static/js/leg-metrics.js');
+    const course = {
+        legs: [
+            { start: { id: 1 }, end: { id: 2 }, distance: 300 },
+            { start: { id: 2 }, end: { id: 3 }, distance: 500 },
+        ],
+    };
+    const [k1, k2] = course.legs.map(legKey);
+    const members = [
+        { membership_id: 'c', name: 'carol', preferred_miles: 4, planned_pace_seconds: 600 },
+        { membership_id: 'a', name: 'Alice', preferred_miles: 10, planned_pace_seconds: null },
+        { membership_id: 'b', name: 'Bob', preferred_miles: null, planned_pace_seconds: 480 },
+        { membership_id: 'd', name: 'Dan', preferred_miles: 2, planned_pace_seconds: 540 },
+    ];
+    // Alice has 3 of 10 mi (short 7), Carol 5 of 4 (over), Bob and Dan unassigned.
+    const assignments = { [k1]: ['a'], [k2]: ['c'] };
+
+    assert.deepEqual(rosterOrder(members, course, assignments, 'name'), ['a', 'b', 'c', 'd']);
+    // Unassigned first (Dan needs 2, Bob has no preference), then biggest shortfall.
+    assert.deepEqual(rosterOrder(members, course, assignments, 'miles'), ['d', 'b', 'a', 'c']);
+    // Fastest first, no pace last.
+    assert.deepEqual(rosterOrder(members, course, assignments, 'pace'), ['b', 'd', 'c', 'a']);
+});
