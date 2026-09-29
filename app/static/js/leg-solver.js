@@ -420,11 +420,8 @@ export async function optimizeRemaining(
         return {
             status: 'unsat',
             message: singleRunnerPerLeg
-                ? 'No valid assignment exists with "one runner per leg" and the current pins -- there likely '
-                    + 'aren\'t enough active members left to give every remaining leg its own runner. Uncheck '
-                    + 'the option, or free up a member, and try again.'
-                : 'No valid assignment exists for the current members and pins (unexpected given the '
-                    + 'at-least-1 coverage relaxation -- check whether the team has any active members left).',
+                ? 'Not enough members for one runner per leg. Uncheck the option or free up a member.'
+                : 'Couldn\'t find a valid assignment. Does the team have active members?',
         };
     }
 

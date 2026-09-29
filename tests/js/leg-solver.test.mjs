@@ -384,7 +384,7 @@ test('witnessToSuggestions: parses a streamed witness and drops pins', () => {
 
 // ---------------------------------------------------------------------------
 // 2b. Streaming through optimizeRemaining: the UI depends on getting parsed
-//     suggestions per model, and -- the whole point of "Stop & keep best" --
+//     suggestions per model, and -- the whole point of "Stop & review" --
 //     on a cancelled solve still handing back the last model it saw.
 // ---------------------------------------------------------------------------
 
@@ -730,7 +730,7 @@ test('smoke: the real solver streams improving models, and the last one is the o
     assert.ok(streamed.length > 1, `expected several streamed models, got ${streamed.length}`);
 
     // Every streamed model is a complete, leg-covering plan in its own right
-    // -- this is what makes "Stop & keep best" safe to offer at any moment,
+    // -- this is what makes "Stop & review" safe to offer at any moment,
     // and it is why leg-solver-ui.js throttles instead of trying to diff
     // successive models into stable chips.
     for (const [i, suggestions] of streamed.entries()) {

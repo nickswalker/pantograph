@@ -55,9 +55,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="card-title mb-0">Schedule</h5>
-                <span class="text-muted small">
-                    Estimated from stated paces, starting {{ event_start_display }}
-                </span>
+                <span class="text-muted small">Starts {{ event_start_display }}</span>
             </div>
             <div class="card-body">
                 <div id="legs-schedule" data-membership-id="{{ current_membership_id or '' }}"></div>
@@ -169,11 +167,6 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small">
-                        These values are what the board scores and what <strong>Optimize remaining</strong> solves
-                        against. They are visible only to captains and site admins.
-                    </p>
-
                     <div class="mb-3">
                         <label for="override-miles" class="form-label">Preferred miles</label>
                         <input type="number" class="form-control" id="override-miles" data-override-field="preferred_miles"
@@ -183,7 +176,7 @@
                             <input class="form-check-input" type="checkbox" id="override-miles-clear"
                                    data-override-clear="preferred_miles">
                             <label class="form-check-label small" for="override-miles-clear">
-                                No distance preference (stop scoring this)
+                                No distance preference
                             </label>
                         </div>
                     </div>
@@ -197,7 +190,7 @@
                             <input class="form-check-input" type="checkbox" id="override-pace-clear"
                                    data-override-clear="planned_pace_seconds">
                             <label class="form-check-label small" for="override-pace-clear">
-                                No pace estimate (leg times can't be estimated from this runner)
+                                No pace
                             </label>
                         </div>
                     </div>
@@ -215,7 +208,7 @@
                             <input class="form-check-input" type="checkbox" id="override-station-clear"
                                    data-override-clear="preferred_station">
                             <label class="form-check-label small" for="override-station-clear">
-                                No end-station preference (stop scoring this)
+                                No station preference
                             </label>
                         </div>
                     </div>
@@ -227,7 +220,7 @@
                     </div>
 
                     <div class="mb-1">
-                        <label for="override-note" class="form-label">Note (captains and site admins only)</label>
+                        <label for="override-note" class="form-label">Note</label>
                         <textarea class="form-control" id="override-note" rows="2" data-override-note
                                   placeholder="Why the adjustment -- e.g. agreed at the group run on 3/12"></textarea>
                     </div>

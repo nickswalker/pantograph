@@ -180,7 +180,7 @@ export class LegSolverUI {
             case 'ok':
                 this.suggestionsOptimal = result.optimal !== false;
                 if (result.suggestions.length === 0) {
-                    api.showBanner('Optimize remaining found nothing to add -- every leg already has a runner.', 'info');
+                    api.showBanner('Every leg already has a runner.', 'info');
                     this._repaintSuggestions();
                 } else {
                     this.suggestions = result.suggestions;
@@ -213,9 +213,7 @@ export class LegSolverUI {
                 this.suggestionsOptimal = false;
                 this._repaintSuggestions();
                 api.showBanner(
-                    `Stopped early -- keeping the best plan found so far (${kept.length} placement${kept.length === 1 ? '' : 's'}). `
-                    + 'It covers every leg and respects your pins, but it was not checked against every alternative, '
-                    + 'so a full run might place a few people differently.',
+                    `Stopped early. Review the ${kept.length} suggested placement${kept.length === 1 ? '' : 's'}.`,
                     'warning',
                 );
                 break;
@@ -235,10 +233,11 @@ export class LegSolverUI {
     _disableForUnavailability(message) {
         if (this.optimizeButtonEl) {
             this.optimizeButtonEl.disabled = true;
-            this.optimizeButtonEl.title = `Solver unavailable: ${message}. The board still works without it -- assign legs manually.`;
+            this.optimizeButtonEl.title = 'Optimizer unavailable';
         }
+        console.warn('Leg solver unavailable:', message);
         api.showBanner(
-            'Optimize remaining is unavailable right now (couldn\'t load the solver). The rest of the board is unaffected -- assign legs manually.',
+            'Optimizer unavailable. You can still assign legs manually.',
             'warning',
         );
     }
@@ -297,12 +296,12 @@ export class LegSolverUI {
             // it it banks the best plan found. Say which.
             const canKeep = this.modelCount > 0;
             this.cancelButtonEl.innerHTML = canKeep
-                ? '<ion-icon name="checkmark-done-outline" class="me-1"></ion-icon>Stop &amp; keep best'
+                ? '<ion-icon name="checkmark-done-outline" class="me-1"></ion-icon>Stop &amp; review'
                 : '<ion-icon name="stop-circle-outline" class="me-1"></ion-icon>Cancel';
             this.cancelButtonEl.classList.toggle('btn-outline-danger', !canKeep);
             this.cancelButtonEl.classList.toggle('btn-outline-primary', canKeep);
             this.cancelButtonEl.title = canKeep
-                ? 'Stop searching and keep the best plan found so far'
+                ? 'Stop searching and review the plan so far'
                 : 'Stop searching (nothing found yet to keep)';
         }
         // Accept all / Clear act on real suggestions only -- never on the
@@ -413,7 +412,7 @@ export class LegSolverUI {
      * discard buttons: the underlying plan is replaced wholesale every time
      * clasp finds a better one, so a button here would be a target that
      * moves out from under the cursor mid-click. It is something to watch,
-     * not something to act on -- acting on it is what "Stop & keep best" is
+     * not something to act on -- acting on it is what "Stop & review" is
      * for, which settles the plan first and then offers the real chips.
      */
     _provisionalChip(suggestion, name) {
@@ -427,9 +426,7 @@ export class LegSolverUI {
 
     _suggestionChip(suggestion, name) {
         const chip = this._baseChip(suggestion, '');
-        chip.title = this.suggestionsOptimal
-            ? 'Suggested by Optimize remaining -- not saved until accepted'
-            : 'Suggested by Optimize remaining (stopped early, so not fully searched) -- not saved until accepted';
+        chip.title = 'Suggested by Optimize remaining -- not saved until accepted';
         chip.innerHTML = `
             <ion-icon name="sparkles-outline" class="text-primary flex-shrink-0"></ion-icon>
             <span class="small fst-italic">${escapeHtml(name)}</span>
