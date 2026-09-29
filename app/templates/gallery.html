@@ -5,6 +5,44 @@
 {% block head_extra %}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0-17/dist/maplibre-gl.css" crossorigin="anonymous">
 <style>
+      /* Per-photo delete: shown on hover/keyboard focus where there is a
+         pointer, always on touch screens (no hover to reveal it). Not a
+         .btn-close -- Bootstrap's dark-mode filter on that inverts and greys
+         the whole button, background included. It sits on a photo, so fixed
+         colors read the same in either theme. */
+      .photo-delete-btn {
+          z-index: 10;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 26px;
+          height: 26px;
+          padding: 0;
+          border: 0;
+          border-radius: 50%;
+          color: #fff;
+          background-color: rgba(0, 0, 0, .6);
+          font-size: 1rem;
+          opacity: 0;
+          transition: opacity .15s ease, background-color .15s ease;
+      }
+      .card:hover .photo-delete-btn,
+      .photo-delete-btn:focus-visible {
+          opacity: 1;
+      }
+      .photo-delete-btn:hover,
+      .photo-delete-btn:focus-visible {
+          background-color: var(--bs-danger);
+      }
+      .photo-delete-btn:focus-visible {
+          outline: 2px solid #fff;
+          outline-offset: 1px;
+      }
+      @media (hover: none) {
+          .photo-delete-btn {
+              opacity: 1;
+          }
+      }
       .page-drop-overlay {
           position: fixed;
           inset: .75rem;
@@ -322,14 +360,13 @@ a:target span.cssbox_full {
     <div class="col-md-3 mb-3">
       <div class="cssbox">
         <div class="card position-relative">
-          {% if can_manage_photos %}
-          <button type="button" class="btn-close position-absolute top-0 end-0 m-2 bg-white rounded-circle p-1 delete-button"
-                  style="z-index: 10; width: 24px; height: 24px; opacity: 0.7; transition: all 0.2s ease;"
+          {# Same rule as delete_image(): the uploader, the captain, or an admin. #}
+          {% if can_manage_photos and (current_user.is_admin or team.captain_id == current_user.id or image.uploader.id == current_user.id) %}
+          <button type="button" class="position-absolute top-0 end-0 m-2 delete-button photo-delete-btn"
                   data-image-id="{{ image.id }}"
                   data-filename="{{ image.original_filename }}"
-                  aria-label="Delete image"
-                  onmouseover="this.style.backgroundColor='#dc3545'; this.style.opacity='1'"
-                  onmouseout="this.style.backgroundColor='white'; this.style.opacity='0.7'">
+                  aria-label="Delete photo">
+            <ion-icon name="close" aria-hidden="true"></ion-icon>
           </button>
           {% endif %}
           <div class="d-flex justify-content-center text-bg-light spinner-container p-5 d-none" >
@@ -426,25 +463,21 @@ a:target span.cssbox_full {
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="deleteConfirmModalLabel">
-          <ion-icon name="warning-outline" class="me-2 text-danger"></ion-icon>
-          Confirm Deletion
-        </h5>
+        <h5 class="modal-title" id="deleteConfirmModalLabel">Delete photo?</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        <p>Are you sure you want to delete <strong id="deleteFileName"></strong>?</p>
-        <div class="alert alert-warning">
-          <ion-icon name="information-circle-outline" class="me-2"></ion-icon>
-          This action cannot be undone. The image will be permanently removed from the gallery.
+      <div class="modal-body d-flex align-items-center gap-3">
+        <img id="deletePhotoThumb" alt="" class="rounded bg-secondary-subtle flex-shrink-0"
+             style="width: 96px; height: 96px; object-fit: cover;">
+        <div>
+          <div class="fw-semibold" id="deletePhotoStation"></div>
+          <div class="text-muted" id="deletePhotoTime"></div>
+          <div class="small text-muted mt-2">This can't be undone.</div>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
-          <ion-icon name="trash-outline" class="me-1"></ion-icon>
-          Delete Image
-        </button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete photo</button>
       </div>
     </div>
   </div>
@@ -730,13 +763,20 @@ let currentDeleteButton = null;
 
 document.querySelectorAll('.delete-button').forEach(button => {
   button.addEventListener('click', function() {
-    const filename = this.getAttribute('data-filename');
-
     // Store reference to this button
     currentDeleteButton = this;
 
-    // Update modal with filename
-    document.getElementById('deleteFileName').textContent = filename;
+    // Identify the photo by what's on its card -- thumbnail, station, time --
+    // since race-day filenames (IMG_4821.jpg) don't say which one it is.
+    const card = this.closest('.card');
+    const thumb = card.querySelector('img.cssbox_thumb');
+    const option = card.querySelector('.js-station-select-inline option:checked');
+    const station = option
+      ? (option.dataset.plainLabel || option.textContent)
+      : (card.querySelector('.js-station-badge')?.textContent || '');
+    document.getElementById('deletePhotoThumb').src = thumb ? thumb.src : '';
+    document.getElementById('deletePhotoStation').textContent = station.trim() || 'No station';
+    document.getElementById('deletePhotoTime').textContent = card.querySelector('time')?.textContent.trim() || '';
 
     // Show the modal
     api.clearModalAlert('deleteConfirmModal');
@@ -774,18 +814,18 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async func
       // Hide the modal
       bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal')).hide();
 
-      // Show success banner
-      api.showBanner(`${filename} deleted successfully`, 'success');
+      currentDeleteButton = null;
+      api.showBanner('Photo deleted', 'success');
     } else {
       api.showModalAlert('deleteConfirmModal', 'danger', result.error || 'Failed to delete the file.');
     }
   } catch (error) {
     api.showModalAlert('deleteConfirmModal', 'danger', 'Failed to delete the file: ' + error.message);
   } finally {
-    // Reset button state
+    // Reset button state. The photo reference is only cleared on success, so
+    // after an error the same Delete button retries the same photo.
     this.innerHTML = originalText;
     this.disabled = false;
-    currentDeleteButton = null;
   }
 });
 
