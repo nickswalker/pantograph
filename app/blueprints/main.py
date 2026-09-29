@@ -92,6 +92,10 @@ def _line_start_exchanges():
     return starts
 
 
+# Which of _line_start_exchanges() a team starts from.
+_LINE_CODES = {TeamLines.ONE: ('1',), TeamLines.TWO: ('2',), TeamLines.BOTH: ('1', '2')}
+
+
 @main.route('/results.json')
 def results():
     """
@@ -107,8 +111,10 @@ def results():
 
     minimum_time = Config.EVENT_START_TIME.astimezone(datetime.UTC).replace(tzinfo=None)
     maximum_time = minimum_time + datetime.timedelta(hours=16)
+    line_starts = _line_start_exchanges()
 
     for team in teams:
+        start_exchange_ids = {line_starts[code] for code in _LINE_CODES[team.lines]}
         format = team.format.value
         team_size = len([m for m in team.memberships if m.status == TeamMembershipStatus.ACTIVE])
         if team_size == 6:
@@ -134,10 +140,11 @@ def results():
                 if current_app.jinja_env.globals['is_production'] and (img.capture_time > maximum_time):
                     # In production, ignore images with upload times outside the event window
                     continue
-                if img.capture_time < minimum_time and img_exchange_id == "165":
+                if img.capture_time < minimum_time and img_exchange_id in start_exchange_ids:
+                    # A start photo taken before the gun counts as the start itself.
                     team_data['exchangeTimes'][img_exchange_id] = minimum_time
                 elif img.capture_time < minimum_time:
-                    # Ignore images with capture times before the event start time, except for the first exchange which we set to start time
+                    # Anything else from before the start is ignored.
                     continue
                 else:
                     team_data['exchangeTimes'][img_exchange_id] = img.capture_time
@@ -159,7 +166,7 @@ def results():
                 'time': start_time,
             },
             **{code: {'time': start_time, 'exchange': exchange_id}
-               for code, exchange_id in _line_start_exchanges().items()},
+               for code, exchange_id in line_starts.items()},
         },
         'results': results,
         'lastUpdated': latest_upload_time.astimezone(datetime.UTC).replace(tzinfo=None).isoformat() if latest_upload_time else None,

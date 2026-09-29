@@ -330,3 +330,37 @@ def test_results_report_lines_and_per_line_starts(client, seeded, app):
         assert any(str(leg['start_exchange']) == start['exchange'] for leg in legs)
         assert all(str(leg['end_exchange']) != start['exchange'] for leg in legs)
 
+
+def test_results_clamp_early_start_photos_to_the_teams_own_line_start(client, seeded, app):
+    """A photo at the team's line start taken before the gun counts as time 0;
+    an early photo anywhere else -- including the *other* line's start -- is
+    dropped."""
+    from app.config import Config
+    from app.models import db, Image, Team, TeamLines
+
+    starts = client.get('/results.json').get_json()['starts']
+    own_start, other_start = starts['1']['exchange'], starts['2']['exchange']
+    _, elsewhere = _station_ids()
+    assert elsewhere not in (own_start, other_start)
+    early = (Config.EVENT_START_TIME.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+             - datetime.timedelta(minutes=10))
+
+    # The second team: its only other photo has no station, so nothing later
+    # at the same exchange can override these (results keep the latest).
+    with app.app_context():
+        team = Team.query.filter_by(name='Other Team').one()
+        team.lines = TeamLines.ONE
+        for n, exchange_id in enumerate((own_start, other_start, elsewhere)):
+            db.session.add(Image(
+                filename=f'early{n}.jpg', file_hash=f'hash-early{n}',
+                file_path=f'{team.id}/early{n}.jpg', team_id=team.id,
+                uploaded_by=team.captain_id, capture_time=early,
+                manual_exchange_id=exchange_id,
+            ))
+        db.session.commit()
+
+    body = client.get('/results.json').get_json()
+    times = next(r for r in body['results'] if r['name'] == 'Other Team')['exchangeTimes']
+    assert times[own_start] == 0
+    assert other_start not in times
+    assert elsewhere not in times
