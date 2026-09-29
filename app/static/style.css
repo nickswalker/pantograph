@@ -177,24 +177,6 @@ html[data-bs-theme="dark"] .invert-when-dark {
   text-align: right;
 }
 
-/* Bench chip's wants/current table: tight grid, no header row, and no
-   striping/background of its own -- it should read as part of the chip,
-   not as a separate boxed widget. */
-.metrics-table {
-  --bs-table-bg: transparent;
-  font-size: .8125rem;
-}
-
-.metrics-table th,
-.metrics-table td {
-  padding: .05rem .4rem .05rem 0;
-  background-color: transparent;
-}
-
-.metrics-table th:first-child {
-  padding-left: 0;
-}
-
 @media (min-width: 992px) {
   .roster-sticky {
     position: sticky;

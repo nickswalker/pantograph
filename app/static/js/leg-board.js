@@ -475,10 +475,9 @@ export class LegBoard {
                      data-membership-id="${escapeHtml(member.membership_id)}">
                     ${this._chipAvatar(member)}
                     <div class="flex-grow-1 small">
-                        <div class="fw-semibold">${escapeHtml(member.name)}${aloneMarker}${this._statusBadge(member)}</div>
-                        <div class="text-muted">${legsHeld} leg${legsHeld === 1 ? '' : 's'} assigned</div>
+                        <div class="fw-semibold">${escapeHtml(member.name)}${this._statusBadge(member)}</div>
+                        <div data-metrics-mount="member" data-membership-id="${escapeHtml(member.membership_id)}"></div>
                         ${this._staleOverrideWarning(member)}
-                        <div class="mt-1" data-metrics-mount="member" data-membership-id="${escapeHtml(member.membership_id)}"></div>
                     </div>
                     ${addControl}
                 </div>`;

@@ -3,8 +3,8 @@
  *
  * DOM-side half of preference evaluation: paints `computeMetrics()` output
  * (leg-metrics.js) into the mount points leg-board.js leaves behind --
- * `[data-metrics-mount="member"]` per bench chip (an uncolored wants-vs-current
- * table, plus the captain's "edit preferences" button),
+ * `[data-metrics-mount="member"]` per bench chip (a compact assigned-vs-wanted
+ * summary, plus the captain's "edit preferences" button),
  * `[data-metrics-mount="leg"]` in each leg row's stats line (estimated duration), and
  * `#legs-team-summary` from team_legs.html (total vs target).
  *
@@ -61,7 +61,7 @@ function formatPace(secondsPerMile) {
     return `${minutes}:${String(seconds).padStart(2, '0')}/mi`;
 }
 
-// ---- Member (bench chip) wants/current table -------------------------------
+// ---- Member (bench chip) summary --------------------------------------------
 
 /**
  * Button that opens the override dialog for this member, sitting right next
@@ -82,46 +82,53 @@ function editWantsButton(member, canEdit) {
 }
 
 /**
- * Two-row wants-vs-current table: what the member asked for (their
- * effective preference -- overrides already applied) against what their
- * assignments actually add up to right now. Plain values, no satisfied/
- * near/violated coloring.
+ * What the member has against what they asked for (their effective
+ * preference -- overrides already applied), in at most two plain lines:
+ *
+ *   2 legs · 6.4 of 5.0 mi · ends Star Lake · runs solo ✎
+ *   wants Angle Lake · slowed to 11:20/mi
+ *
+ * The second line appears only when the end station or pace differs from
+ * what they want. Hovering the first line shows the full stated wants.
  */
-function renderMemberTable(mountEl, member, metrics, canEdit) {
+function renderMemberSummary(mountEl, member, metrics, canEdit) {
     if (!member || !metrics) {
         mountEl.innerHTML = '';
         return;
     }
 
     const current = metrics.current;
+    const wantsMiles = hasValue(member.preferred_miles) ? Number(member.preferred_miles).toFixed(1) : null;
+    const wantsPace = hasValue(member.planned_pace_seconds) ? formatPace(member.planned_pace_seconds) : null;
+    const wantsEnd = member.preferred_station || null;
 
-    const milesWant = hasValue(member.preferred_miles)
-        ? `${Number(member.preferred_miles).toFixed(1)} mi` : 'no preference';
-    const paceWant = hasValue(member.planned_pace_seconds)
-        ? formatPace(member.planned_pace_seconds) : 'no preference';
-    const endWant = member.preferred_station || 'no preference';
+    const main = [`${current.legCount} leg${current.legCount === 1 ? '' : 's'}`];
+    const notes = [];
+    if (current.legCount) {
+        const miles = current.assignedMiles.toFixed(1);
+        main.push(wantsMiles ? `${miles} of ${wantsMiles} mi` : `${miles} mi`);
+        if (current.endExchangeName) main.push(`ends ${current.endExchangeName}`);
+        if (wantsEnd && wantsEnd !== current.endExchangeName) notes.push(`wants ${wantsEnd}`);
+        if (wantsPace && hasValue(current.paceSeconds)
+                && current.paceSeconds > member.planned_pace_seconds
+                && formatPace(current.paceSeconds) !== wantsPace) {
+            notes.push(`slowed to ${formatPace(current.paceSeconds)}`);
+        }
+    } else {
+        if (wantsMiles) main.push(`wants ${wantsMiles} mi`);
+        if (wantsEnd) main.push(`ends ${wantsEnd}`);
+    }
+    if (member.willing_to_lead) main.push('runs solo');
 
-    const milesCurrent = current.legCount ? `${current.assignedMiles.toFixed(1)} mi` : '—';
-    const paceCurrent = hasValue(current.paceSeconds) ? formatPace(current.paceSeconds) : '—';
-    const endCurrent = current.endExchangeName || '—';
+    const tooltip = 'Wants: ' + [
+        wantsMiles ? `${wantsMiles} mi` : 'any distance',
+        wantsPace || 'no pace',
+        wantsEnd ? `ends ${wantsEnd}` : 'any end station',
+    ].join(', ');
 
     mountEl.innerHTML = `
-        <table class="table table-sm table-borderless mb-0 metrics-table">
-            <tbody>
-                <tr>
-                    <th scope="row" class="text-muted fw-normal">Wants${editWantsButton(member, canEdit)}</th>
-                    <td>${escapeHtml(milesWant)}</td>
-                    <td>${escapeHtml(paceWant)}</td>
-                    <td>${escapeHtml(endWant)}</td>
-                </tr>
-                <tr>
-                    <th scope="row" class="text-muted fw-normal">Current</th>
-                    <td>${escapeHtml(milesCurrent)}</td>
-                    <td>${escapeHtml(paceCurrent)}</td>
-                    <td>${escapeHtml(endCurrent)}</td>
-                </tr>
-            </tbody>
-        </table>`;
+        <div class="text-muted" title="${escapeHtml(tooltip)}">${escapeHtml(main.join(' · '))}${editWantsButton(member, canEdit)}</div>
+        ${notes.length ? `<div class="text-muted">${escapeHtml(notes.join(' · '))}</div>` : ''}`;
 }
 
 // ---- Leg row duration -------------------------------------------------------
@@ -189,7 +196,7 @@ export function renderLegBadges(state) {
 
     document.querySelectorAll('[data-metrics-mount="member"]').forEach((mountEl) => {
         const membershipId = mountEl.dataset.membershipId;
-        renderMemberTable(mountEl, membersById.get(membershipId), memberMetrics[membershipId], !!state.canEdit);
+        renderMemberSummary(mountEl, membersById.get(membershipId), memberMetrics[membershipId], !!state.canEdit);
     });
 
     document.querySelectorAll('[data-metrics-mount="leg"]').forEach((mountEl) => {
