@@ -1,6 +1,7 @@
 import datetime
 import logging
 import hashlib
+from urllib.parse import urlsplit
 from flask import Blueprint, request, redirect, render_template, abort, session, url_for
 from flask_login import login_user, logout_user, login_required, current_user
 from app.models import db, User, OAuthProvider, UserRole
@@ -8,6 +9,20 @@ from app.config import Config, OAUTH_PROVIDERS
 from app.security import limiter
 
 auth = Blueprint('auth', __name__)
+
+
+def safe_next_url(next_url):
+    """Return ``next_url`` if it's a path on this site, else None.
+
+    A bare ``startswith('/')`` isn't enough: ``//evil.com`` and ``/\\evil.com``
+    both start with a slash, and browsers treat them as other hosts.
+    """
+    if not next_url or not next_url.startswith('/') or '\\' in next_url:
+        return None
+    parsed = urlsplit(next_url)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return next_url
 
 
 def get_gravatar_url(email, size=200, default='identicon'):
@@ -116,17 +131,20 @@ def oauth_callback(provider):
                 name = user_info.get('name')
                 avatar_url = user_info.get('picture')
                 provider_id = str(user_info.get('sub'))
+                email_verified = user_info.get('email_verified') is True
         elif provider == OAuthProvider.GITHUB.value:
             # Get user info from GitHub API
             resp = client.get('user', token=token)
             user_info = resp.json()
 
-            # Get primary email from GitHub API
+            # Use the primary email if GitHub has verified it, else any verified
+            # one. The profile's public `email` field isn't necessarily verified.
             email_resp = client.get('user/emails', token=token)
-            emails = email_resp.json()
-            primary_email = next((e['email'] for e in emails if e['primary']), None)
+            verified = [e for e in email_resp.json() if e.get('verified')]
+            primary_email = next((e['email'] for e in verified if e.get('primary')), None)
 
-            email = primary_email or user_info.get('email')
+            email = primary_email or next((e['email'] for e in verified), None)
+            email_verified = email is not None
             name = user_info.get('name') or user_info.get('login')
             avatar_url = user_info.get('avatar_url')
             provider_id = str(user_info.get('id'))
@@ -136,6 +154,10 @@ def oauth_callback(provider):
             user_info = resp.json()
 
             email = user_info.get('mail') or user_info.get('userPrincipalName')
+            # Neither field is verified: on the multi-tenant endpoint, any
+            # tenant's admin can set `mail` to an arbitrary address. Fine for
+            # contact purposes, but never enough to grant a role.
+            email_verified = False
             name = user_info.get('displayName')
             provider_id = str(user_info.get('id'))
 
@@ -188,17 +210,15 @@ def oauth_callback(provider):
                 'name': name,
                 'avatar_url': final_avatar_url,
                 'provider': provider,
-                'provider_id': provider_id
+                'provider_id': provider_id,
+                'email_verified': email_verified,
             }
 
             # Redirect to account creation confirmation page
             return redirect(url_for('auth.confirm_account_creation'))
 
         # Redirect to the original page from session or to index
-        next_page = session.pop('next_url', None)
-
-        if not next_page or not next_page.startswith('/'):
-            next_page = url_for('main.index')
+        next_page = safe_next_url(session.pop('next_url', None)) or url_for('main.index')
         return redirect(next_page)
 
     except Exception as e:
@@ -213,10 +233,7 @@ def oauth_callback(provider):
 def login():
     # If user is already logged in, redirect to next page or index
     if current_user.is_authenticated:
-        next_page = request.args.get('next')
-        if next_page and next_page.startswith('/'):
-            return redirect(next_page)
-        return redirect(url_for('main.index'))
+        return redirect(safe_next_url(request.args.get('next')) or url_for('main.index'))
 
     error = request.args.get('error')
     error_messages = {
@@ -268,13 +285,15 @@ def create_account():
 
     # Create new user. Role is decided once, at creation -- ADMIN_EMAIL takes
     # precedence over MANAGER_EMAILS (moot in practice, but an address
-    # listed in both should end up ADMIN, the higher tier).
-    if pending_user['email'] == Config.ADMIN_EMAIL:
-        role = UserRole.ADMIN
-    elif pending_user['email'] in Config.MANAGER_EMAILS:
-        role = UserRole.MANAGER
-    else:
-        role = UserRole.PARTICIPANT
+    # listed in both should end up ADMIN, the higher tier). Only an email the
+    # provider verified counts; anyone else gets promoted from the admin board.
+    role = UserRole.PARTICIPANT
+    if pending_user.get('email_verified'):
+        email = pending_user['email'].lower()
+        if email == Config.ADMIN_EMAIL.lower():
+            role = UserRole.ADMIN
+        elif email in {e.lower() for e in Config.MANAGER_EMAILS}:
+            role = UserRole.MANAGER
 
     user = User(
         email=pending_user['email'],
@@ -289,9 +308,7 @@ def create_account():
     login_user(user)
 
     # Redirect to the original page from session or to index
-    next_page = session.pop('next_url', None)
-    if not next_page or not next_page.startswith('/'):
-        next_page = url_for('main.index')
+    next_page = safe_next_url(session.pop('next_url', None)) or url_for('main.index')
     return redirect(next_page)
 
 
