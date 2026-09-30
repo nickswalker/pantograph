@@ -228,7 +228,7 @@ export class LegSolverUI {
 
             case 'error':
             default:
-                api.showBanner(`Optimize remaining hit an error: ${escapeHtml(result.message || 'unknown error')}`, 'danger');
+                api.showBanner(`Optimize remaining hit an error: ${result.message || 'unknown error'}`, 'danger');
                 break;
         }
     }

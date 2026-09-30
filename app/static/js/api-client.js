@@ -124,7 +124,13 @@ export class ApiClient {
         button.disabled = false;
     }
 
-    // Alert management
+    // Alert management. Every helper below renders `message` as plain text:
+    // messages often echo team/user names and photo filenames, which are
+    // user-controlled and must never be parsed as HTML.
+    _setAlertMessage(el, message) {
+        el.querySelector('.js-alert-message').textContent = message ?? '';
+    }
+
     showAlert(container, type, message, icon = null) {
         if (typeof container === 'string') {
             container = document.getElementById(container);
@@ -135,9 +141,10 @@ export class ApiClient {
         const iconHtml = icon ? `<ion-icon name="${icon}" class="me-2"></ion-icon>` : '';
         container.innerHTML = `
             <div class="alert alert-${type}" role="alert">
-                ${iconHtml}${message}
+                ${iconHtml}<span class="js-alert-message"></span>
             </div>
         `;
+        this._setAlertMessage(container, message);
     }
 
     clearAlerts(container) {
@@ -163,10 +170,11 @@ export class ApiClient {
 
         banner.innerHTML = `
             <div class="alert alert-${type} alert-dismissible mb-0" role="alert">
-                ${message}
+                <span class="js-alert-message"></span>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         `;
+        this._setAlertMessage(banner, message);
     }
 
     // Feedback scoped to a modal that's still open (e.g. a failed confirm action).
@@ -187,10 +195,11 @@ export class ApiClient {
         }
         alertEl.innerHTML = `
             <div class="alert alert-${type} alert-dismissible" role="alert">
-                ${message}
+                <span class="js-alert-message"></span>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         `;
+        this._setAlertMessage(alertEl, message);
     }
 
     clearModalAlert(modal) {
@@ -215,11 +224,12 @@ export class ApiClient {
         alertRow.innerHTML = `
             <td colspan="${row.children.length}" class="p-0">
                 <div class="alert alert-${type} alert-dismissible m-2 mb-2" role="alert">
-                    ${message}
+                    <span class="js-alert-message"></span>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             </td>
         `;
+        this._setAlertMessage(alertRow, message);
         row.after(alertRow);
     }
 
