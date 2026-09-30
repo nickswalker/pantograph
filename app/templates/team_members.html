@@ -127,13 +127,13 @@
                                             <ul class="dropdown-menu">
                                                 {% if current_user.is_captain_of(team) %}
                                                 <li>
-                                                    <button class="dropdown-item" onclick="transferCaptaincy(this, '{{ team.id }}', '{{ membership.user_id }}', '{{ membership.user.name }}')">
+                                                    <button class="dropdown-item" onclick="transferCaptaincy(this, {{ (team.id)|tojson|forceescape }}, {{ (membership.user_id)|tojson|forceescape }}, {{ (membership.user.name)|tojson|forceescape }})">
                                                         <ion-icon name="crown-outline" class="me-2"></ion-icon>Make Captain
                                                     </button>
                                                 </li>
                                                 {% endif %}
                                                 <li>
-                                                    <button class="dropdown-item text-danger" onclick="removeMember(this, '{{ membership.user_id }}', '{{ membership.user.name }}')">
+                                                    <button class="dropdown-item text-danger" onclick="removeMember(this, {{ (membership.user_id)|tojson|forceescape }}, {{ (membership.user.name)|tojson|forceescape }})">
                                                         <ion-icon name="person-remove-outline" class="me-2"></ion-icon>Remove
                                                     </button>
                                                 </li>
@@ -340,14 +340,14 @@
                                         </div>
                                         <div class="flex-shrink-0">
                                             {% if team.status == TeamStatus.CLOSED %}
-                                            <button class="btn btn-outline-success" onclick="reopenTeam('{{ team.name }}', '{{ team.id }}')">
+                                            <button class="btn btn-outline-success" onclick="reopenTeam({{ (team.name)|tojson|forceescape }}, {{ (team.id)|tojson|forceescape }})">
                                                 <div class="d-flex align-items-center gap-2">
                                                     <ion-icon name="lock-open-outline"></ion-icon>
                                                     <span>Reopen Team</span>
                                                 </div>
                                             </button>
                                             {% else %}
-                                            <button class="btn btn-outline-secondary" onclick="closeTeam('{{ team.name }}', '{{ team.id }}')">
+                                            <button class="btn btn-outline-secondary" onclick="closeTeam({{ (team.name)|tojson|forceescape }}, {{ (team.id)|tojson|forceescape }})">
                                                 Close Team
                                             </button>
                                             {% endif %}
@@ -473,18 +473,18 @@
                                 </div>
                                 <div class="flex-shrink-0">
                                     {% if team.status == TeamStatus.WITHDRAWN %}
-                                    <button class="btn btn-outline-success" onclick="unwithdrawTeam('{{ team.name }}', '{{ team.id }}')">
+                                    <button class="btn btn-outline-success" onclick="unwithdrawTeam({{ (team.name)|tojson|forceescape }}, {{ (team.id)|tojson|forceescape }})">
                                         Un-withdraw {% if team.format == TeamFormat.SOLO %}Entry{% else %}Team{% endif %}
                                     </button>
                                     {% elif team.status == TeamStatus.PENDING %}
-                                    <button class="btn btn-outline-danger" onclick="cancelTeam('{{ team.name }}', '{{ team.id }}')">
+                                    <button class="btn btn-outline-danger" onclick="cancelTeam({{ (team.name)|tojson|forceescape }}, {{ (team.id)|tojson|forceescape }})">
                                         <div class="d-flex align-items-center gap-2">
                                             <ion-icon name="close-circle-outline"></ion-icon>
                                             <span>Cancel {% if team.format == TeamFormat.SOLO %}Entry{% else %}Team{% endif %}</span>
                                         </div>
                                     </button>
                                     {% else %}
-                                    <button class="btn btn-outline-warning" onclick="withdrawTeam('{{ team.name }}', '{{ team.id }}')">
+                                    <button class="btn btn-outline-warning" onclick="withdrawTeam({{ (team.name)|tojson|forceescape }}, {{ (team.id)|tojson|forceescape }})">
                                         Withdraw {% if team.format == TeamFormat.SOLO %}Entry{% else %}Team{% endif %}
                                     </button>
                                     {% endif %}

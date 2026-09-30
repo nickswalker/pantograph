@@ -137,7 +137,7 @@
                         <hr class="dropdown-divider">
                     </li>
                     <li><a class="dropdown-item text-danger" href="#"
-                           onclick="confirmDeleteOwnAccount('{{current_user.id}}')">
+                           onclick="confirmDeleteOwnAccount({{ (current_user.id)|tojson|forceescape }})">
                         <ion-icon name="trash-outline" class=""></ion-icon>
                         Delete Account
                     </a></li>

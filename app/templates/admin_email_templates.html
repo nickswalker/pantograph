@@ -32,7 +32,7 @@
                             <ion-icon name="eye-outline" class="me-1"></ion-icon>
                             Preview Template
                         </a>
-                        <button class="btn btn-outline-success" onclick="sendTestEmail('{{ template.name }}', '{{ template.display }}')">
+                        <button class="btn btn-outline-success" onclick="sendTestEmail({{ (template.name)|tojson|forceescape }}, {{ (template.display)|tojson|forceescape }})">
                             <ion-icon name="mail-outline" class="me-1"></ion-icon>
                             Send Test Email
                         </button>

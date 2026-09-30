@@ -254,7 +254,7 @@
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                             {% if mode == 'edit' %}
                                 {% if existing_membership and existing_membership.status == TeamMembershipStatus.WITHDRAWN %}
-                                <button type="button" class="btn btn-success" id="unwithdraw-btn" onclick="unwithdrawMembership('{{ existing_membership.user.id }}')">
+                                <button type="button" class="btn btn-success" id="unwithdraw-btn" onclick="unwithdrawMembership({{ (existing_membership.user.id)|tojson|forceescape }})">
                                     Re-join Team
                                 </button>
                                 {% elif not is_form_disabled %}
@@ -262,7 +262,7 @@
                                         {% if existing_membership.status == TeamMembershipStatus.REMOVED %}
                                         <!-- No buttons for removed users - they need to join a different team -->
                                         {% else %}
-                                        <button type="button" class="btn btn-outline-warning me-md-2" onclick="withdrawMembership('{{ existing_membership.user.id }}')">
+                                        <button type="button" class="btn btn-outline-warning me-md-2" onclick="withdrawMembership({{ (existing_membership.user.id)|tojson|forceescape }})">
                                             Withdraw from Team
                                         </button>
                                         <button type="submit" class="btn btn-primary" id="submit-btn">

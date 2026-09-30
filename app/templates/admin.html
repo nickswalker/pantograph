@@ -131,7 +131,7 @@
                                             <span class="text-secondary">{{ team.batons_to_purchase }} to buy</span>
                                         {% endif %}
                                         {% if current_user.is_admin %}
-                                        <button class="btn btn-link" onclick="openEditBatonSerialModal('{{ team.id }}', '{{ team.name }}', '{{ team.baton_serial or '' }}', '{{ team.previous_baton_serial or '' }}', '{{ team.baton_serial_2 or '' }}', '{{ team.previous_baton_serial_2 or '' }}', {{ team.batons_required }})">
+                                        <button class="btn btn-link" onclick="openEditBatonSerialModal({{ (team.id)|tojson|forceescape }}, {{ (team.name)|tojson|forceescape }}, {{ (team.baton_serial or '')|tojson|forceescape }}, {{ (team.previous_baton_serial or '')|tojson|forceescape }}, {{ (team.baton_serial_2 or '')|tojson|forceescape }}, {{ (team.previous_baton_serial_2 or '')|tojson|forceescape }}, {{ team.batons_required }})">
                                             <ion-icon name="create-outline"></ion-icon>
                                         </button>
                                         {% endif %}
@@ -154,24 +154,24 @@
                                             </button>
                                             <ul class="dropdown-menu">
                                                 {% if can_approve %}
-                                                <li><a class="dropdown-item text-success" href="#" onclick="approveTeam(this, '{{ team.name }}', '{{ team.id }}')">
+                                                <li><a class="dropdown-item text-success" href="#" onclick="approveTeam(this, {{ (team.name)|tojson|forceescape }}, {{ (team.id)|tojson|forceescape }})">
                                                     <ion-icon name="checkmark-outline" class="me-2"></ion-icon>Approve
                                                 </a></li>
-                                                <li><a class="dropdown-item text-warning" href="#" onclick="confirmCancelTeam('{{ team.name }}', '{{ team.id }}')">
+                                                <li><a class="dropdown-item text-warning" href="#" onclick="confirmCancelTeam({{ (team.name)|tojson|forceescape }}, {{ (team.id)|tojson|forceescape }})">
                                                     <ion-icon name="ban-outline" class="me-2"></ion-icon>Cancel
                                                 </a></li>
-                                                <li><a class="dropdown-item text-info" href="#" onclick="sendPaymentReminder('{{ team.name }}', '{{ team.id }}')">
+                                                <li><a class="dropdown-item text-info" href="#" onclick="sendPaymentReminder({{ (team.name)|tojson|forceescape }}, {{ (team.id)|tojson|forceescape }})">
                                                     <ion-icon name="mail-outline" class="me-2"></ion-icon>Send Payment Reminder
                                                 </a></li>
                                                 {% endif %}
                                                 {% if can_withdraw %}
-                                                <li><a class="dropdown-item text-warning" href="#" onclick="withdrawTeam(this, '{{ team.name }}', '{{ team.id }}')">
+                                                <li><a class="dropdown-item text-warning" href="#" onclick="withdrawTeam(this, {{ (team.name)|tojson|forceescape }}, {{ (team.id)|tojson|forceescape }})">
                                                     <ion-icon name="close-outline" class="me-2"></ion-icon>Withdraw
                                                 </a></li>
                                                 {% endif %}
                                                 {% if can_delete %}
                                                 {% if can_approve or can_withdraw %}<li><hr class="dropdown-divider"></li>{% endif %}
-                                                <li><a class="dropdown-item text-danger" href="#" onclick="confirmDeleteTeam('{{ team.name }}', '{{ team.id }}')">
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="confirmDeleteTeam({{ (team.name)|tojson|forceescape }}, {{ (team.id)|tojson|forceescape }})">
                                                     <ion-icon name="trash-outline" class="me-2"></ion-icon>Delete
                                                 </a></li>
                                                 {% endif %}
@@ -285,12 +285,12 @@
                                                 {# Admins are set by ADMIN_EMAIL, and nobody edits their own role -- so
                                                    neither case gets a role item at all. #}
                                                 {% if not user.is_admin and user.id != current_user.id %}
-                                                <li><a class="dropdown-item" href="#" onclick="setUserRole('{{ user.id }}', '{{ user.name }}', '{{ 'participant' if user.is_manager else 'manager' }}')">
+                                                <li><a class="dropdown-item" href="#" onclick="setUserRole({{ (user.id)|tojson|forceescape }}, {{ (user.name)|tojson|forceescape }}, {{ ('participant' if user.is_manager else 'manager')|tojson|forceescape }})">
                                                     <ion-icon name="{{ 'person-remove-outline' if user.is_manager else 'ribbon-outline' }}" class="me-2"></ion-icon>{{ 'Revoke Manager' if user.is_manager else 'Make Manager' }}
                                                 </a></li>
                                                 <li><hr class="dropdown-divider"></li>
                                                 {% endif %}
-                                                <li><a class="dropdown-item text-danger" href="#" onclick="confirmDeleteUser('{{ user.name }}', '{{ user.id }}')">
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="confirmDeleteUser({{ (user.name)|tojson|forceescape }}, {{ (user.id)|tojson|forceescape }})">
                                                     <ion-icon name="trash-outline" class="me-2"></ion-icon>Delete User
                                                 </a></li>
                                             </ul>
