@@ -119,7 +119,13 @@ def oauth_callback(provider):
 
         if not received_state or received_state != expected_state:
             logging.error(f"OAuth state mismatch for provider {provider}. Expected: {expected_state}, Received: {received_state}")
-            logging.warning(f"Request scheme: {request.scheme}, headers: {dict(request.headers)}")
+            # Just what's needed to debug proxy/HTTPS setup -- never the full
+            # headers, which carry the session cookie.
+            logging.warning(
+                f"Request scheme: {request.scheme}, host: {request.host}, "
+                f"X-Forwarded-Proto: {request.headers.get('X-Forwarded-Proto')}, "
+                f"X-Forwarded-Host: {request.headers.get('X-Forwarded-Host')}"
+            )
             return redirect(url_for('auth.login', error='auth_failed'))
 
         token = client.authorize_access_token()

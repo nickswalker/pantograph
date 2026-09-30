@@ -277,6 +277,26 @@ def team_legs(team_id, team):
                          max_preferred_miles=max_preferred_miles(team.lines))
 
 
+# Leading characters a spreadsheet treats as the start of a formula.
+_FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
+
+
+def _spreadsheet_safe(value):
+    """Neutralize a cell that Excel/Sheets would otherwise run as a formula.
+
+    Names and comments are member-supplied, so something like
+    ``=HYPERLINK(...)`` must reach the captain as text. The leading quote
+    is the standard escape; spreadsheets hide it.
+    """
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
+def _export_filename(team, extension):
+    return f"{secure_filename(team.name) or 'team'}_members.{extension}"
+
+
 def _export_members_data(team, format_type='csv'):
     """Helper function to export team member data in CSV or TSV format"""
     # Get active team memberships
@@ -302,7 +322,7 @@ def _export_members_data(team, format_type='csv'):
         user = membership.user
         pace_formatted = format_mm_ss_from_seconds(membership.planned_pace_seconds) if membership.planned_pace_seconds else ''
 
-        writer.writerow({
+        row = {
             'name': user.name,
             'email': user.email,
             'preferred_miles': str(membership.preferred_miles) if membership.preferred_miles else '',
@@ -315,7 +335,8 @@ def _export_members_data(team, format_type='csv'):
             'adjustment_note': (
                 membership.preference_override.note if membership.preference_override else ''
             ) or '',
-        })
+        }
+        writer.writerow({key: _spreadsheet_safe(value) for key, value in row.items()})
 
     output.seek(0)
     return output.getvalue()
@@ -326,7 +347,7 @@ def _export_members_data(team, format_type='csv'):
 def export_members_csv(team_id, team):
     """Export team member preferences as CSV (captain or admin only)"""
     content = _export_members_data(team, 'csv')
-    filename = f"{team.name.replace(' ', '_')}_members.csv"
+    filename = _export_filename(team, 'csv')
 
     return Response(
         content,
@@ -340,7 +361,7 @@ def export_members_csv(team_id, team):
 def export_members_tsv(team_id, team):
     """Export team member preferences as TSV (captain or admin only)"""
     content = _export_members_data(team, 'tsv')
-    filename = f"{team.name.replace(' ', '_')}_members.tsv"
+    filename = _export_filename(team, 'tsv')
 
     return Response(
         content,
