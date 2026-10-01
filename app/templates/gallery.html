@@ -612,7 +612,7 @@ map.on('zoom', () => {
     updateThumbnailSizes(map.getZoom());
 });
 
-// Every station on the course (not just this team's photos), so the map can
+// Every station on this team's course (not just where it has photos), so the map can
 // label exchanges regardless of whether anyone has uploaded a photo there.
 const exchangeStations = [
   {% for exchange in exchange_points %}

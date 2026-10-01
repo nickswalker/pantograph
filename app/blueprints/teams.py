@@ -64,11 +64,13 @@ def _course_exchange_ids(team):
     return list(ordered)
 
 
-def _exchange_map_points():
-    """Every course exchange with what the gallery map draws for it.
+def _exchange_map_points(team):
+    """The team's own course exchanges with what the gallery map draws for
+    each -- a 1 Line team's map doesn't dot 2 Line-only stations.
     """
     from app.services.course_service import line_codes, station_code
 
+    course_ids = set(_course_exchange_ids(team))
     return [
         {
             'id': str(exchange_id),
@@ -79,6 +81,7 @@ def _exchange_map_points():
             'lng': data['longitude'],
         }
         for exchange_id, data in load_exchange_points().items()
+        if str(exchange_id) in course_ids
     ]
 
 
@@ -156,7 +159,7 @@ def gallery(team_id, team):
         })
 
     return render_template('gallery.html', team=team, images=image_data, team_id=team_id,
-                           exchange_names=exchange_names, exchange_points=_exchange_map_points(),
+                           exchange_names=exchange_names, exchange_points=_exchange_map_points(team),
                            course_exchange_ids=_course_exchange_ids(team))
 
 
@@ -195,7 +198,7 @@ def public_gallery(gallery_hash):
         })
 
     return render_template('gallery.html', team=team, images=image_data, gallery_hash=gallery_hash,
-                           exchange_names=exchange_names, exchange_points=_exchange_map_points())
+                           exchange_names=exchange_names, exchange_points=_exchange_map_points(team))
 
 
 @teams.route('/<team_id>/members')
