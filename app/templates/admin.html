@@ -93,6 +93,11 @@
                                         <a href="{{ url_for('teams.team_members', team_id=team.id) }}" target="_blank" class="text-decoration-none">
                                             {{ team.member_count }}
                                         </a>
+                                        {% if legs_enabled and team.format == TeamFormat.TEAM %}
+                                        <a href="{{ url_for('teams.team_legs', team_id=team.id) }}" target="_blank" class="text-decoration-none ms-1" title="Leg assignments">
+                                            <ion-icon name="git-network-outline" style="font-size: 14px;"></ion-icon>
+                                        </a>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if current_user.is_admin %}
