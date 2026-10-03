@@ -94,6 +94,18 @@ def _line_start_exchanges():
     return starts
 
 
+def _merge_exchange():
+    """The exchange where the lines' branches join, or None if they never do.
+
+    It is the one exchange more than one leg ends at. An Interline team
+    arrives there twice, once per branch, and carries on as one.
+    """
+    from app.services.course_service import legs_for
+
+    ends = [leg['end_exchange'] for leg in legs_for()]
+    return next((str(e) for e in ends if ends.count(e) > 1), None)
+
+
 # Which of _line_start_exchanges() a team starts from.
 _LINE_CODES = {TeamLines.ONE: ('1',), TeamLines.TWO: ('2',), TeamLines.BOTH: ('1', '2')}
 
@@ -110,6 +122,7 @@ def _build_results():
     minimum_time = Config.EVENT_START_TIME.astimezone(datetime.UTC).replace(tzinfo=None)
     maximum_time = minimum_time + datetime.timedelta(hours=16)
     line_starts = _line_start_exchanges()
+    merge_exchange = _merge_exchange()
 
     for team in teams:
         start_exchange_ids = {line_starts[code] for code in _LINE_CODES[team.lines]}
@@ -126,6 +139,12 @@ def _build_results():
             'exchangeTimes': {},
             'observations': {}
         }
+        # An Interline team reaches the merge exchange once per branch.
+        # exchangeTimes keeps the later arrival like anywhere else; the first
+        # accepted photo there is held back to report the earlier one too.
+        first_at_merge = None
+        if team.lines == TeamLines.BOTH:
+            team_data['earlierArrivals'] = {}
         images = Image.query.filter_by(team_id=team.id).order_by(Image.capture_time).all()
         for img in images:
             # A manual correction wins over the automatic GPS association,
@@ -154,6 +173,10 @@ def _build_results():
                     'uploadedAt': img.upload_time.replace(tzinfo=datetime.UTC).isoformat(),
                 }
 
+                if (first_at_merge is None and 'earlierArrivals' in team_data
+                        and img_exchange_id == merge_exchange):
+                    first_at_merge = img
+
                 # Track the latest upload time across all images used in results
                 if latest_upload_time is None or img.upload_time > latest_upload_time:
                     latest_upload_time = img.upload_time
@@ -161,6 +184,14 @@ def _build_results():
         for exchange_id in team_data['exchangeTimes']:
             team_data['exchangeTimes'][exchange_id] -= Config.EVENT_START_TIME.astimezone(datetime.UTC).replace(tzinfo=None)
             team_data['exchangeTimes'][exchange_id] = int(team_data['exchangeTimes'][exchange_id].total_seconds())
+        # Only an earlier arrival if a later photo went on to take the split.
+        if first_at_merge is not None and (
+                first_at_merge.capture_time - minimum_time).total_seconds() < team_data['exchangeTimes'][merge_exchange]:
+            team_data['earlierArrivals'][merge_exchange] = {
+                'time': int((first_at_merge.capture_time - minimum_time).total_seconds()),
+                'capturedAt': first_at_merge.capture_time.replace(tzinfo=datetime.UTC).isoformat(),
+                'uploadedAt': first_at_merge.upload_time.replace(tzinfo=datetime.UTC).isoformat(),
+            }
         results.append(team_data)
 
     # Every team starts at the same time; per line, `starts` also says where.
@@ -173,6 +204,8 @@ def _build_results():
             **{code: {'time': start_time, 'exchange': exchange_id}
                for code, exchange_id in line_starts.items()},
         },
+        # Where the branches join; Interline rows may carry `earlierArrivals` for it.
+        'merge': {'exchange': merge_exchange},
         'results': results,
         'lastUpdated': latest_upload_time.replace(tzinfo=datetime.UTC).isoformat() if latest_upload_time else None,
     }

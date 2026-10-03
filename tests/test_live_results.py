@@ -64,3 +64,53 @@ def test_results_are_cached_for_the_configured_window(app, client, seeded):
     fresh = client.get('/results.json', headers={'If-None-Match': first.headers['ETag']})
     assert fresh.status_code == 200
     assert 'manual' in next(r for r in fresh.json['results'] if r['name'] == 'Test Team')['exchangeTimes']
+
+
+def _put_both_photos_at_merge(app, seeded, lines):
+    """Place the seeded team's two photos (an hour in, and five minutes
+    later) at the exchange where the branches join."""
+    from app.blueprints.main import _merge_exchange
+    from app.models import Image, Team, db
+    with app.app_context():
+        merge = _merge_exchange()
+        db.session.get(Team, seeded['team_id']).lines = lines
+        first = db.session.get(Image, seeded['located_image_id'])
+        first.manual_exchange_id = merge
+        captured = first.capture_time.replace(tzinfo=datetime.UTC).isoformat()
+        for photo in Image.query.filter_by(team_id=seeded['team_id']):
+            photo.manual_exchange_id = merge
+        db.session.commit()
+    return merge, captured
+
+
+def test_interline_team_reports_both_arrivals_at_the_merge(app, client, seeded):
+    from app.models import TeamLines
+    merge, captured = _put_both_photos_at_merge(app, seeded, TeamLines.BOTH)
+    body = client.get('/results.json').json
+    row = next(row for row in body['results'] if row['name'] == 'Test Team')
+    assert body['merge'] == {'exchange': merge}
+    # The split is still the later photo; the earlier one rides alongside.
+    assert row['exchangeTimes'][merge] == 3900
+    assert row['earlierArrivals'][merge]['time'] == 3600
+    assert row['earlierArrivals'][merge]['capturedAt'] == captured
+
+
+def test_single_merge_photo_is_not_an_earlier_arrival(app, client, seeded):
+    from app.blueprints.main import _merge_exchange
+    from app.models import Image, Team, TeamLines, db
+    with app.app_context():
+        merge = _merge_exchange()
+        db.session.get(Team, seeded['team_id']).lines = TeamLines.BOTH
+        db.session.get(Image, seeded['located_image_id']).manual_exchange_id = merge
+        db.session.commit()
+    row = next(row for row in client.get('/results.json').json['results'] if row['name'] == 'Test Team')
+    assert row['exchangeTimes'][merge] == 3600
+    assert row['earlierArrivals'] == {}
+
+
+def test_single_line_team_has_no_earlier_arrivals(app, client, seeded):
+    from app.models import TeamLines
+    merge, _ = _put_both_photos_at_merge(app, seeded, TeamLines.ONE)
+    row = next(row for row in client.get('/results.json').json['results'] if row['name'] == 'Test Team')
+    assert row['exchangeTimes'][merge] == 3900
+    assert 'earlierArrivals' not in row
