@@ -1,6 +1,8 @@
 import datetime
+import hashlib
+import time
 
-from flask import Blueprint, render_template, current_app, send_from_directory, jsonify, make_response, app
+from flask import Blueprint, render_template, current_app, send_from_directory, jsonify, make_response, request, app
 from markupsafe import Markup
 import os
 
@@ -96,12 +98,8 @@ def _line_start_exchanges():
 _LINE_CODES = {TeamLines.ONE: ('1',), TeamLines.TWO: ('2',), TeamLines.BOTH: ('1', '2')}
 
 
-@main.route('/results.json')
-def results():
-    """
-    API endpoint to get times for each exchange based on uploaded images.
-    :return:
-    """
+def _build_results():
+    """Times for each exchange based on uploaded images, as a JSON-able dict."""
     # For each team, get the images, grouped by associated exchange
     from app.models import Team, Image
     teams = Team.query.filter(
@@ -125,7 +123,8 @@ def results():
             "teamSize": team_size,
             # '1 Line', '2 Line' or 'Interline'; which of `starts` apply.
             "lines": team.lines.value,
-            'exchangeTimes': {}
+            'exchangeTimes': {},
+            'observations': {}
         }
         images = Image.query.filter_by(team_id=team.id).order_by(Image.capture_time).all()
         for img in images:
@@ -149,6 +148,12 @@ def results():
                 else:
                     team_data['exchangeTimes'][img_exchange_id] = img.capture_time
 
+                # Keep original capture time: start splits may be clamped to the gun.
+                team_data['observations'][str(img_exchange_id)] = {
+                    'capturedAt': img.capture_time.replace(tzinfo=datetime.UTC).isoformat(),
+                    'uploadedAt': img.upload_time.replace(tzinfo=datetime.UTC).isoformat(),
+                }
+
                 # Track the latest upload time across all images used in results
                 if latest_upload_time is None or img.upload_time > latest_upload_time:
                     latest_upload_time = img.upload_time
@@ -160,7 +165,7 @@ def results():
 
     # Every team starts at the same time; per line, `starts` also says where.
     start_time = Config.EVENT_START_TIME.isoformat()
-    response = make_response(jsonify({
+    return {
         'starts' : {
             'main': {
                 'time': start_time,
@@ -169,15 +174,39 @@ def results():
                for code, exchange_id in line_starts.items()},
         },
         'results': results,
-        'lastUpdated': latest_upload_time.astimezone(datetime.UTC).replace(tzinfo=None).isoformat() if latest_upload_time else None,
-    }))
+        'lastUpdated': latest_upload_time.replace(tzinfo=datetime.UTC).isoformat() if latest_upload_time else None,
+    }
+
+
+@main.route('/results.json')
+def results():
+    """
+    API endpoint to get times for each exchange based on uploaded images.
+
+    Live-results pages poll this, so the rendered body is kept for
+    RESULTS_CACHE_SECONDS: however many viewers there are, the database is
+    read at most once per window. The cache is per process, which is all a
+    few seconds of staleness needs.
+    :return:
+    """
+    cache = current_app.extensions.setdefault('results_cache', {})
+    ttl = current_app.config['RESULTS_CACHE_SECONDS']
+    now = time.monotonic()
+    if ttl <= 0 or 'body' not in cache or now >= cache['expires']:
+        body = jsonify(_build_results()).get_data()
+        cache.update(body=body, etag=hashlib.sha256(body).hexdigest()[:16], expires=now + ttl)
+
+    response = current_app.response_class(cache['body'], mimetype='application/json')
+
+    response.headers['Cache-Control'] = 'no-cache'
+    response.set_etag(cache['etag'])
 
     # Add CORS headers
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
 
-    return response
+    return response.make_conditional(request)
 
 @main.route('/.well-known/microsoft-identity-association.json')
 def microsoft_identity_association():

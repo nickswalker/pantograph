@@ -43,7 +43,9 @@ def app(tmp_path, monkeypatch):
     from app.models import db
 
     flask_app = create_app()
-    flask_app.config.update(TESTING=True)
+    # Tests read /results.json straight after writing; see test_live_results
+    # for the cache itself.
+    flask_app.config.update(TESTING=True, RESULTS_CACHE_SECONDS=0)
 
     yield flask_app
 

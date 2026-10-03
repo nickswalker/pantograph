@@ -96,6 +96,10 @@ class Config:
     WORKER_POLL_INTERVAL = 30      # seconds between worker drains
     DIGEST_HOUR = 7               # local (event timezone) hour to send new-member digests
 
+    # How long /results.json is served from memory before being recomputed.
+    # Bounds how stale live results can be; 0 disables the cache.
+    RESULTS_CACHE_SECONDS = 5
+
     # Upload configuration
     UPLOAD_FOLDER = './uploads'
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
